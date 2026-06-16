@@ -1,0 +1,45 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.17.2/.schema/devbox.schema.json",
+  "packages": [
+    "python@3.12",
+    "uv@latest",
+    "terraform@1.15.2",
+    "awscli2@2.34.24",
+    "jq@1.8.1",
+    "curl@latest",
+    "unzip@latest",
+    "gnumake@latest"
+  ],
+  "shell": {
+    "init_hook": [
+      "export AWS_NITRO_ROOT_CERT=\"$PWD/.cache/aws-nitro-root/AWS_NitroEnclaves_Root-G1.pem\"",
+      "export NITRO_CLI_BLOBS=\"${NITRO_CLI_BLOBS:-/usr/share/nitro_enclaves/blobs}\"",
+      "export NITRO_CLI_ARTIFACTS=\"${NITRO_CLI_ARTIFACTS:-/tmp/nitro-cli-artifacts}\"",
+      "uv sync",
+      "echo 'devbox ready: run `make py-check`, `make py-test`, or `make infra-urls`'"
+    ],
+    "scripts": {
+      "fmt": "make py-fmt infra-fmt",
+      "check": "make py-check infra-check",
+      "test": "make py-test",
+      "root-cert": "make nitro-root-cert",
+      "ec2:app-deploy": "make ec2-app-deploy",
+      "ec2:app-sync-deploy": "make ec2-app-sync-deploy",
+      "infra:init": "make infra-init",
+      "infra:plan": "make infra-plan",
+      "infra:deploy": "make infra-deploy",
+      "infra:destroy": "make infra-destroy",
+      "infra:state": "make infra-state",
+      "infra:urls": "make infra-urls",
+      "infra:ssh": "make infra-ssh",
+      "urls": "make infra-urls",
+      "client": "uv run nitro-client",
+      "ec2": "make ec2-server-run",
+      "enclave:docker-build": "make enclave-docker-build",
+      "enclave:eif-build": "make enclave-eif-build",
+      "enclave:run": "make enclave-run",
+      "enclave:stop": "make enclave-stop",
+      "enclave:describe": "make enclave-describe"
+    }
+  }
+}

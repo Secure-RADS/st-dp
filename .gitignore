@@ -1,0 +1,20 @@
+.cache/
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+
+# Build artifacts
+build/
+dist/
+
+# Enclave build output
+nitro-attestation-enclave.eif
+ec2-relay.log
+ec2-relay.pid

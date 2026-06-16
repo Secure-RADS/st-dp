@@ -1,0 +1,32 @@
+[project]
+name = "nitro-attestation-verifier"
+version = "0.1.0"
+description = "Python port of the AWS Nitro Enclaves remote attestation verifier reference implementation."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "cbor2>=5.6",
+    "cryptography>=42.0",
+]
+
+[project.scripts]
+nitro-client = "nitro_attestation.client:main"
+nitro-relay = "nitro_attestation.relay:main"
+nitro-enclave = "nitro_attestation.enclave:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/nitro_attestation"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
