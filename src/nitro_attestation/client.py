@@ -1,10 +1,3 @@
-"""Client-side attestation request and verification CLI.
-
-Python port of ``client/cmd/request/main.go``. Requests an attestation
-document from the EC2 relay with a fresh (or supplied) nonce, then verifies the
-AWS certificate chain, COSE signature, and nonce on the client side.
-"""
-
 from __future__ import annotations
 
 import argparse

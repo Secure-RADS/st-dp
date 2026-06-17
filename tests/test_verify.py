@@ -1,10 +1,3 @@
-"""End-to-end tests for attestation verification.
-
-These build a synthetic ECDSA P-384 certificate chain and a COSE_Sign1
-attestation document entirely offline, then exercise the real verification
-path. No enclave or NSM device is required.
-"""
-
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta

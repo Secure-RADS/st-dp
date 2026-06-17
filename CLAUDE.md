@@ -72,6 +72,10 @@ stays transparent and reviewable.
 
 Commits are part of the collaboration loop.
 
+- Keep commit messages small, natural, and human. Write a short plain subject
+  and add a body only when the "why" is not obvious. Avoid long, robotic, or
+  templated messages, exhaustive bullet dumps, and changelog-style padding.
+  Sound like a person describing the change, not a tool generating a report.
 - Do not commit initial agent changes automatically unless the user asks for a
   commit.
 - After the user reviews the current work and asks for changes, apply only that

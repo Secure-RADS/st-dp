@@ -1,10 +1,3 @@
-"""In-enclave NSM vsock attestation server.
-
-Python port of ``nitro-enclave/cmd/attestation/main.go``. Listens on a vsock
-port, reads a JSON request carrying a base64url nonce, asks the NSM for a fresh
-attestation document bound to that nonce, and returns it base64-encoded.
-"""
-
 from __future__ import annotations
 
 import base64

@@ -1,12 +1,3 @@
-"""Parent EC2 HTTP relay.
-
-Python port of ``ec2/cmd/server/main.go``. Runs on the parent EC2 instance,
-exposes a small HTTP API, and relays attestation requests to the enclave over
-vsock. The deployed request path is:
-
-    client -> EC2 HTTP relay -> vsock -> Nitro Enclave -> NSM attestation document
-"""
-
 from __future__ import annotations
 
 import base64

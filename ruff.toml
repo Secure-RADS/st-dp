@@ -51,10 +51,12 @@ ignore = [
     "EXE",
     "T10",
     "S",
+    # File-level (module/package) docstrings are intentionally not required.
     "D100",
     "D101",
     "D102",
     "D103",
+    # File-level (package) docstring not required.
     "D104",
     "D401",
     "D205",

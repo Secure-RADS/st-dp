@@ -1,10 +1,3 @@
-"""VSock helpers shared by the relay and the enclave server.
-
-Python equivalent of the ``vsock_linux.go`` / ``vsock_unsupported.go`` build
-tag pair: vsock is only available on Linux, so callers get a clear error on
-other platforms instead of an import failure.
-"""
-
 from __future__ import annotations
 
 import socket

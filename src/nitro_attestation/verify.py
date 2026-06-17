@@ -1,10 +1,3 @@
-"""Client-side AWS Nitro Enclaves attestation document verification.
-
-Python port of ``client/internal/attestation/verify.go``. Verifies the AWS
-certificate chain, the COSE_Sign1 signature, and the expected nonce, public
-key, user data, and PCR values carried by a Nitro attestation document.
-"""
-
 from __future__ import annotations
 
 import itertools

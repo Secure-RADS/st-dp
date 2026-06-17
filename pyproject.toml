@@ -1,8 +1,7 @@
 [project]
 name = "nitro-attestation-verifier"
 version = "0.1.0"
-description = "Python port of the AWS Nitro Enclaves remote attestation verifier reference implementation."
-readme = "README.md"
+description = "AWS Nitro Enclaves remote attestation verifier reference implementation."
 requires-python = ">=3.12"
 dependencies = [
     "cbor2>=5.6",

@@ -1,12 +1,3 @@
-"""Nitro Security Module (NSM) attestation document generation.
-
-Python port of ``nsm_linux.go`` / ``nsm_unsupported.go``. Inside a Nitro
-Enclave the attestation document is produced by the NSM device (``/dev/nsm``).
-This module binds the AWS ``libnsm`` C API via ctypes; when the shared library
-is not present (any non-enclave host), a fallback attester returns a clear
-error instead of failing at import time.
-"""
-
 from __future__ import annotations
 
 import ctypes

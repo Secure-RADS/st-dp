@@ -1,6 +1,6 @@
 # Build the AWS libnsm shared library used by the enclave to talk to /dev/nsm.
-# The original Go implementation linked a pure-Go NSM SDK; the Python port binds
-# the AWS libnsm C API via ctypes, so the library must be present in the image.
+# The enclave binds the AWS libnsm C API via ctypes, so the library must be
+# present in the image.
 FROM rust:1-slim AS libnsm
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
