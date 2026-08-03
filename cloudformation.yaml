@@ -1,0 +1,512 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Verifier + Submodule C (top of KMS) + Build Service stack
+
+Parameters:
+  DataCmkArn:
+    Type: String
+    Description: Existing data CMK.
+    Default: arn:aws:kms:ap-southeast-2:<Account_id>:key/<key_id>
+
+  EnclaveHostInstanceId:
+    Type: String
+    Description: EC2 instance id of the enclave host. The Build Service uses SSM Run-Command to drive builds there.
+    Default: <instance_id>
+
+  Issuer:
+    Type: String
+    Default: algorithm-enclave-verifier
+
+Resources:
+  # Per-record encrypted personal data store. Records are encrypted client-side
+  # with one of the source CMKs (selected by consent_spec_id) before insert.
+  PersonalDataTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: personal_data
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: ds_id
+          AttributeType: S
+        - AttributeName: consent_spec_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: ds_id
+          KeyType: HASH
+        - AttributeName: consent_spec_id
+          KeyType: RANGE
+
+  # Maps an algorithm to the data subject ids it is allowed to read.
+  # Used by the Processing module to find which records to fetch.
+  AlgorithmDataMappingTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: algorithm_data_mapping
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: algorithm_id
+          AttributeType: S
+        - AttributeName: ds_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: algorithm_id
+          KeyType: HASH
+        - AttributeName: ds_id
+          KeyType: RANGE
+
+  # Reference-value store. PK (algorithm_id, dc_id)
+  EnclaveRegistry:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: algorithm-enclave-registry-v2
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: algorithm_id
+          AttributeType: S
+        - AttributeName: dc_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: algorithm_id
+          KeyType: HASH
+        - AttributeName: dc_id
+          KeyType: RANGE
+
+  # Encrypts records collected under consent_spec_id 001 (logical source A).
+  SourceAKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: Source A (consent_spec_id 001) data encryption key
+      KeyUsage: ENCRYPT_DECRYPT
+      KeySpec: SYMMETRIC_DEFAULT
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowAccountRootAdmin
+            Effect: Allow
+            Principal: { AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root" }
+            Action: kms:*
+            Resource: "*"
+
+  SourceAKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: alias/algorithm-enclave-source-a
+      TargetKeyId: !Ref SourceAKey
+
+  # Encrypts records collected under consent_spec_id 002 (logical source B).
+  SourceBKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: Source B (consent_spec_id 002) data encryption key
+      KeyUsage: ENCRYPT_DECRYPT
+      KeySpec: SYMMETRIC_DEFAULT
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowAccountRootAdmin
+            Effect: Allow
+            Principal: { AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root" }
+            Action: kms:*
+            Resource: "*"
+
+  SourceBKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: alias/algorithm-enclave-source-b
+      TargetKeyId: !Ref SourceBKey
+
+  # Signs every EIF the Build Service produces. The Processing module
+  # verifies the signature before invoking nitro-cli run-enclave.
+  AlgorithmSigningKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: Algorithm Enclave - EIF signing key (RS256)
+      KeyUsage: SIGN_VERIFY
+      KeySpec: RSA_2048
+      EnableKeyRotation: false
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowAccountRootAdmin
+            Effect: Allow
+            Principal: { AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root" }
+            Action: kms:*
+            Resource: "*"
+
+  AlgorithmSigningKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: alias/algorithm-enclave-algorithm-signing
+      TargetKeyId: !Ref AlgorithmSigningKey
+
+  # Holds the EIFs produced by the Build Service plus their signatures.
+  AlgorithmImageBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "algorithm-image-store-${AWS::AccountId}-${AWS::Region}"
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
+  # Holds algorithm source code uploaded by the Build Service API before
+  # SSM hands it off to the build worker on the EC2.
+  AlgorithmStagingBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "algorithm-build-staging-${AWS::AccountId}-${AWS::Region}"
+      LifecycleConfiguration:
+        Rules:
+          - Status: Enabled
+            ExpirationInDays: 7
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
+  # Per-execution JSON result written by the run-enclave driver on EC2.
+  # The Processing /result handler reads from here.
+  AlgorithmResultBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "algorithm-execute-results-${AWS::AccountId}-${AWS::Region}"
+      LifecycleConfiguration:
+        Rules:
+          - Status: Enabled
+            ExpirationInDays: 30
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
+  VerifierSigningKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: Verifier - JWT signing key (RS256)
+      KeyUsage: SIGN_VERIFY
+      KeySpec: RSA_2048
+      EnableKeyRotation: false
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowAccountRootAdmin
+            Effect: Allow
+            Principal: { AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root" }
+            Action: kms:*
+            Resource: "*"
+
+  VerifierSigningKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: alias/algorithm-enclave-verifier-signing
+      TargetKeyId: !Ref VerifierSigningKey
+
+  EnclaveApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: $default
+
+  VerifierFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: algorithm-enclave-verifier
+      CodeUri: ./verifier/
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.12
+      Architectures: [x86_64]
+      MemorySize: 256
+      Timeout: 10
+      Environment:
+        Variables:
+          SIGNING_KEY_ID: !Ref VerifierSigningKey
+          ISSUER: !Ref Issuer
+          TOKEN_TTL_S: "300"
+          ENCLAVE_REGISTRY_TABLE: !Ref EnclaveRegistry
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action: [kms:Sign, kms:GetPublicKey, kms:DescribeKey]
+              Resource: !GetAtt VerifierSigningKey.Arn
+            - Effect: Allow
+              Action: [dynamodb:Scan, dynamodb:GetItem, dynamodb:PutItem]
+              Resource: !GetAtt EnclaveRegistry.Arn
+      Events:
+        Verify:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref EnclaveApi
+            Method: POST
+            Path: /verify
+        PubKey:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref EnclaveApi
+            Method: GET
+            Path: /pubkey
+        Register:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref EnclaveApi
+            Method: POST
+            Path: /register
+
+  SubmoduleCFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: algorithm-enclave-submodule-c
+      CodeUri: ./submodule_c/
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.12
+      Architectures: [x86_64]
+      MemorySize: 256
+      Timeout: 10
+      Environment:
+        Variables:
+          VERIFIER_SIGNING_KEY_ID: !Ref VerifierSigningKey
+          EXPECTED_ISSUER: !Ref Issuer
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action: kms:Decrypt
+              Resource:
+                - !Ref DataCmkArn
+                - !GetAtt SourceAKey.Arn
+                - !GetAtt SourceBKey.Arn
+            - Effect: Allow
+              Action: [kms:GetPublicKey, kms:DescribeKey]
+              Resource: !GetAtt VerifierSigningKey.Arn
+      Events:
+        Release:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref EnclaveApi
+            Method: POST
+            Path: /release
+
+  BuildServiceFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: algorithm-enclave-build-service
+      CodeUri: ./build_service/
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.12
+      Architectures: [x86_64]
+      MemorySize: 256
+      Timeout: 30
+      Environment:
+        Variables:
+          STAGING_BUCKET: !Ref AlgorithmStagingBucket
+          IMAGE_BUCKET: !Ref AlgorithmImageBucket
+          ENCLAVE_HOST_INSTANCE: !Ref EnclaveHostInstanceId
+          BUILD_DOCUMENT_NAME: !Ref BuildSsmDocument
+          ALGORITHM_SIGNING_KEY: !Ref AlgorithmSigningKey
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action: s3:PutObject
+              Resource: !Sub "${AlgorithmStagingBucket.Arn}/*"
+            - Effect: Allow
+              Action: ssm:SendCommand
+              Resource:
+                - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${EnclaveHostInstanceId}"
+                - !Sub "arn:aws:ssm:${AWS::Region}:*:document/${BuildSsmDocument}"
+            - Effect: Allow
+              Action: ssm:GetCommandInvocation
+              Resource: "*"
+      Events:
+        Build:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref EnclaveApi
+            Method: POST
+            Path: /build
+
+  # Holds the verifier /register URL. Kept in Parameter Store so the build
+  # worker can read it at runtime without the SSM document referencing
+  VerifierRegisterUrlParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /algorithm-enclave/verifier-register-url
+      Type: String
+      Value: !Sub "https://${EnclaveApi}.execute-api.${AWS::Region}.amazonaws.com/register"
+
+  # Hostname of the HttpApi. The run-enclave script reads this at runtime to
+  # know where vsock-proxy should forward verifier and submodule_c traffic.
+  # Same purpose as VerifierRegisterUrlParam
+  ApiHostParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /algorithm-enclave/api-host
+      Type: String
+      Value: !Sub "${EnclaveApi}.execute-api.${AWS::Region}.amazonaws.com"
+
+  ProcessingFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: algorithm-enclave-processing
+      CodeUri: ./processing/
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.12
+      Architectures: [x86_64]
+      MemorySize: 256
+      Timeout: 30
+      Environment:
+        Variables:
+          ENCLAVE_HOST_INSTANCE: !Ref EnclaveHostInstanceId
+          RUN_DOCUMENT_NAME: !Ref RunSsmDocument
+          RESULT_BUCKET: !Ref AlgorithmResultBucket
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action: ssm:SendCommand
+              Resource:
+                - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${EnclaveHostInstanceId}"
+                - !Sub "arn:aws:ssm:${AWS::Region}:*:document/${RunSsmDocument}"
+            - Effect: Allow
+              Action: ssm:GetCommandInvocation
+              Resource: "*"
+            - Effect: Allow
+              Action: s3:GetObject
+              Resource: !Sub "${AlgorithmResultBucket.Arn}/*"
+      Events:
+        Execute:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref EnclaveApi
+            Method: POST
+            Path: /execute
+        Result:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref EnclaveApi
+            Method: GET
+            Path: /result
+
+  # Drives nitro-cli run-enclave on the EC2. Same shape as BuildSsmDocument
+  # but kicks off the run worker instead of the build worker.
+  RunSsmDocument:
+    Type: AWS::SSM::Document
+    Properties:
+      Name: algorithm-enclave-run
+      DocumentType: Command
+      DocumentFormat: YAML
+      Content: !Sub |
+        schemaVersion: '2.2'
+        description: Launch a Nitro Enclave for an algorithm, decrypt mapped records, run, upload result.
+        parameters:
+          algorithmId:
+            type: String
+          dcId:
+            type: String
+          jobId:
+            type: String
+          dcPublicKeyPem:
+            type: String
+            default: "none"
+        mainSteps:
+          - action: aws:runShellScript
+            name: run
+            inputs:
+              runCommand:
+                - 'export IMAGE_BUCKET=${AlgorithmImageBucket}'
+                - 'export RESULT_BUCKET=${AlgorithmResultBucket}'
+                - 'export MAPPING_TABLE=${AlgorithmDataMappingTable}'
+                - 'export SIGNING_KEY=${AlgorithmSigningKey}'
+                - 'export API_HOST_PARAM=/algorithm-enclave/api-host'
+                - 'API_HOST=$(aws --region ap-southeast-2 ssm get-parameter --name "$API_HOST_PARAM" --query Parameter.Value --output text)'
+                - 'export VERIFIER_HOST="$API_HOST"'
+                - 'export SUBMODULE_C_HOST="$API_HOST"'
+                - 'sudo -u root --preserve-env=IMAGE_BUCKET,RESULT_BUCKET,MAPPING_TABLE,SIGNING_KEY,VERIFIER_HOST,SUBMODULE_C_HOST bash /home/ec2-user/NitroProject/services/run_worker/run_enclave.sh "{{algorithmId}}" "{{dcId}}" "{{dcPublicKeyPem}}" "{{jobId}}"'
+
+  # Drives nitro-cli build-enclave on the EC2. Parameters come from the
+  # Build Service Lambda via ssm:SendCommand. The script lives on the EC2
+  # at /home/ec2-user/NitroProject/services/build_worker/run_build.sh.
+  BuildSsmDocument:
+    Type: AWS::SSM::Document
+    Properties:
+      Name: algorithm-enclave-build
+      DocumentType: Command
+      DocumentFormat: YAML
+      Content: !Sub |
+        schemaVersion: '2.2'
+        description: Build a Nitro Enclave EIF for an algorithm, register PCRs, upload signed EIF.
+        parameters:
+          algorithmId:
+            type: String
+          dcId:
+            type: String
+          stagingKey:
+            type: String
+        mainSteps:
+          - action: aws:runShellScript
+            name: build
+            inputs:
+              runCommand:
+                - 'export STAGING_BUCKET=${AlgorithmStagingBucket}'
+                - 'export IMAGE_BUCKET=${AlgorithmImageBucket}'
+                - 'export SIGNING_KEY=${AlgorithmSigningKey}'
+                - 'export VERIFIER_URL_PARAM=/algorithm-enclave/verifier-register-url'
+                - 'sudo -u root --preserve-env=STAGING_BUCKET,IMAGE_BUCKET,SIGNING_KEY,VERIFIER_URL_PARAM bash /home/ec2-user/NitroProject/services/build_worker/run_build.sh "{{algorithmId}}" "{{dcId}}" "{{stagingKey}}"'
+
+Outputs:
+  ApiBaseUrl:
+    Value: !Sub "https://${EnclaveApi}.execute-api.${AWS::Region}.amazonaws.com"
+  VerifierUrl:
+    Value: !Sub "https://${EnclaveApi}.execute-api.${AWS::Region}.amazonaws.com/verify"
+  VerifierPubKeyUrl:
+    Value: !Sub "https://${EnclaveApi}.execute-api.${AWS::Region}.amazonaws.com/pubkey"
+  RegisterUrl:
+    Value: !Sub "https://${EnclaveApi}.execute-api.${AWS::Region}.amazonaws.com/register"
+  SubmoduleCUrl:
+    Value: !Sub "https://${EnclaveApi}.execute-api.${AWS::Region}.amazonaws.com/release"
+  BuildUrl:
+    Value: !Sub "https://${EnclaveApi}.execute-api.${AWS::Region}.amazonaws.com/build"
+  ExecuteUrl:
+    Value: !Sub "https://${EnclaveApi}.execute-api.${AWS::Region}.amazonaws.com/execute"
+  ResultUrl:
+    Value: !Sub "https://${EnclaveApi}.execute-api.${AWS::Region}.amazonaws.com/result"
+  AlgorithmResultBucket:
+    Value: !Ref AlgorithmResultBucket
+  SubmoduleCRoleArn:
+    Value: !GetAtt SubmoduleCFunctionRole.Arn
+  VerifierSigningKeyId:
+    Value: !Ref VerifierSigningKey
+  AlgorithmSigningKeyId:
+    Value: !Ref AlgorithmSigningKey
+  SourceAKeyId:
+    Value: !Ref SourceAKey
+  SourceBKeyId:
+    Value: !Ref SourceBKey
+  EnclaveRegistryTable:
+    Value: !Ref EnclaveRegistry
+  PersonalDataTable:
+    Value: !Ref PersonalDataTable
+  AlgorithmDataMappingTable:
+    Value: !Ref AlgorithmDataMappingTable
+  AlgorithmImageBucket:
+    Value: !Ref AlgorithmImageBucket
+  AlgorithmStagingBucket:
+    Value: !Ref AlgorithmStagingBucket
