@@ -1,5 +1,6 @@
 IMAGE := registry-service:latest
 STACK_NAME := csav
+STORAGE_STACK_NAME := registry-service-storage
 REGION ?= ap-south-1
 KEY_PATH := $(HOME)/.ssh/csav-key.pem
 REMOTE_DIR := /home/ec2-user/registry-service
@@ -10,8 +11,10 @@ REMOTE_HOST = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NA
 REMOTE = ec2-user@$(REMOTE_HOST)
 SSH := ssh -i $(KEY_PATH) $(REMOTE)
 SCP := scp -i $(KEY_PATH)
+ARTIFACT_BUCKET = $(shell aws cloudformation describe-stacks --stack-name $(STORAGE_STACK_NAME) --region $(REGION) \
+	--query "Stacks[0].Outputs[?OutputKey=='ArtifactBucketName'].OutputValue" --output text)
 
-.PHONY: build test run clean image ship remote-up remote-down logs
+.PHONY: build test run clean image ship remote-up remote-down logs deploy-storage destroy-storage upload
 
 build:
 	go build -o /tmp/registry-service .
@@ -20,7 +23,7 @@ test:
 	go test ./...
 
 run:
-	go run .
+	AWS_REGION=$(REGION) ARTIFACT_BUCKET=$(ARTIFACT_BUCKET) go run .
 
 clean:
 	rm -f /tmp/registry-service
@@ -46,3 +49,17 @@ remote-down:
 # Tail docker compose logs on the instance.
 logs:
 	$(SSH) "cd $(REMOTE_DIR) && sudo docker compose logs -f"
+
+# S3 bucket for uploaded OCI images. Independent of the csav EC2 stack.
+deploy-storage:
+	aws cloudformation deploy \
+		--template-file cloudformation.yaml \
+		--stack-name $(STORAGE_STACK_NAME) \
+		--region $(REGION)
+
+destroy-storage:
+	aws cloudformation delete-stack --stack-name $(STORAGE_STACK_NAME) --region $(REGION)
+
+# Send a local .tar as an OCI image upload: make upload FILE=path/to/image.tar
+upload:
+	curl -F "image=@$(FILE)" http://localhost:8080/upload
