@@ -2,26 +2,16 @@ import grp
 import json
 import os
 import pwd
-
-# Linux capability bit -> name, per include/uapi/linux/capability.h.
-CAPABILITIES = [
-    "CAP_CHOWN", "CAP_DAC_OVERRIDE", "CAP_DAC_READ_SEARCH", "CAP_FOWNER",
-    "CAP_FSETID", "CAP_KILL", "CAP_SETGID", "CAP_SETUID", "CAP_SETPCAP",
-    "CAP_LINUX_IMMUTABLE", "CAP_NET_BIND_SERVICE", "CAP_NET_BROADCAST",
-    "CAP_NET_ADMIN", "CAP_NET_RAW", "CAP_IPC_LOCK", "CAP_IPC_OWNER",
-    "CAP_SYS_MODULE", "CAP_SYS_RAWIO", "CAP_SYS_CHROOT", "CAP_SYS_PTRACE",
-    "CAP_SYS_PACCT", "CAP_SYS_ADMIN", "CAP_SYS_BOOT", "CAP_SYS_NICE",
-    "CAP_SYS_RESOURCE", "CAP_SYS_TIME", "CAP_SYS_TTY_CONFIG", "CAP_MKNOD",
-    "CAP_LEASE", "CAP_AUDIT_WRITE", "CAP_AUDIT_CONTROL", "CAP_SETFCAP",
-    "CAP_MAC_OVERRIDE", "CAP_MAC_ADMIN", "CAP_SYSLOG", "CAP_WAKE_ALARM",
-    "CAP_BLOCK_SUSPEND", "CAP_AUDIT_READ", "CAP_PERFMON", "CAP_BPF",
-    "CAP_CHECKPOINT_RESTORE",
-]
+import subprocess
 
 
 def decode_caps(hex_mask):
-    mask = int(hex_mask, 16)
-    return [name for i, name in enumerate(CAPABILITIES) if mask & (1 << i)]
+    # capsh knows the real capability set for this kernel/libcap - no hardcoded list to keep in sync.
+    out = subprocess.run(
+        ["capsh", "--decode=" + hex_mask], capture_output=True, text=True, check=True
+    ).stdout.strip()
+    names = out.split("=", 1)[1] if "=" in out else ""
+    return [n.upper() for n in names.split(",") if n]
 
 
 def read_status():
