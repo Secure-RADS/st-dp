@@ -12,6 +12,15 @@ Parameters:
     Type: AWS::EC2::KeyPair::KeyName
     Description: EC2 key pair for SSH access.
 
+  AppPort:
+    Type: Number
+    Default: 8080
+    Description: Port the registry-service app listens on, exposed publicly.
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC to launch the CSAV instance in (the account's default VPC).
+
   LatestAmiId:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
     Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64
@@ -21,6 +30,16 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security group for the CSAV instance.
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: !Ref AppPort
+          ToPort: !Ref AppPort
+          CidrIp: 0.0.0.0/0
       SecurityGroupEgress:
         - IpProtocol: "-1"
           CidrIp: 0.0.0.0/0
@@ -33,6 +52,12 @@ Resources:
       KeyName: !Ref KeyName
       SecurityGroupIds:
         - !Ref CsavSecurityGroup
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          dnf install -y docker docker-compose-plugin
+          systemctl enable --now docker
+          usermod -aG docker ec2-user
       Tags:
         - Key: Name
           Value: csav
