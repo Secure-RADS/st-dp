@@ -3,4 +3,7 @@ services:
     image: registry-service:latest
     ports:
       - "8080:8080"
+    environment:
+      - ARTIFACT_BUCKET=${ARTIFACT_BUCKET}
+      - AWS_REGION=${AWS_REGION}
     restart: unless-stopped
