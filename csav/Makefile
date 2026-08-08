@@ -3,6 +3,15 @@ KEY_NAME := csav-key
 KEY_PATH := $(HOME)/.ssh/$(KEY_NAME).pem
 REGION ?= ap-south-1
 
+# Lazily resolved (only hits AWS when a target that uses it actually runs).
+INSTANCE_ID = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
+	--query "Stacks[0].Outputs[?OutputKey=='CsavInstanceId'].OutputValue" --output text)
+INSTANCE_IP = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
+	--query "Stacks[0].Outputs[?OutputKey=='CsavInstancePublicIp'].OutputValue" --output text)
+SSH := ssh -i $(KEY_PATH) ec2-user@$(INSTANCE_IP)
+DEFAULT_VPC_ID = $(shell aws ec2 describe-vpcs --region $(REGION) --filters Name=is-default,Values=true \
+	--query 'Vpcs[0].VpcId' --output text)
+
 .PHONY: build test run clean key deploy destroy up down status ssh
 
 build:
@@ -27,7 +36,7 @@ deploy:
 		--template-file cloudformation.yaml \
 		--stack-name $(STACK_NAME) \
 		--region $(REGION) \
-		--parameter-overrides KeyName=$(KEY_NAME)
+		--parameter-overrides KeyName=$(KEY_NAME) VpcId=$(DEFAULT_VPC_ID)
 
 destroy:
 	aws cloudformation delete-stack --stack-name $(STACK_NAME) --region $(REGION)
@@ -37,15 +46,10 @@ status:
 		--query 'Stacks[0].Outputs'
 
 up:
-	aws ec2 start-instances --region $(REGION) --instance-ids \
-		$$(aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
-			--query "Stacks[0].Outputs[?OutputKey=='CsavInstanceId'].OutputValue" --output text)
+	aws ec2 start-instances --region $(REGION) --instance-ids $(INSTANCE_ID)
 
 down:
-	aws ec2 stop-instances --region $(REGION) --instance-ids \
-		$$(aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
-			--query "Stacks[0].Outputs[?OutputKey=='CsavInstanceId'].OutputValue" --output text)
+	aws ec2 stop-instances --region $(REGION) --instance-ids $(INSTANCE_ID)
 
 ssh:
-	ssh -i $(KEY_PATH) ec2-user@$$(aws cloudformation describe-stacks --stack-name $(STACK_NAME) \
-		--region $(REGION) --query "Stacks[0].Outputs[?OutputKey=='CsavInstancePublicIp'].OutputValue" --output text)
+	$(SSH)
