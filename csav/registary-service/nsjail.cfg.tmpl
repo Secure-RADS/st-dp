@@ -1,0 +1,48 @@
+# Runs the Data Controller's app inside its own rootfs with no network
+# namespace access (matches the "DC app gets no network" privilege boundary).
+# There's no dedicated "chroot" field in nsjail's config - the rootfs
+# replaces "/" via a bind mount instead.
+#
+# Generated per-build: exec_bin below comes from the uploaded image's own
+# ENTRYPOINT/CMD, not a hardcoded guess - there's no universal binary path
+# across arbitrary Data Controller images.
+#
+# TODO: no SCE unix socket bind-mounted in yet - the SCE Unit doesn't exist
+# in this repo. Add that mount once it does.
+
+name: "controller-jail"
+
+mode: ONCE
+hostname: "controller"
+cwd: "/"
+
+clone_newnet: true
+clone_newuser: false
+
+mount_proc: true
+
+rlimit_as: 2048
+rlimit_cpu: 3600
+rlimit_fsize: 1024
+rlimit_nofile: 64
+
+mount {
+	src: "/opt/controller/rootfs"
+	dst: "/"
+	is_bind: true
+	is_dir: true
+	rw: true
+}
+
+mount {
+	dst: "/tmp"
+	fstype: "tmpfs"
+	rw: true
+}
+
+exec_bin {
+	path: {{printf "%q" .Path}}
+{{- range .Args}}
+	arg: {{printf "%q" .}}
+{{- end}}
+}
