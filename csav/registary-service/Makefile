@@ -32,12 +32,16 @@ clean:
 image:
 	docker build --platform linux/arm64 -t $(IMAGE) .
 
-# Save the image + docker-compose.yml, scp both to the instance.
+# Save the image + docker-compose.yml + .env (bucket/region for compose var
+# substitution), scp all three to the instance.
 ship: image
 	docker save $(IMAGE) -o /tmp/registry-service.tar
+	echo "ARTIFACT_BUCKET=$(ARTIFACT_BUCKET)" > /tmp/registry-service.env
+	echo "AWS_REGION=$(REGION)" >> /tmp/registry-service.env
 	$(SSH) "mkdir -p $(REMOTE_DIR)"
 	$(SCP) /tmp/registry-service.tar ../docker-compose.yml $(REMOTE):$(REMOTE_DIR)/
-	rm -f /tmp/registry-service.tar
+	$(SCP) /tmp/registry-service.env $(REMOTE):$(REMOTE_DIR)/.env
+	rm -f /tmp/registry-service.tar /tmp/registry-service.env
 
 # Load the shipped image and bring the compose stack up on the instance.
 remote-up:

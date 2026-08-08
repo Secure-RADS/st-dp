@@ -11,6 +11,8 @@ INSTANCE_IP = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NA
 SSH := ssh -i $(KEY_PATH) ec2-user@$(INSTANCE_IP)
 DEFAULT_VPC_ID = $(shell aws ec2 describe-vpcs --region $(REGION) --filters Name=is-default,Values=true \
 	--query 'Vpcs[0].VpcId' --output text)
+ARTIFACT_BUCKET = $(shell aws cloudformation describe-stacks --stack-name registry-service-storage --region $(REGION) \
+	--query "Stacks[0].Outputs[?OutputKey=='ArtifactBucketName'].OutputValue" --output text)
 
 .PHONY: build test run clean key deploy destroy up down status ssh
 
@@ -36,7 +38,8 @@ deploy:
 		--template-file cloudformation.yaml \
 		--stack-name $(STACK_NAME) \
 		--region $(REGION) \
-		--parameter-overrides KeyName=$(KEY_NAME) VpcId=$(DEFAULT_VPC_ID)
+		--capabilities CAPABILITY_IAM \
+		--parameter-overrides KeyName=$(KEY_NAME) VpcId=$(DEFAULT_VPC_ID) ArtifactBucketName=$(ARTIFACT_BUCKET)
 
 destroy:
 	aws cloudformation delete-stack --stack-name $(STACK_NAME) --region $(REGION)

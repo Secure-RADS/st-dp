@@ -21,6 +21,10 @@ Parameters:
     Type: AWS::EC2::VPC::Id
     Description: VPC to launch the CSAV instance in (the account's default VPC).
 
+  ArtifactBucketName:
+    Type: String
+    Description: Name of the registry-service artifact bucket (from the registry-service-storage stack), for the instance's S3 write permission.
+
   LatestAmiId:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
     Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64
@@ -44,14 +48,42 @@ Resources:
         - IpProtocol: "-1"
           CidrIp: 0.0.0.0/0
 
+  CsavInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ArtifactBucketWrite
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: s3:PutObject
+                Resource: !Sub "arn:aws:s3:::${ArtifactBucketName}/*"
+
+  CsavInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref CsavInstanceRole
+
   CsavInstance:
     Type: AWS::EC2::Instance
     Properties:
       InstanceType: !Ref InstanceType
       ImageId: !Ref LatestAmiId
       KeyName: !Ref KeyName
+      IamInstanceProfile: !Ref CsavInstanceProfile
       SecurityGroupIds:
         - !Ref CsavSecurityGroup
+      MetadataOptions:
+        HttpPutResponseHopLimit: 2
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
