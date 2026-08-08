@@ -7,6 +7,11 @@
 # ENTRYPOINT/CMD, not a hardcoded guess - there's no universal binary path
 # across arbitrary Data Controller images.
 #
+# Locked down as tightly as this sandbox allows: real user-namespace
+# isolation (not just cap-dropping in the same namespace), no loopback, no
+# suid/dev on any mount, and a seccomp denylist on top of the namespace/rlimit
+# restrictions.
+#
 # TODO: no SCE unix socket bind-mounted in yet - the SCE Unit doesn't exist
 # in this repo. Add that mount once it does.
 
@@ -17,7 +22,17 @@ hostname: "controller"
 cwd: "/"
 
 clone_newnet: true
-clone_newuser: false
+clone_newuser: true
+clone_newns: true
+clone_newpid: true
+clone_newipc: true
+clone_newuts: true
+clone_newcgroup: true
+
+iface_no_lo: true
+
+keep_caps: false
+disable_no_new_privs: false
 
 mount_proc: true
 
@@ -25,6 +40,7 @@ rlimit_as: 2048
 rlimit_cpu: 3600
 rlimit_fsize: 1024
 rlimit_nofile: 64
+rlimit_nproc: 16
 
 mount {
 	src: "/opt/controller/rootfs"
@@ -32,13 +48,29 @@ mount {
 	is_bind: true
 	is_dir: true
 	rw: true
+	nosuid: true
+	nodev: true
 }
 
 mount {
 	dst: "/tmp"
 	fstype: "tmpfs"
 	rw: true
+	nosuid: true
+	nodev: true
 }
+
+seccomp_string: "KILL_PROCESS {"
+seccomp_string: "	ptrace,"
+seccomp_string: "	process_vm_readv,"
+seccomp_string: "	process_vm_writev,"
+seccomp_string: "	mount,"
+seccomp_string: "	reboot,"
+seccomp_string: "	init_module,"
+seccomp_string: "	delete_module,"
+seccomp_string: "	acct"
+seccomp_string: "}"
+seccomp_string: "DEFAULT ALLOW"
 
 exec_bin {
 	path: {{printf "%q" .Path}}
