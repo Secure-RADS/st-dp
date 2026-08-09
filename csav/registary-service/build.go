@@ -58,13 +58,20 @@ func buildAndPush(ctx context.Context, tarPath string) (string, error) {
 		return "", fmt.Errorf("umoci unpack: %w", err)
 	}
 
-	execPath, args, err := readEntrypoint(bundleDir)
+	cfg, err := readOCIConfig(bundleDir)
 	if err != nil {
 		return "", err
 	}
+	if len(cfg.Process.Args) == 0 {
+		return "", fmt.Errorf("image has no entrypoint/cmd - nothing to jail")
+	}
+	execPath, args := cfg.Process.Args[0], cfg.Process.Args[1:]
 
 	dcRootfs := filepath.Join(bundleDir, "rootfs")
-	execPath = resolveExecPath(dcRootfs, execPath, readEnv(bundleDir))
+	execPath, err = resolveExecPath(dcRootfs, execPath, cfg.Process.Env)
+	if err != nil {
+		return "", err
+	}
 
 	if err := composeFinalRootfs(bundleDir, execPath, args); err != nil {
 		return "", fmt.Errorf("compose final rootfs: %w", err)
@@ -107,43 +114,33 @@ type ociConfig struct {
 	} `json:"process"`
 }
 
-// readEntrypoint reads the resolved exec array straight from the OCI
-// runtime bundle umoci already produced - it has already done the
-// ENTRYPOINT+CMD concatenation for us, no need to redo that ourselves.
-func readEntrypoint(bundleDir string) (path string, args []string, err error) {
+// readOCIConfig reads the OCI runtime bundle's config.json - umoci has
+// already done the ENTRYPOINT+CMD concatenation for us, in Process.Args, no
+// need to redo that ourselves.
+func readOCIConfig(bundleDir string) (ociConfig, error) {
 	raw, err := os.ReadFile(filepath.Join(bundleDir, "config.json"))
 	if err != nil {
-		return "", nil, err
+		return ociConfig{}, err
 	}
 
 	var cfg ociConfig
 	if err := json.Unmarshal(raw, &cfg); err != nil {
-		return "", nil, fmt.Errorf("parse bundle config: %w", err)
+		return ociConfig{}, fmt.Errorf("parse bundle config: %w", err)
 	}
-	if len(cfg.Process.Args) == 0 {
-		return "", nil, fmt.Errorf("image has no entrypoint/cmd - nothing to jail")
-	}
-	return cfg.Process.Args[0], cfg.Process.Args[1:], nil
-}
-
-func readEnv(bundleDir string) []string {
-	raw, err := os.ReadFile(filepath.Join(bundleDir, "config.json"))
-	if err != nil {
-		return nil
-	}
-	var cfg ociConfig
-	json.Unmarshal(raw, &cfg)
-	return cfg.Process.Env
+	return cfg, nil
 }
 
 // resolveExecPath finds the absolute in-jail path for entry. nsjail execve()s
 // the binary directly - no shell, no PATH lookup - so a bare command name
 // like "python3" (valid for a Docker ENTRYPOINT, which the container runtime
 // resolves via PATH) has to be turned into an absolute path before nsjail
-// can run it.
-func resolveExecPath(rootfsDir, entry string, env []string) string {
+// can run it. Erroring here at build time is important: an unresolved entry
+// would otherwise produce a jail config that's guaranteed to fail at
+// container start, with the real cause (bad DC image layout) disconnected
+// from where nsjail actually reports the failure.
+func resolveExecPath(rootfsDir, entry string, env []string) (string, error) {
 	if strings.HasPrefix(entry, "/") {
-		return entry
+		return entry, nil
 	}
 
 	path := "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
@@ -157,11 +154,11 @@ func resolveExecPath(rootfsDir, entry string, env []string) string {
 	for _, dir := range strings.Split(path, ":") {
 		candidate := filepath.Join(dir, entry)
 		if info, err := os.Stat(filepath.Join(rootfsDir, candidate)); err == nil && !info.IsDir() {
-			return candidate
+			return candidate, nil
 		}
 	}
 
-	return entry
+	return "", fmt.Errorf("could not resolve entrypoint %q to an absolute path on PATH=%q", entry, path)
 }
 
 // composeFinalRootfs replaces the bundle's rootfs (currently just the DC's
@@ -183,12 +180,11 @@ func composeFinalRootfs(bundleDir, execPath string, execArgs []string) error {
 	if err := os.MkdirAll(filepath.Dir(controllerRootfs), 0o755); err != nil {
 		return err
 	}
+	// dcRootfs and tmpFinal both live under the same MkdirTemp root
+	// (composeFinalRootfs's caller), so this rename never crosses a
+	// filesystem boundary.
 	if err := os.Rename(dcRootfs, controllerRootfs); err != nil {
-		// Rename can fail across filesystem boundaries in some environments;
-		// fall back to a copy.
-		if err := copyTree(dcRootfs, controllerRootfs); err != nil {
-			return fmt.Errorf("place DC rootfs: %w", err)
-		}
+		return fmt.Errorf("place DC rootfs: %w", err)
 	}
 
 	sceDir := filepath.Join(tmpFinal, "usr", "local", "bin")

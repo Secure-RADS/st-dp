@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -47,7 +48,9 @@ func main() {
 			return
 		}
 
-		tmpPath := uploadDir + "/" + fileHeader.Filename
+		// filepath.Base strips any directory components a crafted
+		// filename (e.g. containing "../") might carry.
+		tmpPath := filepath.Join(uploadDir, filepath.Base(fileHeader.Filename))
 		if err := c.SaveUploadedFile(fileHeader, tmpPath); err != nil {
 			c.String(http.StatusInternalServerError, "could not stage upload: %v", err)
 			return
