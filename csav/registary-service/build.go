@@ -25,8 +25,9 @@ func buildAndPush(ctx context.Context, tarPath string) (string, error) {
 	start := time.Now()
 	log.Printf("build[%s]: start", tarPath)
 
-	workDir, err := os.MkdirTemp("", "registry-build-*")
-	if err != nil {
+	id := strings.TrimSuffix(filepath.Base(tarPath), filepath.Ext(tarPath))
+	workDir := filepath.Join(os.TempDir(), "registry-build-"+id)
+	if err := os.Mkdir(workDir, 0o755); err != nil {
 		return "", err
 	}
 	defer os.RemoveAll(workDir)
@@ -79,7 +80,7 @@ func buildAndPush(ctx context.Context, tarPath string) (string, error) {
 		return "", fmt.Errorf("umoci config: %w", err)
 	}
 
-	builtTag := strings.ReplaceAll(strings.TrimSuffix(filepath.Base(tarPath), filepath.Ext(tarPath)), ":", "-") + "-built"
+	builtTag := id + "-built"
 	outTar := filepath.Join(workDir, "out.tar")
 	log.Printf("build[%s]: skopeo copy out", tarPath)
 	if _, err := run(ctx, "skopeo", "copy", "oci:"+layoutDir+":built", "docker-archive:"+outTar); err != nil {
