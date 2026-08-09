@@ -6,11 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -80,6 +82,15 @@ func pathFromEnv(env []string) (string, error) {
 // would otherwise produce a jail config that's guaranteed to fail at
 // container start, with the real cause (bad DC image layout) disconnected
 // from where nsjail actually reports the failure.
+//
+// Uses Lstat, not Stat: many real images (e.g. uv-managed Python venvs)
+// have absolute symlinks like /app/.venv/bin/python3 -> /usr/local/bin/
+// python3. Stat follows that against the real host filesystem (this code
+// runs unrooted, before nsjail's own chroot-equivalent bind mount exists),
+// not scoped to rootfsDir - so it silently fails here even though the
+// exact same symlink resolves correctly once nsjail actually roots the
+// jail at runtime. Lstat only checks that something exists at the path
+// itself, without following it, which is all this needs to know.
 func resolveExecPath(rootfsDir, entry, path string) (string, error) {
 	if strings.HasPrefix(entry, "/") {
 		return entry, nil
@@ -87,7 +98,7 @@ func resolveExecPath(rootfsDir, entry, path string) (string, error) {
 
 	for _, dir := range strings.Split(path, ":") {
 		candidate := filepath.Join(dir, entry)
-		if info, err := os.Stat(filepath.Join(rootfsDir, candidate)); err == nil && !info.IsDir() {
+		if info, err := os.Lstat(filepath.Join(rootfsDir, candidate)); err == nil && !info.IsDir() {
 			return candidate, nil
 		}
 	}
@@ -147,7 +158,7 @@ func writeNsjailCfg(path, execPath, pathEnv string, args []string) error {
 
 // composeFinalRootfs replaces the bundle's rootfs (currently just the DC's
 // unpacked image) with the actual final layout: nsjail's full runtime as
-// the base, the DC's own rootfs nested under opt/controller/rootfs, plus
+// the base, the DC's own rootfs nested under opt/dc-app/rootfs, plus
 // the SCE Unit binary and a generated nsjail.cfg. umoci's repack diffs
 // whatever's on disk at bundle/rootfs against its own bookkeeping - it
 // doesn't care that this wholesale swap didn't come from its own unpack.
@@ -160,14 +171,14 @@ func composeFinalRootfs(bundleDir, execPath, pathEnv string, execArgs []string) 
 		return fmt.Errorf("copy nsjail runtime: %w", err)
 	}
 
-	controllerRootfs := filepath.Join(tmpFinal, "opt", "controller", "rootfs")
-	if err := os.MkdirAll(filepath.Dir(controllerRootfs), 0o755); err != nil {
+	dcAppRootfs := filepath.Join(tmpFinal, "opt", "dc-app", "rootfs")
+	if err := os.MkdirAll(filepath.Dir(dcAppRootfs), 0o755); err != nil {
 		return err
 	}
 	// dcRootfs and tmpFinal both live under the same MkdirTemp root
 	// (composeFinalRootfs's caller), so this rename never crosses a
 	// filesystem boundary.
-	if err := os.Rename(dcRootfs, controllerRootfs); err != nil {
+	if err := os.Rename(dcRootfs, dcAppRootfs); err != nil {
 		return fmt.Errorf("place DC rootfs: %w", err)
 	}
 
@@ -218,6 +229,9 @@ func uploadToS3(ctx context.Context, key string, body io.Reader) error {
 // just file composition (copy nsjail + sce-unit + the DC's own rootfs into
 // place, no arbitrary commands to sandbox a build for).
 func buildAndPush(ctx context.Context, tarPath string) (string, error) {
+	start := time.Now()
+	log.Printf("build[%s]: start", tarPath)
+
 	workDir, err := os.MkdirTemp("", "registry-build-*")
 	if err != nil {
 		return "", err
@@ -227,10 +241,12 @@ func buildAndPush(ctx context.Context, tarPath string) (string, error) {
 	layoutDir := filepath.Join(workDir, "layout")
 	bundleDir := filepath.Join(workDir, "bundle")
 
+	log.Printf("build[%s]: skopeo copy in", tarPath)
 	if _, err := run(ctx, "skopeo", "copy", "docker-archive:"+tarPath, "oci:"+layoutDir+":src"); err != nil {
 		return "", fmt.Errorf("skopeo copy in: %w", err)
 	}
 
+	log.Printf("build[%s]: umoci unpack", tarPath)
 	if _, err := run(ctx, "umoci", "unpack", "--rootless", "--image", layoutDir+":src", bundleDir); err != nil {
 		return "", fmt.Errorf("umoci unpack: %w", err)
 	}
@@ -254,11 +270,14 @@ func buildAndPush(ctx context.Context, tarPath string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	log.Printf("build[%s]: resolved entrypoint %s %v", tarPath, execPath, args)
 
+	log.Printf("build[%s]: composing final rootfs", tarPath)
 	if err := composeFinalRootfs(bundleDir, execPath, pathEnv, args); err != nil {
 		return "", fmt.Errorf("compose final rootfs: %w", err)
 	}
 
+	log.Printf("build[%s]: umoci repack", tarPath)
 	if _, err := run(ctx, "umoci", "repack", "--image", layoutDir+":built", bundleDir); err != nil {
 		return "", fmt.Errorf("umoci repack: %w", err)
 	}
@@ -269,6 +288,7 @@ func buildAndPush(ctx context.Context, tarPath string) (string, error) {
 
 	builtTag := strings.ReplaceAll(strings.TrimSuffix(filepath.Base(tarPath), filepath.Ext(tarPath)), ":", "-") + "-built"
 	outTar := filepath.Join(workDir, "out.tar")
+	log.Printf("build[%s]: skopeo copy out", tarPath)
 	if _, err := run(ctx, "skopeo", "copy", "oci:"+layoutDir+":built", "docker-archive:"+outTar); err != nil {
 		return "", fmt.Errorf("skopeo copy out: %w", err)
 	}
@@ -280,9 +300,11 @@ func buildAndPush(ctx context.Context, tarPath string) (string, error) {
 	defer f.Close()
 
 	key := builtTag + ".tar"
+	log.Printf("build[%s]: uploading to s3 key=%s", tarPath, key)
 	if err := uploadToS3(ctx, key, f); err != nil {
 		return "", fmt.Errorf("upload built image: %w", err)
 	}
 
+	log.Printf("build[%s]: done key=%s took=%s", tarPath, key, time.Since(start))
 	return key, nil
 }

@@ -5,6 +5,8 @@ import pwd
 import socket
 import subprocess
 
+from loguru import logger
+
 SOCKET_PATH = "/run/sce/dc.sock"
 
 
@@ -87,6 +89,8 @@ def build_report():
 
 
 def main():
+    logger.info("starting up")
+
     # /run/sce is bind-mounted in by nsjail (shared with the SCE Unit); this creates the socket file itself.
     if os.path.exists(SOCKET_PATH):
         os.remove(SOCKET_PATH)
@@ -94,14 +98,19 @@ def main():
     server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     server.bind(SOCKET_PATH)
     server.listen(1)
+    logger.info("listening on {}", SOCKET_PATH)
 
     conn, _ = server.accept()
+    logger.info("sce-unit connected")
     with conn:
         request = conn.recv(4096)
         if not request:
+            logger.warning("empty request, exiting")
             return
+        logger.info("got request: {!r}", request)
         response = json.dumps(build_report()) + "\n"
         conn.sendall(response.encode())
+        logger.info("response sent")
 
 
 if __name__ == "__main__":

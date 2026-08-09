@@ -25,7 +25,7 @@ rlimit_nofile: 64
 rlimit_nproc: 16
 
 mount {
-	src: "/opt/controller/rootfs"
+	src: "/opt/dc-app/rootfs"
 	dst: "/"
 	is_bind: true
 	is_dir: true
@@ -43,7 +43,7 @@ mount {
 }
 
 mount {
-	src: "/opt/controller/rootfs/run/sce"
+	src: "/opt/dc-app/rootfs/run/sce"
 	dst: "/run/sce"
 	is_bind: true
 	is_dir: true
