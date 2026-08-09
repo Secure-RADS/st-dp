@@ -36,13 +36,13 @@ clean:
 
 # Pre-built asset baked into the app image at build time (see Dockerfile) -
 # rebuild only when sce-unit itself changes, not per upload. nsjail comes
-# from ghcr.io/prdai/nsjail-docker (rebuilt weekly there) instead.
+# from ghcr.io/prdai/nsjail-docker instead - the Dockerfile pins it by
+# digest, so no separate pull step is needed here to keep it fresh.
 sce-unit-base:
 	docker build --platform linux/arm64 -t sce-unit-base:latest ../../sce-unit
 
 # Build the docker image locally (arm64, matches the t4g.nano host).
 image: sce-unit-base
-	docker pull --platform linux/arm64 ghcr.io/prdai/nsjail-docker:latest
 	docker build --platform linux/arm64 -t $(IMAGE) .
 
 # Save the image + docker-compose.yml + .env (bucket/region for compose var

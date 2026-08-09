@@ -1,6 +1,6 @@
-# nsjail: prebuilt from github.com/prdai/nsjail-docker. sce-unit-base: must
-# already be built locally (see its own Makefile) - both baked in below.
-FROM ghcr.io/prdai/nsjail-docker:latest AS nsjail
+# nsjail: pinned by digest to a known-good build (repo moves :latest
+# forward on its own). sce-unit-base: build locally first (see Makefile).
+FROM ghcr.io/prdai/nsjail-docker@sha256:6c500a51d3ccadf2fb8fb312c2738aa1a6ba867a3982c0d206478c6a7edec35b AS nsjail
 FROM sce-unit-base:latest AS sceunit
 
 FROM golang:1.25-alpine AS build
