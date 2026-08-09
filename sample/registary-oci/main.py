@@ -2,7 +2,12 @@ import grp
 import json
 import os
 import pwd
+import socket
 import subprocess
+
+from loguru import logger
+
+SOCKET_PATH = "/run/sce/dc.sock"
 
 
 def decode_caps(hex_mask):
@@ -56,12 +61,12 @@ def probe_writable(paths):
     return writable
 
 
-def main():
+def build_report():
     status = read_status()
     uid = os.getuid()
     gid = os.getgid()
 
-    report = {
+    return {
         "uid": uid,
         "gid": gid,
         "user": username(uid),
@@ -82,7 +87,30 @@ def main():
         "env": dict(os.environ),
     }
 
-    print(json.dumps(report, indent=2))
+
+def main():
+    logger.info("starting up")
+
+    # /run/sce is bind-mounted in by nsjail (shared with the SCE Unit); this creates the socket file itself.
+    if os.path.exists(SOCKET_PATH):
+        os.remove(SOCKET_PATH)
+
+    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    server.bind(SOCKET_PATH)
+    server.listen(1)
+    logger.info("listening on {}", SOCKET_PATH)
+
+    conn, _ = server.accept()
+    logger.info("sce-unit connected")
+    with conn:
+        request = conn.recv(4096)
+        if not request:
+            logger.warning("empty request, exiting")
+            return
+        logger.info("got request: {!r}", request)
+        response = json.dumps(build_report()) + "\n"
+        conn.sendall(response.encode())
+        logger.info("response sent")
 
 
 if __name__ == "__main__":

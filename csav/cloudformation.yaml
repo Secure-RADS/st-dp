@@ -5,8 +5,8 @@ Description: >
 Parameters:
   InstanceType:
     Type: String
-    Default: t4g.nano
-    Description: EC2 instance type for the CSAV instance. t4g.nano (Graviton/ARM) is the cheapest general-purpose type available.
+    Default: t4g.small
+    Description: EC2 instance type for the CSAV instance. t4g.nano's 0.5GB RAM can't handle composing real-sized images (OOM/swap thrashing) - t4g.small (2GB) is the smallest step up that comfortably does.
 
   KeyName:
     Type: AWS::EC2::KeyPair::KeyName
