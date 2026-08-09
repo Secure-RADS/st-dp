@@ -1,0 +1,69 @@
+service: verifier-service
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: ${param:region, 'ap-south-1'}
+  httpApi:
+    disableDefaultEndpoint: true # mTLS is only enforced on the custom domain below - the default execute-api endpoint bypasses it entirely.
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action: dynamodb:PutItem
+          Resource: !GetAtt AlgorithmPCRTable.Arn
+  environment:
+    ALGORITHM_PCR_TABLE: !Ref AlgorithmPCRTable
+
+functions:
+  registerAlgorithm:
+    handler: src/handlers/registerAlgorithm.handler
+    events:
+      - httpApi:
+          method: POST
+          path: /algorithms
+
+resources:
+  Resources:
+    AlgorithmPCRTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: AlgorithmId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: AlgorithmId
+            KeyType: HASH
+
+    # PEM bundle containing registry-service's client cert public cert
+    # (csav/registry-service/tls/client.crt) - upload it here before deploy.
+    TruststoreBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        VersioningConfiguration:
+          Status: Enabled
+
+    # mTLS is enforced here, not on the Lambda/HTTP API itself - the default
+    # execute-api endpoint is disabled above so this is the only way in.
+    ApiCustomDomain:
+      Type: AWS::ApiGatewayV2::DomainName
+      Properties:
+        DomainName: ${param:domainName}
+        DomainNameConfigurations:
+          - CertificateArn: ${param:certificateArn}
+        MutualTlsAuthentication:
+          TruststoreUri: !Sub "s3://${TruststoreBucket}/${param:truststoreKey, 'truststore.pem'}"
+
+    ApiDomainMapping:
+      Type: AWS::ApiGatewayV2::ApiMapping
+      Properties:
+        DomainName: !Ref ApiCustomDomain
+        ApiId: !Ref HttpApi
+        Stage: !Ref HttpApiStage
+
+  Outputs:
+    AlgorithmPCRTableName:
+      Value: !Ref AlgorithmPCRTable
+    TruststoreBucketName:
+      Value: !Ref TruststoreBucket

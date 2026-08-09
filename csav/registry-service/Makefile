@@ -15,8 +15,12 @@ SSH := ssh -i $(KEY_PATH) $(REMOTE)
 SCP := scp -i $(KEY_PATH)
 ARTIFACT_BUCKET = $(shell aws cloudformation describe-stacks --stack-name $(STORAGE_STACK_NAME) --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='ArtifactBucketName'].OutputValue" --output text)
+DYNAMO_TABLE = $(shell aws cloudformation describe-stacks --stack-name $(STORAGE_STACK_NAME) --region $(REGION) \
+	--query "Stacks[0].Outputs[?OutputKey=='AlgorithmTableName'].OutputValue" --output text)
+VERIFIER_URL ?=
+VERIFIER_PUBKEY_SHA256 ?=
 
-.PHONY: build test run clean sce-unit-base image ship remote-up remote-down logs deploy-storage destroy-storage upload
+.PHONY: build test run clean sce-unit-base gen-client-cert image ship remote-up remote-down logs deploy-storage destroy-storage upload
 
 build:
 	go build -o /tmp/registry-service .
@@ -34,6 +38,14 @@ clean:
 sce-unit-base:
 	docker build --platform linux/arm64 -t sce-unit-base:latest ../../sce-unit
 
+# Self-signed client cert for mTLS to verifier-service - PoC only, baked
+# into the image at build time (see csav/README.md's trust-material design).
+gen-client-cert:
+	mkdir -p tls
+	openssl req -x509 -newkey ed25519 -days 3650 -nodes \
+		-keyout tls/client.key -out tls/client.crt \
+		-subj "/CN=registry-service"
+
 # Build the docker image locally (arm64, matches the t4g.nano host).
 image: sce-unit-base
 	docker build --platform linux/arm64 -t $(IMAGE) .
@@ -44,6 +56,9 @@ ship: image
 	docker save $(IMAGE) -o /tmp/registry-service.tar
 	echo "ARTIFACT_BUCKET=$(ARTIFACT_BUCKET)" > /tmp/registry-service.env
 	echo "AWS_REGION=$(REGION)" >> /tmp/registry-service.env
+	echo "DYNAMO_TABLE=$(DYNAMO_TABLE)" >> /tmp/registry-service.env
+	echo "VERIFIER_URL=$(VERIFIER_URL)" >> /tmp/registry-service.env
+	echo "VERIFIER_PUBKEY_SHA256=$(VERIFIER_PUBKEY_SHA256)" >> /tmp/registry-service.env
 	$(SSH) "mkdir -p $(REMOTE_DIR)"
 	$(SCP) /tmp/registry-service.tar ../docker-compose.yml $(REMOTE):$(REMOTE_DIR)/
 	$(SCP) /tmp/registry-service.env $(REMOTE):$(REMOTE_DIR)/.env

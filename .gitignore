@@ -1,1 +1,4 @@
 *.pem
+csav/registry-service/tls/
+node_modules/
+.serverless/

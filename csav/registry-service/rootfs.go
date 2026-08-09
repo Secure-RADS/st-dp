@@ -13,9 +13,8 @@ var nsjailCfgTmpl string
 
 // Pre-built assets baked into this image's own build (see Dockerfile) - never rebuilt per upload.
 const (
-	nsjailRuntimeDir  = "/opt/assets/nsjail-runtime"
-	sceUnitBin        = "/opt/assets/sce-unit"
-	sceUnitTargetPath = "/usr/local/bin/sce"
+	nsjailRuntimeDir = "/opt/assets/nsjail-runtime"
+	sceUnitBin       = "/opt/assets/sce-unit"
 )
 
 // composeFinalRootfs replaces the bundle's rootfs with nsjail's runtime as the base, the DC's own rootfs nested under opt/dc-app/rootfs, the SCE Unit binary, and a generated nsjail.cfg.

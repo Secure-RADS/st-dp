@@ -6,4 +6,7 @@ services:
     environment:
       - ARTIFACT_BUCKET=${ARTIFACT_BUCKET}
       - AWS_REGION=${AWS_REGION}
+      - DYNAMO_TABLE=${DYNAMO_TABLE}
+      - VERIFIER_URL=${VERIFIER_URL}
+      - VERIFIER_PUBKEY_SHA256=${VERIFIER_PUBKEY_SHA256}
     restart: unless-stopped

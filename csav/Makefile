@@ -15,6 +15,8 @@ DEFAULT_VPC_ID = $(shell aws ec2 describe-vpcs --region $(REGION) --filters Name
 	--query 'Vpcs[0].VpcId' --output text)
 ARTIFACT_BUCKET = $(shell aws cloudformation describe-stacks --stack-name registry-service-storage --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='ArtifactBucketName'].OutputValue" --output text)
+ALGORITHM_TABLE = $(shell aws cloudformation describe-stacks --stack-name registry-service-storage --region $(REGION) \
+	--query "Stacks[0].Outputs[?OutputKey=='AlgorithmTableName'].OutputValue" --output text)
 
 .PHONY: build test run clean key deploy destroy up down status ssh logs
 
@@ -41,7 +43,7 @@ deploy:
 		--stack-name $(STACK_NAME) \
 		--region $(REGION) \
 		--capabilities CAPABILITY_IAM \
-		--parameter-overrides KeyName=$(KEY_NAME) VpcId=$(DEFAULT_VPC_ID) ArtifactBucketName=$(ARTIFACT_BUCKET) InstanceType=$(INSTANCE_TYPE)
+		--parameter-overrides KeyName=$(KEY_NAME) VpcId=$(DEFAULT_VPC_ID) ArtifactBucketName=$(ARTIFACT_BUCKET) AlgorithmTableName=$(ALGORITHM_TABLE) InstanceType=$(INSTANCE_TYPE)
 
 destroy:
 	aws cloudformation delete-stack --stack-name $(STACK_NAME) --region $(REGION)
