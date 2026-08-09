@@ -18,12 +18,7 @@ const (
 	sceUnitTargetPath = "/usr/local/bin/sce"
 )
 
-// composeFinalRootfs replaces the bundle's rootfs (currently just the DC's
-// unpacked image) with the actual final layout: nsjail's full runtime as
-// the base, the DC's own rootfs nested under opt/dc-app/rootfs, plus
-// the SCE Unit binary and a generated nsjail.cfg. umoci's repack diffs
-// whatever's on disk at bundle/rootfs against its own bookkeeping - it
-// doesn't care that this wholesale swap didn't come from its own unpack.
+// composeFinalRootfs replaces the bundle's rootfs with nsjail's runtime as the base, the DC's own rootfs nested under opt/dc-app/rootfs, the SCE Unit binary, and a generated nsjail.cfg.
 func composeFinalRootfs(bundleDir, execPath, pathEnv string, execArgs []string) error {
 	dcRootfs := filepath.Join(bundleDir, "rootfs")
 	tmpFinal := bundleDir + "-final-rootfs"
@@ -37,9 +32,6 @@ func composeFinalRootfs(bundleDir, execPath, pathEnv string, execArgs []string) 
 	if err := os.MkdirAll(filepath.Dir(dcAppRootfs), 0o755); err != nil {
 		return err
 	}
-	// dcRootfs and tmpFinal both live under the same MkdirTemp root
-	// (composeFinalRootfs's caller), so this rename never crosses a
-	// filesystem boundary.
 	if err := os.Rename(dcRootfs, dcAppRootfs); err != nil {
 		return fmt.Errorf("place DC rootfs: %w", err)
 	}
