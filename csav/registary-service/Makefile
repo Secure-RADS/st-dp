@@ -5,11 +5,7 @@ REGION ?= ap-south-1
 KEY_PATH := $(HOME)/.ssh/csav-key.pem
 REMOTE_DIR := /home/ec2-user/registry-service
 
-# Lazily resolved (only hits AWS when a target that uses it actually runs).
-# The public IP has to come from a live `describe-instances` call, not the
-# CloudFormation stack's Outputs - those are a static snapshot from the last
-# deploy, and the instance's public IP (no Elastic IP attached) changes on
-# every stop/start.
+# Lazily resolved; public IP comes from a live describe-instances call since the CF stack's Outputs go stale on stop/start.
 INSTANCE_ID = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='CsavInstanceId'].OutputValue" --output text)
 REMOTE_HOST = $(shell aws ec2 describe-instances --instance-ids $(INSTANCE_ID) --region $(REGION) \

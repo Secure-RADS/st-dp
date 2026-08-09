@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -11,6 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 var (
@@ -54,12 +53,7 @@ func main() {
 		// A random name, not the client-supplied filename: sidesteps path
 		// traversal entirely, and guarantees two concurrent uploads never
 		// collide on the same staging path.
-		id := make([]byte, 16)
-		if _, err := rand.Read(id); err != nil {
-			c.String(http.StatusInternalServerError, "could not generate upload id: %v", err)
-			return
-		}
-		tmpPath := filepath.Join(uploadDir, hex.EncodeToString(id)+".tar")
+		tmpPath := filepath.Join(uploadDir, uuid.NewString()+".tar")
 		if err := c.SaveUploadedFile(fileHeader, tmpPath); err != nil {
 			c.String(http.StatusInternalServerError, "could not stage upload: %v", err)
 			return
