@@ -4,4 +4,4 @@
 - Switch `sample/registary-oci/Dockerfile` to a uv-based Dockerfile (kept plain/flat for now since it needs to be decomposed for the registry-service build step soon).
 - ~~Split the build step (docker.sock access) out of registry-service into a separate internal-only process.~~ Resolved differently: switched the whole build pipeline off Docker/buildah entirely, onto skopeo+umoci - no daemon, no socket, no special capabilities needed at all.
 - Go through `csav/registary-service/nsjail.cfg.tmpl` again and see if there are more configurations we can add to lock down the DC app's permissions further (e.g. more syscalls to deny, tighter rlimits).
-- NGINX Setup for Registery Service
+- Put nginx in front of registry-service as a reverse proxy - requests hit nginx first, nginx forwards to the app, instead of the app's :8080 being exposed directly.
