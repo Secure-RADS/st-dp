@@ -12,8 +12,12 @@
 # suid/dev on any mount, and a seccomp denylist on top of the namespace/rlimit
 # restrictions.
 #
-# TODO: no SCE unix socket bind-mounted in yet - the SCE Unit doesn't exist
-# in this repo. Add that mount once it does.
+# The DC app and the SCE Unit share /run/sce as a unix-socket directory.
+# nsjail's mounts are set up before the DC app starts, so it can't bind a
+# socket file that doesn't exist yet - bind-mounting the directory instead
+# means the socket file the DC app creates once it's running becomes visible
+# on both sides (same underlying directory, just two mount-namespace views
+# of it): /opt/controller/rootfs/run/sce outside the jail, /run/sce inside.
 
 name: "controller-jail"
 
@@ -61,6 +65,16 @@ mount {
 mount {
 	dst: "/tmp"
 	fstype: "tmpfs"
+	rw: true
+	nosuid: true
+	nodev: true
+}
+
+mount {
+	src: "/opt/controller/rootfs/run/sce"
+	dst: "/run/sce"
+	is_bind: true
+	is_dir: true
 	rw: true
 	nosuid: true
 	nodev: true

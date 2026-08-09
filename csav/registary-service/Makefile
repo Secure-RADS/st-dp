@@ -14,7 +14,7 @@ SCP := scp -i $(KEY_PATH)
 ARTIFACT_BUCKET = $(shell aws cloudformation describe-stacks --stack-name $(STORAGE_STACK_NAME) --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='ArtifactBucketName'].OutputValue" --output text)
 
-.PHONY: build test run clean image ship remote-up remote-down logs deploy-storage destroy-storage upload
+.PHONY: build test run clean nsjail-base sce-unit-base image ship remote-up remote-down logs deploy-storage destroy-storage upload
 
 build:
 	go build -o /tmp/registry-service .
@@ -28,8 +28,16 @@ run:
 clean:
 	rm -f /tmp/registry-service
 
+# Pre-built assets baked into the app image at build time (see Dockerfile) -
+# rebuild these only when nsjail/sce-unit themselves change, not per upload.
+nsjail-base:
+	docker build --platform linux/arm64 -t nsjail-base:latest nsjail-base
+
+sce-unit-base:
+	docker build --platform linux/arm64 -t sce-unit-base:latest ../../sce-unit
+
 # Build the docker image locally (arm64, matches the t4g.nano host).
-image:
+image: nsjail-base sce-unit-base
 	docker build --platform linux/arm64 -t $(IMAGE) .
 
 # Save the image + docker-compose.yml + .env (bucket/region for compose var
