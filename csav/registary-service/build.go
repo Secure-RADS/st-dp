@@ -20,14 +20,180 @@ import (
 var nsjailCfgTmpl string
 
 // Pre-built assets baked into this image's own build (see Dockerfile) -
-// never rebuilt per upload. nsjailRuntimeDir is nsjail-base's *entire*
-// exported rootfs (nsjail's binary plus every runtime lib it's dynamically
-// linked against - copying files individually risks missing a transitive
-// dependency, so the whole known-good rootfs is used as-is).
+// never rebuilt per upload. nsjailRuntimeDir is the *entire* exported
+// rootfs of the prebuilt nsjail image (github.com/prdai/nsjail-docker):
+// nsjail's binary plus every runtime lib it's dynamically linked against -
+// copying files individually risks missing a transitive dependency, so the
+// whole known-good rootfs is used as-is.
 const (
-	nsjailRuntimeDir = "/opt/assets/nsjail-runtime"
-	sceUnitBin       = "/opt/assets/sce-unit"
+	nsjailRuntimeDir  = "/opt/assets/nsjail-runtime"
+	sceUnitBin        = "/opt/assets/sce-unit"
+	sceUnitTargetPath = "/usr/local/bin/sce"
 )
+
+type ociConfig struct {
+	Process struct {
+		Args []string `json:"args"`
+		Env  []string `json:"env"`
+	} `json:"process"`
+}
+
+// readOCIConfig reads the OCI runtime bundle's config.json - umoci has
+// already done the ENTRYPOINT+CMD concatenation for us, in Process.Args, no
+// need to redo that ourselves.
+func readOCIConfig(bundleDir string) (ociConfig, error) {
+	raw, err := os.ReadFile(filepath.Join(bundleDir, "config.json"))
+	if err != nil {
+		return ociConfig{}, err
+	}
+
+	var cfg ociConfig
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		return ociConfig{}, fmt.Errorf("parse bundle config: %w", err)
+	}
+	return cfg, nil
+}
+
+// resolveExecPath finds the absolute in-jail path for entry. nsjail execve()s
+// the binary directly - no shell, no PATH lookup - so a bare command name
+// like "python3" (valid for a Docker ENTRYPOINT, which the container runtime
+// resolves via PATH) has to be turned into an absolute path before nsjail
+// can run it. Erroring here at build time is important: an unresolved entry
+// would otherwise produce a jail config that's guaranteed to fail at
+// container start, with the real cause (bad DC image layout) disconnected
+// from where nsjail actually reports the failure.
+func resolveExecPath(rootfsDir, entry string, env []string) (string, error) {
+	if strings.HasPrefix(entry, "/") {
+		return entry, nil
+	}
+
+	path := "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+	for _, e := range env {
+		if v, ok := strings.CutPrefix(e, "PATH="); ok {
+			path = v
+			break
+		}
+	}
+
+	for _, dir := range strings.Split(path, ":") {
+		candidate := filepath.Join(dir, entry)
+		if info, err := os.Stat(filepath.Join(rootfsDir, candidate)); err == nil && !info.IsDir() {
+			return candidate, nil
+		}
+	}
+
+	return "", fmt.Errorf("could not resolve entrypoint %q to an absolute path on PATH=%q", entry, path)
+}
+
+func run(ctx context.Context, name string, args ...string) (string, error) {
+	cmd := exec.CommandContext(ctx, name, args...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("%s %s: %w: %s", name, strings.Join(args, " "), err, out)
+	}
+	return string(out), nil
+}
+
+func copyTree(src, dst string) error {
+	_, err := run(context.Background(), "cp", "-a", src, dst)
+	return err
+}
+
+func copyFile(src, dst string, mode os.FileMode) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, in)
+	return err
+}
+
+func writeNsjailCfg(path, execPath string, args []string) error {
+	tmpl, err := template.New("nsjail.cfg").Parse(nsjailCfgTmpl)
+	if err != nil {
+		return err
+	}
+
+	out, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	return tmpl.Execute(out, struct {
+		Path string
+		Args []string
+	}{Path: execPath, Args: args})
+}
+
+// composeFinalRootfs replaces the bundle's rootfs (currently just the DC's
+// unpacked image) with the actual final layout: nsjail's full runtime as
+// the base, the DC's own rootfs nested under opt/controller/rootfs, plus
+// the SCE Unit binary and a generated nsjail.cfg. umoci's repack diffs
+// whatever's on disk at bundle/rootfs against its own bookkeeping - it
+// doesn't care that this wholesale swap didn't come from its own unpack.
+func composeFinalRootfs(bundleDir, execPath string, execArgs []string) error {
+	dcRootfs := filepath.Join(bundleDir, "rootfs")
+	tmpFinal := bundleDir + "-final-rootfs"
+	defer os.RemoveAll(tmpFinal)
+
+	if err := copyTree(nsjailRuntimeDir, tmpFinal); err != nil {
+		return fmt.Errorf("copy nsjail runtime: %w", err)
+	}
+
+	controllerRootfs := filepath.Join(tmpFinal, "opt", "controller", "rootfs")
+	if err := os.MkdirAll(filepath.Dir(controllerRootfs), 0o755); err != nil {
+		return err
+	}
+	// dcRootfs and tmpFinal both live under the same MkdirTemp root
+	// (composeFinalRootfs's caller), so this rename never crosses a
+	// filesystem boundary.
+	if err := os.Rename(dcRootfs, controllerRootfs); err != nil {
+		return fmt.Errorf("place DC rootfs: %w", err)
+	}
+
+	sceDir := filepath.Join(tmpFinal, "usr", "local", "bin")
+	if err := os.MkdirAll(sceDir, 0o755); err != nil {
+		return err
+	}
+	if err := copyFile(sceUnitBin, filepath.Join(sceDir, "sce"), 0o755); err != nil {
+		return fmt.Errorf("copy sce-unit: %w", err)
+	}
+
+	cfgDir := filepath.Join(tmpFinal, "etc", "sce")
+	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
+		return err
+	}
+	if err := writeNsjailCfg(filepath.Join(cfgDir, "nsjail.cfg"), execPath, execArgs); err != nil {
+		return err
+	}
+
+	if err := os.RemoveAll(dcRootfs); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return os.Rename(tmpFinal, dcRootfs)
+}
+
+// uploadToS3 streams body via the S3 upload manager (multipart upload)
+// rather than PutObject directly, since not every caller has a
+// known-length or seekable body.
+func uploadToS3(ctx context.Context, key string, body io.Reader) error {
+	uploader := manager.NewUploader(s3Client)
+	_, err := uploader.Upload(ctx, &s3.PutObjectInput{
+		Bucket: &artifactBucket,
+		Key:    &key,
+		Body:   body,
+	})
+	return err
+}
 
 // buildAndPush unpacks the uploaded OCI image, jails the Data Controller's
 // app behind nsjail (with the SCE Unit as the composed image's real
@@ -103,170 +269,4 @@ func buildAndPush(ctx context.Context, tarPath string) (string, error) {
 	}
 
 	return key, nil
-}
-
-const sceUnitTargetPath = "/usr/local/bin/sce"
-
-type ociConfig struct {
-	Process struct {
-		Args []string `json:"args"`
-		Env  []string `json:"env"`
-	} `json:"process"`
-}
-
-// readOCIConfig reads the OCI runtime bundle's config.json - umoci has
-// already done the ENTRYPOINT+CMD concatenation for us, in Process.Args, no
-// need to redo that ourselves.
-func readOCIConfig(bundleDir string) (ociConfig, error) {
-	raw, err := os.ReadFile(filepath.Join(bundleDir, "config.json"))
-	if err != nil {
-		return ociConfig{}, err
-	}
-
-	var cfg ociConfig
-	if err := json.Unmarshal(raw, &cfg); err != nil {
-		return ociConfig{}, fmt.Errorf("parse bundle config: %w", err)
-	}
-	return cfg, nil
-}
-
-// resolveExecPath finds the absolute in-jail path for entry. nsjail execve()s
-// the binary directly - no shell, no PATH lookup - so a bare command name
-// like "python3" (valid for a Docker ENTRYPOINT, which the container runtime
-// resolves via PATH) has to be turned into an absolute path before nsjail
-// can run it. Erroring here at build time is important: an unresolved entry
-// would otherwise produce a jail config that's guaranteed to fail at
-// container start, with the real cause (bad DC image layout) disconnected
-// from where nsjail actually reports the failure.
-func resolveExecPath(rootfsDir, entry string, env []string) (string, error) {
-	if strings.HasPrefix(entry, "/") {
-		return entry, nil
-	}
-
-	path := "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-	for _, e := range env {
-		if v, ok := strings.CutPrefix(e, "PATH="); ok {
-			path = v
-			break
-		}
-	}
-
-	for _, dir := range strings.Split(path, ":") {
-		candidate := filepath.Join(dir, entry)
-		if info, err := os.Stat(filepath.Join(rootfsDir, candidate)); err == nil && !info.IsDir() {
-			return candidate, nil
-		}
-	}
-
-	return "", fmt.Errorf("could not resolve entrypoint %q to an absolute path on PATH=%q", entry, path)
-}
-
-// composeFinalRootfs replaces the bundle's rootfs (currently just the DC's
-// unpacked image) with the actual final layout: nsjail's full runtime as
-// the base, the DC's own rootfs nested under opt/controller/rootfs, plus
-// the SCE Unit binary and a generated nsjail.cfg. umoci's repack diffs
-// whatever's on disk at bundle/rootfs against its own bookkeeping - it
-// doesn't care that this wholesale swap didn't come from its own unpack.
-func composeFinalRootfs(bundleDir, execPath string, execArgs []string) error {
-	dcRootfs := filepath.Join(bundleDir, "rootfs")
-	tmpFinal := bundleDir + "-final-rootfs"
-	defer os.RemoveAll(tmpFinal)
-
-	if err := copyTree(nsjailRuntimeDir, tmpFinal); err != nil {
-		return fmt.Errorf("copy nsjail runtime: %w", err)
-	}
-
-	controllerRootfs := filepath.Join(tmpFinal, "opt", "controller", "rootfs")
-	if err := os.MkdirAll(filepath.Dir(controllerRootfs), 0o755); err != nil {
-		return err
-	}
-	// dcRootfs and tmpFinal both live under the same MkdirTemp root
-	// (composeFinalRootfs's caller), so this rename never crosses a
-	// filesystem boundary.
-	if err := os.Rename(dcRootfs, controllerRootfs); err != nil {
-		return fmt.Errorf("place DC rootfs: %w", err)
-	}
-
-	sceDir := filepath.Join(tmpFinal, "usr", "local", "bin")
-	if err := os.MkdirAll(sceDir, 0o755); err != nil {
-		return err
-	}
-	if err := copyFile(sceUnitBin, filepath.Join(sceDir, "sce"), 0o755); err != nil {
-		return fmt.Errorf("copy sce-unit: %w", err)
-	}
-
-	cfgDir := filepath.Join(tmpFinal, "etc", "sce")
-	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
-		return err
-	}
-	if err := writeNsjailCfg(filepath.Join(cfgDir, "nsjail.cfg"), execPath, execArgs); err != nil {
-		return err
-	}
-
-	if err := os.RemoveAll(dcRootfs); err != nil && !os.IsNotExist(err) {
-		return err
-	}
-	return os.Rename(tmpFinal, dcRootfs)
-}
-
-func writeNsjailCfg(path, execPath string, args []string) error {
-	tmpl, err := template.New("nsjail.cfg").Parse(nsjailCfgTmpl)
-	if err != nil {
-		return err
-	}
-
-	out, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-
-	return tmpl.Execute(out, struct {
-		Path string
-		Args []string
-	}{Path: execPath, Args: args})
-}
-
-func run(ctx context.Context, name string, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, name, args...)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("%s %s: %w: %s", name, strings.Join(args, " "), err, out)
-	}
-	return string(out), nil
-}
-
-func copyFile(src, dst string, mode os.FileMode) error {
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer in.Close()
-
-	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-
-	_, err = io.Copy(out, in)
-	return err
-}
-
-func copyTree(src, dst string) error {
-	_, err := run(context.Background(), "cp", "-a", src, dst)
-	return err
-}
-
-// uploadToS3 streams body via the S3 upload manager (multipart upload)
-// rather than PutObject directly, since not every caller has a
-// known-length or seekable body.
-func uploadToS3(ctx context.Context, key string, body io.Reader) error {
-	uploader := manager.NewUploader(s3Client)
-	_, err := uploader.Upload(ctx, &s3.PutObjectInput{
-		Bucket: &artifactBucket,
-		Key:    &key,
-		Body:   body,
-	})
-	return err
 }

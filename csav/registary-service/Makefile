@@ -36,7 +36,7 @@ clean:
 
 # Pre-built asset baked into the app image at build time (see Dockerfile) -
 # rebuild only when sce-unit itself changes, not per upload. nsjail comes
-# from ghcr.io/prdai/nsjail-docker (rebuilt hourly there) instead.
+# from ghcr.io/prdai/nsjail-docker (rebuilt weekly there) instead.
 sce-unit-base:
 	docker build --platform linux/arm64 -t sce-unit-base:latest ../../sce-unit
 
