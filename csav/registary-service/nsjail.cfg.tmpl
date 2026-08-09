@@ -1,23 +1,11 @@
-# Runs the Data Controller's app inside its own rootfs with no network
-# namespace access (matches the "DC app gets no network" privilege boundary).
-# There's no dedicated "chroot" field in nsjail's config - the rootfs
-# replaces "/" via a bind mount instead.
+# No "chroot" field - the DC's rootfs replaces "/" via a bind mount instead.
+# exec_bin is generated per-build from the uploaded image's own
+# ENTRYPOINT/CMD - no universal binary path across arbitrary DC images.
 #
-# Generated per-build: exec_bin below comes from the uploaded image's own
-# ENTRYPOINT/CMD, not a hardcoded guess - there's no universal binary path
-# across arbitrary Data Controller images.
-#
-# Locked down as tightly as this sandbox allows: real user-namespace
-# isolation (not just cap-dropping in the same namespace), no loopback, no
-# suid/dev on any mount, and a seccomp denylist on top of the namespace/rlimit
-# restrictions.
-#
-# The DC app and the SCE Unit share /run/sce as a unix-socket directory.
-# nsjail's mounts are set up before the DC app starts, so it can't bind a
-# socket file that doesn't exist yet - bind-mounting the directory instead
-# means the socket file the DC app creates once it's running becomes visible
-# on both sides (same underlying directory, just two mount-namespace views
-# of it): /opt/controller/rootfs/run/sce outside the jail, /run/sce inside.
+# /run/sce is a shared socket dir, not a single socket file: nsjail's
+# mounts run before the DC app exists to create its socket, so the dir
+# gets bind-mounted (visible on both sides once the app creates the file)
+# instead - see socketDir in sce-unit/main.go.
 
 name: "controller-jail"
 
@@ -27,9 +15,7 @@ iface_no_lo: true
 
 mount_proc: true
 
-# nsjail strips the environment by default (keep_env: false) - without this,
-# a jailed app's own PATH-relying subprocess calls silently fail. Sourced
-# from the DC's own image (not guessed) - see pathFromEnv in build.go.
+# nsjail strips env vars by default; PATH here is sourced from the DC's own image (see pathFromEnv in build.go).
 envar: "PATH={{.PathEnv}}"
 
 rlimit_as: 2048

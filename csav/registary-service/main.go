@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -43,14 +45,21 @@ func main() {
 		}
 
 		uploadDir := "/tmp/registry-service-uploads"
-		if err := os.MkdirAll(uploadDir, 0o750); err != nil {
+		// 0o755: standard dir perms - MkdirAll requires a mode, no bare option.
+		if err := os.MkdirAll(uploadDir, 0o755); err != nil {
 			c.String(http.StatusInternalServerError, "could not create upload dir: %v", err)
 			return
 		}
 
-		// filepath.Base strips any directory components a crafted
-		// filename (e.g. containing "../") might carry.
-		tmpPath := filepath.Join(uploadDir, filepath.Base(fileHeader.Filename))
+		// A random name, not the client-supplied filename: sidesteps path
+		// traversal entirely, and guarantees two concurrent uploads never
+		// collide on the same staging path.
+		id := make([]byte, 16)
+		if _, err := rand.Read(id); err != nil {
+			c.String(http.StatusInternalServerError, "could not generate upload id: %v", err)
+			return
+		}
+		tmpPath := filepath.Join(uploadDir, hex.EncodeToString(id)+".tar")
 		if err := c.SaveUploadedFile(fileHeader, tmpPath); err != nil {
 			c.String(http.StatusInternalServerError, "could not stage upload: %v", err)
 			return

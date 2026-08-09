@@ -87,9 +87,7 @@ def build_report():
 
 
 def main():
-    # /run/sce is bind-mounted in by nsjail (shared with the SCE Unit
-    # outside the jail) - the socket file itself is created here, once we're
-    # actually running, since nsjail's mounts are set up before this starts.
+    # /run/sce is bind-mounted in by nsjail (shared with the SCE Unit); this creates the socket file itself.
     if os.path.exists(SOCKET_PATH):
         os.remove(SOCKET_PATH)
 
