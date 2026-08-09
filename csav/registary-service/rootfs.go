@@ -11,12 +11,7 @@ import (
 //go:embed nsjail.cfg.tmpl
 var nsjailCfgTmpl string
 
-// Pre-built assets baked into this image's own build (see Dockerfile) -
-// never rebuilt per upload. nsjailRuntimeDir is the *entire* exported
-// rootfs of the prebuilt nsjail image (github.com/prdai/nsjail-docker):
-// nsjail's binary plus every runtime lib it's dynamically linked against -
-// copying files individually risks missing a transitive dependency, so the
-// whole known-good rootfs is used as-is.
+// Pre-built assets baked into this image's own build (see Dockerfile) - never rebuilt per upload.
 const (
 	nsjailRuntimeDir  = "/opt/assets/nsjail-runtime"
 	sceUnitBin        = "/opt/assets/sce-unit"
