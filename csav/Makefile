@@ -7,8 +7,7 @@ INSTANCE_TYPE ?= t4g.small
 # Lazily resolved (only hits AWS when a target that uses it actually runs).
 INSTANCE_ID = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='CsavInstanceId'].OutputValue" --output text)
-# Live lookup, not the CF stack's Outputs - those are a static snapshot and
-# go stale on every stop/start (no Elastic IP attached to this instance).
+# Live lookup, not the CF stack's Outputs - those go stale on every stop/start (no Elastic IP attached).
 INSTANCE_IP = $(shell aws ec2 describe-instances --instance-ids $(INSTANCE_ID) --region $(REGION) \
 	--query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
 SSH := ssh -i $(KEY_PATH) ec2-user@$(INSTANCE_IP)

@@ -13,9 +13,7 @@ const (
 	nsjailBin = "/bin/nsjail"
 	nsjailCfg = "/etc/sce/nsjail.cfg"
 
-	// This is the SCE Unit's own (unjailed) view of the shared socket
-	// directory - nsjail bind-mounts the same underlying directory into
-	// the jail as /run/sce, see nsjail.cfg.tmpl.
+	// SCE Unit's unjailed view of the shared socket dir - nsjail bind-mounts this same dir into the jail as /run/sce.
 	socketDir     = "/opt/dc-app/rootfs/run/sce"
 	socketPath    = socketDir + "/dc.sock"
 	dialTimeout   = 10 * time.Second
@@ -53,10 +51,7 @@ func main() {
 	log.Printf("sce-unit: nsjail exited cleanly")
 }
 
-// relayRequest dials the DC app's socket once it appears (the DC app
-// creates the socket file itself, inside the jail, after nsjail starts it -
-// so this has to poll rather than dial immediately), sends a trivial
-// trigger, and logs whatever comes back.
+// relayRequest polls for the DC app's socket (created after nsjail starts it), sends a trivial trigger, logs the response.
 func relayRequest() error {
 	log.Printf("sce-unit: waiting for dc app socket at %s", socketPath)
 	deadline := time.Now().Add(dialTimeout)
