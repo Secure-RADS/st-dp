@@ -10,6 +10,13 @@ Stands in for a Data Controller's OCI image to test the registry-service
 upload path and, later, to sanity-check nsjail's privilege boundary (the
 report should look a lot more locked-down once nsjail is in front of it).
 
+Must declare a `PATH` env var (`ENV PATH=...` or inherited from a base image
+that sets one) - registry-service resolves the entrypoint binary using the
+image's own declared `PATH`, not a guessed list of directories, since
+directory layout for `/bin`, `/sbin`, etc. differs across distros (Alpine
+keeps them separate, Debian/Ubuntu/Fedora symlink into `/usr`). No `PATH`
+declared means the build fails outright rather than guessing.
+
 Build + test locally:
 
 ```

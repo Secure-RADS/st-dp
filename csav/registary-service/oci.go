@@ -28,15 +28,6 @@ func readOCIConfig(bundleDir string) (ociConfig, error) {
 	return cfg, nil
 }
 
-// pathFromEnv pulls PATH out of an OCI image's own declared env. Using the
-// image's own PATH (rather than a guessed list of directories) is what
-// actually makes this correct across distros - e.g. Alpine keeps /bin,
-// /sbin, /usr/bin, /usr/sbin as genuinely separate directories, while
-// Debian/Ubuntu/Fedora symlink /bin and /sbin into /usr - the image itself
-// already knows which of those a given binary actually lives under. No
-// fallback if it's missing - nearly every base image sets one, and
-// guessing here would silently paper over an unusual image instead of
-// surfacing it.
 func pathFromEnv(env []string) (string, error) {
 	for _, e := range env {
 		if v, ok := strings.CutPrefix(e, "PATH="); ok {
