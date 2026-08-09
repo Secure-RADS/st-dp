@@ -15,9 +15,6 @@ type ociConfig struct {
 	} `json:"process"`
 }
 
-// readOCIConfig reads the OCI runtime bundle's config.json - umoci has
-// already done the ENTRYPOINT+CMD concatenation for us, in Process.Args, no
-// need to redo that ourselves.
 func readOCIConfig(bundleDir string) (ociConfig, error) {
 	raw, err := os.ReadFile(filepath.Join(bundleDir, "config.json"))
 	if err != nil {
