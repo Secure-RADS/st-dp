@@ -6,4 +6,19 @@ services:
     environment:
       - ARTIFACT_BUCKET=${ARTIFACT_BUCKET}
       - AWS_REGION=${AWS_REGION}
+    # buildah needs these to set up its own rootless user namespace
+    # (`buildah unshare`) - unlike the old docker.sock mount, none of this
+    # reaches the host: it only affects what the container can do inside
+    # its own namespace.
+    cap_drop:
+      - ALL
+    cap_add:
+      - SETFCAP
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
+    security_opt:
+      - no-new-privileges:true
+    devices:
+      - /dev/fuse
     restart: unless-stopped

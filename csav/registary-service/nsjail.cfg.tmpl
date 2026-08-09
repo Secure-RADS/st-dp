@@ -36,6 +36,12 @@ disable_no_new_privs: false
 
 mount_proc: true
 
+# nsjail strips the environment by default (keep_env: false) - without this,
+# a jailed app's own PATH-relying subprocess calls (e.g. finding a binary
+# under /usr/sbin) silently fail since execve()'s fallback search path
+# doesn't cover every directory a Data Controller's image might use.
+envar: "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
 rlimit_as: 2048
 rlimit_cpu: 3600
 rlimit_fsize: 1024
