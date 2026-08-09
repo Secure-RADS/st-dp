@@ -2,19 +2,22 @@ STACK_NAME := csav
 KEY_NAME := csav-key
 KEY_PATH := $(HOME)/.ssh/$(KEY_NAME).pem
 REGION ?= ap-south-1
+INSTANCE_TYPE ?= t4g.small
 
 # Lazily resolved (only hits AWS when a target that uses it actually runs).
 INSTANCE_ID = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='CsavInstanceId'].OutputValue" --output text)
-INSTANCE_IP = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
-	--query "Stacks[0].Outputs[?OutputKey=='CsavInstancePublicIp'].OutputValue" --output text)
+# Live lookup, not the CF stack's Outputs - those are a static snapshot and
+# go stale on every stop/start (no Elastic IP attached to this instance).
+INSTANCE_IP = $(shell aws ec2 describe-instances --instance-ids $(INSTANCE_ID) --region $(REGION) \
+	--query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
 SSH := ssh -i $(KEY_PATH) ec2-user@$(INSTANCE_IP)
 DEFAULT_VPC_ID = $(shell aws ec2 describe-vpcs --region $(REGION) --filters Name=is-default,Values=true \
 	--query 'Vpcs[0].VpcId' --output text)
 ARTIFACT_BUCKET = $(shell aws cloudformation describe-stacks --stack-name registry-service-storage --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='ArtifactBucketName'].OutputValue" --output text)
 
-.PHONY: build test run clean key deploy destroy up down status ssh
+.PHONY: build test run clean key deploy destroy up down status ssh logs
 
 build:
 	@echo "not implemented yet"
@@ -39,7 +42,7 @@ deploy:
 		--stack-name $(STACK_NAME) \
 		--region $(REGION) \
 		--capabilities CAPABILITY_IAM \
-		--parameter-overrides KeyName=$(KEY_NAME) VpcId=$(DEFAULT_VPC_ID) ArtifactBucketName=$(ARTIFACT_BUCKET)
+		--parameter-overrides KeyName=$(KEY_NAME) VpcId=$(DEFAULT_VPC_ID) ArtifactBucketName=$(ARTIFACT_BUCKET) InstanceType=$(INSTANCE_TYPE)
 
 destroy:
 	aws cloudformation delete-stack --stack-name $(STACK_NAME) --region $(REGION)
@@ -56,3 +59,7 @@ down:
 
 ssh:
 	$(SSH)
+
+# Tail the registry-service container's logs on the instance.
+logs:
+	$(SSH) "cd registry-service && sudo docker compose logs -f"
