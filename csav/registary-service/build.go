@@ -54,6 +54,24 @@ func readOCIConfig(bundleDir string) (ociConfig, error) {
 	return cfg, nil
 }
 
+// pathFromEnv pulls PATH out of an OCI image's own declared env. Using the
+// image's own PATH (rather than a guessed list of directories) is what
+// actually makes this correct across distros - e.g. Alpine keeps /bin,
+// /sbin, /usr/bin, /usr/sbin as genuinely separate directories, while
+// Debian/Ubuntu/Fedora symlink /bin and /sbin into /usr - the image itself
+// already knows which of those a given binary actually lives under. No
+// fallback if it's missing - nearly every base image sets one, and
+// guessing here would silently paper over an unusual image instead of
+// surfacing it.
+func pathFromEnv(env []string) (string, error) {
+	for _, e := range env {
+		if v, ok := strings.CutPrefix(e, "PATH="); ok {
+			return v, nil
+		}
+	}
+	return "", fmt.Errorf("image does not declare a PATH env var - required")
+}
+
 // resolveExecPath finds the absolute in-jail path for entry. nsjail execve()s
 // the binary directly - no shell, no PATH lookup - so a bare command name
 // like "python3" (valid for a Docker ENTRYPOINT, which the container runtime
@@ -62,17 +80,9 @@ func readOCIConfig(bundleDir string) (ociConfig, error) {
 // would otherwise produce a jail config that's guaranteed to fail at
 // container start, with the real cause (bad DC image layout) disconnected
 // from where nsjail actually reports the failure.
-func resolveExecPath(rootfsDir, entry string, env []string) (string, error) {
+func resolveExecPath(rootfsDir, entry, path string) (string, error) {
 	if strings.HasPrefix(entry, "/") {
 		return entry, nil
-	}
-
-	path := "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-	for _, e := range env {
-		if v, ok := strings.CutPrefix(e, "PATH="); ok {
-			path = v
-			break
-		}
 	}
 
 	for _, dir := range strings.Split(path, ":") {
@@ -116,7 +126,7 @@ func copyFile(src, dst string, mode os.FileMode) error {
 	return err
 }
 
-func writeNsjailCfg(path, execPath string, args []string) error {
+func writeNsjailCfg(path, execPath, pathEnv string, args []string) error {
 	tmpl, err := template.New("nsjail.cfg").Parse(nsjailCfgTmpl)
 	if err != nil {
 		return err
@@ -129,9 +139,10 @@ func writeNsjailCfg(path, execPath string, args []string) error {
 	defer out.Close()
 
 	return tmpl.Execute(out, struct {
-		Path string
-		Args []string
-	}{Path: execPath, Args: args})
+		Path    string
+		PathEnv string
+		Args    []string
+	}{Path: execPath, PathEnv: pathEnv, Args: args})
 }
 
 // composeFinalRootfs replaces the bundle's rootfs (currently just the DC's
@@ -140,7 +151,7 @@ func writeNsjailCfg(path, execPath string, args []string) error {
 // the SCE Unit binary and a generated nsjail.cfg. umoci's repack diffs
 // whatever's on disk at bundle/rootfs against its own bookkeeping - it
 // doesn't care that this wholesale swap didn't come from its own unpack.
-func composeFinalRootfs(bundleDir, execPath string, execArgs []string) error {
+func composeFinalRootfs(bundleDir, execPath, pathEnv string, execArgs []string) error {
 	dcRootfs := filepath.Join(bundleDir, "rootfs")
 	tmpFinal := bundleDir + "-final-rootfs"
 	defer os.RemoveAll(tmpFinal)
@@ -172,7 +183,7 @@ func composeFinalRootfs(bundleDir, execPath string, execArgs []string) error {
 	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
 		return err
 	}
-	if err := writeNsjailCfg(filepath.Join(cfgDir, "nsjail.cfg"), execPath, execArgs); err != nil {
+	if err := writeNsjailCfg(filepath.Join(cfgDir, "nsjail.cfg"), execPath, pathEnv, execArgs); err != nil {
 		return err
 	}
 
@@ -233,13 +244,18 @@ func buildAndPush(ctx context.Context, tarPath string) (string, error) {
 	}
 	execPath, args := cfg.Process.Args[0], cfg.Process.Args[1:]
 
-	dcRootfs := filepath.Join(bundleDir, "rootfs")
-	execPath, err = resolveExecPath(dcRootfs, execPath, cfg.Process.Env)
+	pathEnv, err := pathFromEnv(cfg.Process.Env)
 	if err != nil {
 		return "", err
 	}
 
-	if err := composeFinalRootfs(bundleDir, execPath, args); err != nil {
+	dcRootfs := filepath.Join(bundleDir, "rootfs")
+	execPath, err = resolveExecPath(dcRootfs, execPath, pathEnv)
+	if err != nil {
+		return "", err
+	}
+
+	if err := composeFinalRootfs(bundleDir, execPath, pathEnv, args); err != nil {
 		return "", fmt.Errorf("compose final rootfs: %w", err)
 	}
 

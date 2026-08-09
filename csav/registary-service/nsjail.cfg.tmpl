@@ -28,10 +28,9 @@ iface_no_lo: true
 mount_proc: true
 
 # nsjail strips the environment by default (keep_env: false) - without this,
-# a jailed app's own PATH-relying subprocess calls (e.g. finding a binary
-# under /usr/sbin) silently fail since execve()'s fallback search path
-# doesn't cover every directory a Data Controller's image might use.
-envar: "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+# a jailed app's own PATH-relying subprocess calls silently fail. Sourced
+# from the DC's own image (not guessed) - see pathFromEnv in build.go.
+envar: "PATH={{.PathEnv}}"
 
 rlimit_as: 2048
 rlimit_cpu: 3600
