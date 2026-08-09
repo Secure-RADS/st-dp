@@ -50,9 +50,6 @@ func main() {
 			return
 		}
 
-		// A random name, not the client-supplied filename: sidesteps path
-		// traversal entirely, and guarantees two concurrent uploads never
-		// collide on the same staging path.
 		tmpPath := filepath.Join(uploadDir, uuid.NewString()+".tar")
 		if err := c.SaveUploadedFile(fileHeader, tmpPath); err != nil {
 			c.String(http.StatusInternalServerError, "could not stage upload: %v", err)
