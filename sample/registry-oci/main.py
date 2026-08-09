@@ -51,7 +51,7 @@ def probe_writable(paths):
     writable = []
     for path in paths:
         try:
-            probe = os.path.join(path, ".registary-oci-write-probe")
+            probe = os.path.join(path, ".registry-oci-write-probe")
             with open(probe, "w"):
                 pass
             os.remove(probe)

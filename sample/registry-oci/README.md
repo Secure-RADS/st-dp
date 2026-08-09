@@ -1,4 +1,4 @@
-# registary-oci
+# registry-oci
 
 Sample OCI image that reports its own runtime permissions: resolved
 user/group name, supplementary groups, Linux capabilities
@@ -20,15 +20,15 @@ declared means the build fails outright rather than guessing.
 Build + test locally:
 
 ```
-docker build -t registary-oci sample/registary-oci
-docker run --rm registary-oci
+docker build -t registry-oci sample/registry-oci
+docker run --rm registry-oci
 ```
 
 Build + save as a .tar to send through the registry-service `/upload`
 endpoint:
 
 ```
-docker build -t registary-oci sample/registary-oci
-docker save registary-oci -o /tmp/registary-oci.tar
-make -C csav/registary-service upload FILE=/tmp/registary-oci.tar
+docker build -t registry-oci sample/registry-oci
+docker save registry-oci -o /tmp/registry-oci.tar
+make -C csav/registry-service upload FILE=/tmp/registry-oci.tar
 ```
