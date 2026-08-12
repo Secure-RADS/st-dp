@@ -17,10 +17,10 @@ ARTIFACT_BUCKET = $(shell aws cloudformation describe-stacks --stack-name $(STOR
 	--query "Stacks[0].Outputs[?OutputKey=='ArtifactBucketName'].OutputValue" --output text)
 DYNAMO_TABLE = $(shell aws cloudformation describe-stacks --stack-name $(STORAGE_STACK_NAME) --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='AlgorithmTableName'].OutputValue" --output text)
-VERIFIER_URL ?=
-VERIFIER_PUBKEY_SHA256 ?=
+VERIFIER_URL ?= https://gdpr-verifier.prdai.dev/algorithms
+VERIFIER_PUBKEY_SHA256 ?= 172602c618994c4bd5e408b3343f1c49ffa019595d7d19788f331a8f0e928316
 
-.PHONY: build test run clean sce-unit-base gen-client-cert image ship remote-up remote-down logs deploy-storage destroy-storage upload
+.PHONY: build test run clean sce-unit-base eif-build-base gen-client-cert image ship remote-up remote-down logs deploy-storage destroy-storage upload
 
 build:
 	go build -o /tmp/registry-service .
@@ -38,16 +38,20 @@ clean:
 sce-unit-base:
 	docker build --platform linux/arm64 -t sce-unit-base:latest ../../sce-unit
 
+# eif_build + kernel/init blobs - rebuild only when eif-build/ itself changes.
+eif-build-base:
+	docker build --platform linux/arm64 -t eif-build-base:latest ../../eif-build
+
 # Self-signed client cert for mTLS to verifier-service - PoC only, baked
 # into the image at build time (see csav/README.md's trust-material design).
 gen-client-cert:
 	mkdir -p tls
-	openssl req -x509 -newkey ed25519 -days 3650 -nodes \
+	openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -days 3650 -nodes \
 		-keyout tls/client.key -out tls/client.crt \
 		-subj "/CN=registry-service"
 
 # Build the docker image locally (arm64, matches the t4g.nano host).
-image: sce-unit-base
+image: sce-unit-base eif-build-base
 	docker build --platform linux/arm64 -t $(IMAGE) .
 
 # Save the image + docker-compose.yml + .env (bucket/region for compose var

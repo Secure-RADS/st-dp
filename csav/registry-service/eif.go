@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
+	"strings"
 )
 
 const (
@@ -21,13 +21,15 @@ type pcrMeasurements struct {
 	PCR2 string `json:"PCR2"`
 }
 
-type eifBuildOutput struct {
-	Measurements pcrMeasurements `json:"Measurements"`
-}
+// Standard Nitro Enclave init cmdline - matches what nitro-cli itself passes
+// to the linuxkit-based init ramdisk (aws-nitro-enclaves-cli's blobs are
+// built expecting exactly this).
+const eifCmdline = "reboot=k panic=30 pci=off nomodules console=ttyS0 i8042.noaux i8042.nomux i8042.nopnp i8042.dumbkbd"
 
 // buildEIF turns the composed rootfs into a Nitro Enclave image file via
 // eif_build directly (no docker involved - eif_build only needs a kernel,
-// an init/NSM ramdisk, and the app rootfs as a second ramdisk).
+// an init/NSM ramdisk, and the app rootfs as a second ramdisk). Measurements
+// print as JSON to stdout, not a file - there's no --pcrs_output flag.
 func buildEIF(ctx context.Context, rootfsDir, workDir string) (eifPath string, pcrs pcrMeasurements, err error) {
 	appRamdisk := filepath.Join(workDir, "app.cpio")
 	if err := buildCPIO(ctx, rootfsDir, appRamdisk); err != nil {
@@ -35,31 +37,31 @@ func buildEIF(ctx context.Context, rootfsDir, workDir string) (eifPath string, p
 	}
 
 	eifPath = filepath.Join(workDir, "out.eif")
-	measurementsPath := filepath.Join(workDir, "measurements.json")
 
-	_, err = run(ctx, eifBuildBin,
+	out, err := run(ctx, eifBuildBin,
 		"--kernel", eifKernelPath,
 		"--kernel_config", eifKernelCfg,
+		"--cmdline", eifCmdline,
 		"--ramdisk", eifInitRamdisk,
 		"--ramdisk", appRamdisk,
 		"--output", eifPath,
-		"--pcrs_output", measurementsPath,
+		"--arch", "aarch64",
 	)
 	if err != nil {
 		return "", pcrMeasurements{}, fmt.Errorf("eif_build: %w", err)
 	}
 
-	raw, err := os.ReadFile(measurementsPath)
-	if err != nil {
-		return "", pcrMeasurements{}, fmt.Errorf("read measurements: %w", err)
+	jsonStart := strings.Index(out, "{")
+	if jsonStart < 0 {
+		return "", pcrMeasurements{}, fmt.Errorf("eif_build: no measurements JSON in output: %s", out)
 	}
 
-	var out eifBuildOutput
-	if err := json.Unmarshal(raw, &out); err != nil {
+	var result pcrMeasurements
+	if err := json.Unmarshal([]byte(out[jsonStart:]), &result); err != nil {
 		return "", pcrMeasurements{}, fmt.Errorf("parse measurements: %w", err)
 	}
 
-	return eifPath, out.Measurements, nil
+	return eifPath, result, nil
 }
 
 func buildCPIO(ctx context.Context, srcDir, dst string) error {

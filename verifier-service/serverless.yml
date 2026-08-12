@@ -54,6 +54,7 @@ resources:
           - CertificateArn: ${param:certificateArn}
         MutualTlsAuthentication:
           TruststoreUri: !Sub "s3://${TruststoreBucket}/${param:truststoreKey, 'truststore.pem'}"
+          TruststoreVersion: ${param:truststoreVersionId}
 
     ApiDomainMapping:
       Type: AWS::ApiGatewayV2::ApiMapping
