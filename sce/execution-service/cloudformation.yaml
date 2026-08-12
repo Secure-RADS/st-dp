@@ -1,0 +1,121 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  execution-service stack: always-on EC2 instance that triggers enclave runs.
+  Not the enclave host itself - see PR 2 for the per-run Nitro Enclave instance.
+
+Parameters:
+  InstanceType:
+    Type: String
+    Default: t4g.small
+    Description: EC2 instance type for the execution-service instance. This instance only triggers runs - no enclave, no heavy compute.
+
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: EC2 key pair for SSH access.
+
+  AppPort:
+    Type: Number
+    Default: 8080
+    Description: Port the execution-service app listens on, exposed publicly.
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC to launch the execution-service instance in (the account's default VPC).
+
+  ArtifactBucketName:
+    Type: String
+    Description: Name of the registry-service artifact bucket (from the registry-service-storage stack), for reading EIF objects.
+
+  AlgorithmTableName:
+    Type: String
+    Description: Name of the registry-service AlgorithmId->S3 path table (from the registry-service-storage stack), for looking up EIF locations.
+
+  LatestAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64
+
+Resources:
+  ExecutionServiceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for the execution-service instance.
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: !Ref AppPort
+          ToPort: !Ref AppPort
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: "-1"
+          CidrIp: 0.0.0.0/0
+
+  ExecutionServiceInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ArtifactBucketRead
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub "arn:aws:s3:::${ArtifactBucketName}/*"
+        - PolicyName: AlgorithmTableRead
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: dynamodb:GetItem
+                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AlgorithmTableName}"
+
+  ExecutionServiceInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref ExecutionServiceInstanceRole
+
+  ExecutionServiceInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref InstanceType
+      ImageId: !Ref LatestAmiId
+      KeyName: !Ref KeyName
+      IamInstanceProfile: !Ref ExecutionServiceInstanceProfile
+      SecurityGroupIds:
+        - !Ref ExecutionServiceSecurityGroup
+      MetadataOptions:
+        HttpPutResponseHopLimit: 2
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          dnf install -y docker
+          systemctl enable --now docker
+          usermod -aG docker ec2-user
+
+          # docker-compose-plugin isn't in the AL2023 default repo; standalone binary instead.
+          curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-aarch64 \
+            -o /usr/local/bin/docker-compose
+          chmod +x /usr/local/bin/docker-compose
+          ln -s /usr/local/bin/docker-compose /usr/libexec/docker/cli-plugins/docker-compose 2>/dev/null || \
+            (mkdir -p /usr/libexec/docker/cli-plugins && ln -s /usr/local/bin/docker-compose /usr/libexec/docker/cli-plugins/docker-compose)
+      Tags:
+        - Key: Name
+          Value: execution-service
+
+Outputs:
+  ExecutionServiceInstanceId:
+    Value: !Ref ExecutionServiceInstance
+
+  ExecutionServiceInstancePublicIp:
+    Value: !GetAtt ExecutionServiceInstance.PublicIp
