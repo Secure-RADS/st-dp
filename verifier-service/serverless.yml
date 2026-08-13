@@ -12,8 +12,22 @@ provider:
         - Effect: Allow
           Action: dynamodb:PutItem
           Resource: !GetAtt AlgorithmPCRTable.Arn
+        - Effect: Allow
+          Action: dynamodb:GetItem
+          Resource: !GetAtt AlgorithmPCRTable.Arn
+        - Effect: Allow
+          Action:
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+          Resource: !GetAtt AttestationSessionTable.Arn
+        - Effect: Allow
+          Action: dynamodb:Query
+          Resource:
+            - !Sub "${AttestationSessionTable.Arn}/index/AccessTokenIndex"
+            - !Sub "${AttestationSessionTable.Arn}/index/RefreshTokenIndex"
   environment:
     ALGORITHM_PCR_TABLE: !Ref AlgorithmPCRTable
+    ATTESTATION_SESSION_TABLE: !Ref AttestationSessionTable
 
 functions:
   registerAlgorithm:
@@ -22,6 +36,27 @@ functions:
       - httpApi:
           method: POST
           path: /algorithms
+
+  attest:
+    handler: src/handlers/attest.handler
+    events:
+      - httpApi:
+          method: POST
+          path: /attest
+
+  refresh:
+    handler: src/handlers/refresh.handler
+    events:
+      - httpApi:
+          method: POST
+          path: /refresh
+
+  introspect:
+    handler: src/handlers/introspect.handler
+    events:
+      - httpApi:
+          method: POST
+          path: /introspect
 
 resources:
   Resources:
@@ -35,6 +70,37 @@ resources:
         KeySchema:
           - AttributeName: AlgorithmId
             KeyType: HASH
+
+    # Holds issued access/refresh token state - the mechanism by which
+    # sce-unit doesn't have to re-attest on every call, and PDMS doesn't
+    # have to redo attestation verification itself (see introspect.ts).
+    AttestationSessionTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: SessionId
+            AttributeType: S
+          - AttributeName: AccessTokenHash
+            AttributeType: S
+          - AttributeName: RefreshTokenHash
+            AttributeType: S
+        KeySchema:
+          - AttributeName: SessionId
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: AccessTokenIndex
+            KeySchema:
+              - AttributeName: AccessTokenHash
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+          - IndexName: RefreshTokenIndex
+            KeySchema:
+              - AttributeName: RefreshTokenHash
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
 
     # PEM bundle containing registry-service's client cert public cert
     # (csav/registry-service/tls/client.crt) - upload it here before deploy.
@@ -66,5 +132,7 @@ resources:
   Outputs:
     AlgorithmPCRTableName:
       Value: !Ref AlgorithmPCRTable
+    AttestationSessionTableName:
+      Value: !Ref AttestationSessionTable
     TruststoreBucketName:
       Value: !Ref TruststoreBucket
