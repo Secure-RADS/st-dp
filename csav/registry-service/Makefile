@@ -20,8 +20,10 @@ DYNAMO_TABLE = $(shell aws cloudformation describe-stacks --stack-name $(STORAGE
 VERIFIER_URL ?= https://gdpr-verifier.prdai.dev/algorithms
 VERIFIER_ATTEST_URL ?= https://gdpr-verifier.prdai.dev/attest
 VERIFIER_PUBKEY_SHA256 ?= 172602c618994c4bd5e408b3343f1c49ffa019595d7d19788f331a8f0e928316
+PDMS_URL ?= https://gdpr-pdms.prdai.dev/run
+PDMS_PUBKEY_SHA256 ?=
 
-.PHONY: build test run clean sce-unit-base eif-build-base gen-client-cert gen-sce-client-cert image ship remote-up remote-down logs deploy-storage destroy-storage upload
+.PHONY: build test run clean sce-unit-base eif-build-base gen-client-cert gen-sce-client-cert gen-sce-pdms-client-cert image ship remote-up remote-down logs deploy-storage destroy-storage upload
 
 build:
 	go build -o /tmp/registry-service .
@@ -60,6 +62,14 @@ gen-sce-client-cert:
 		-keyout sce-tls/client.key -out sce-tls/client.crt \
 		-subj "/CN=sce-unit"
 
+# sce-unit's PDMS-specific identity - separate cert from the one above since
+# it authenticates a different destination (PDMS, not verifier-service).
+gen-sce-pdms-client-cert:
+	mkdir -p sce-pdms-tls
+	openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -days 3650 -nodes \
+		-keyout sce-pdms-tls/client.key -out sce-pdms-tls/client.crt \
+		-subj "/CN=sce-unit-pdms"
+
 # Build the docker image locally (arm64, matches the t4g.nano host).
 image: sce-unit-base eif-build-base
 	docker build --platform linux/arm64 -t $(IMAGE) .
@@ -74,6 +84,8 @@ ship: image
 	echo "VERIFIER_URL=$(VERIFIER_URL)" >> /tmp/registry-service.env
 	echo "VERIFIER_ATTEST_URL=$(VERIFIER_ATTEST_URL)" >> /tmp/registry-service.env
 	echo "VERIFIER_PUBKEY_SHA256=$(VERIFIER_PUBKEY_SHA256)" >> /tmp/registry-service.env
+	echo "PDMS_URL=$(PDMS_URL)" >> /tmp/registry-service.env
+	echo "PDMS_PUBKEY_SHA256=$(PDMS_PUBKEY_SHA256)" >> /tmp/registry-service.env
 	$(SSH) "mkdir -p $(REMOTE_DIR)"
 	$(SCP) /tmp/registry-service.tar ../docker-compose.yml $(REMOTE):$(REMOTE_DIR)/
 	$(SCP) /tmp/registry-service.env $(REMOTE):$(REMOTE_DIR)/.env

@@ -18,6 +18,7 @@ COPY --from=sceunit /sce-unit /opt/assets/sce-unit
 COPY --from=eifassets /opt/assets/eif /opt/assets/eif
 COPY tls/client.crt tls/client.key /opt/assets/tls/
 COPY sce-tls/client.crt sce-tls/client.key /opt/assets/sce-tls/
+COPY sce-pdms-tls/client.crt sce-pdms-tls/client.key /opt/assets/sce-pdms-tls/
 COPY --from=build /registry-service /registry-service
 EXPOSE 8080
 ENTRYPOINT ["/registry-service"]

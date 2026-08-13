@@ -16,6 +16,7 @@ const (
 	nsjailRuntimeDir = "/opt/assets/nsjail-runtime"
 	sceUnitBin       = "/opt/assets/sce-unit"
 	sceTLSDir        = "/opt/assets/sce-tls"
+	scePDMSTLSDir    = "/opt/assets/sce-pdms-tls"
 )
 
 // composeFinalRootfs replaces the bundle's rootfs with nsjail's runtime as the base, the DC's own rootfs nested under opt/dc-app/rootfs, the SCE Unit binary, and a generated nsjail.cfg.
@@ -54,6 +55,9 @@ func composeFinalRootfs(bundleDir, algorithmId, execPath, pathEnv string, execAr
 	if err := writeSceTrustMaterial(cfgDir); err != nil {
 		return fmt.Errorf("write sce trust material: %w", err)
 	}
+	if err := writeScePDMSTrustMaterial(cfgDir); err != nil {
+		return fmt.Errorf("write sce pdms trust material: %w", err)
+	}
 	if err := os.WriteFile(filepath.Join(cfgDir, "algorithm-id"), []byte(algorithmId), 0o644); err != nil {
 		return fmt.Errorf("write algorithm id: %w", err)
 	}
@@ -90,6 +94,30 @@ func writeSceTrustMaterial(cfgDir string) error {
 		return err
 	}
 	return os.WriteFile(filepath.Join(cfgDir, "verifier-pubkey.sha256"), []byte(pinnedPubKey), 0o644)
+}
+
+// writeScePDMSTrustMaterial bakes sce-unit's PDMS-specific mTLS identity
+// and PDMS's pinned pubkey config into the composed rootfs, mirroring
+// writeSceTrustMaterial above. Unlike verifier-service (required, already
+// deployed), PDMS is a stub not deployed anywhere yet, so a blank pinned
+// pubkey here doesn't fail the build - just means sce-unit's PDMS calls
+// aren't wired up to anything real until PDMS_PUBKEY_SHA256 is set.
+func writeScePDMSTrustMaterial(cfgDir string) error {
+	tlsDir := filepath.Join(cfgDir, "pdms-tls")
+	if err := os.MkdirAll(tlsDir, 0o755); err != nil {
+		return err
+	}
+	if err := copyFile(filepath.Join(scePDMSTLSDir, "client.crt"), filepath.Join(tlsDir, "client.crt"), 0o644); err != nil {
+		return fmt.Errorf("copy sce pdms client cert: %w", err)
+	}
+	if err := copyFile(filepath.Join(scePDMSTLSDir, "client.key"), filepath.Join(tlsDir, "client.key"), 0o600); err != nil {
+		return fmt.Errorf("copy sce pdms client key: %w", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(cfgDir, "pdms-url"), []byte(os.Getenv("PDMS_URL")), 0o644); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(cfgDir, "pdms-pubkey.sha256"), []byte(os.Getenv("PDMS_PUBKEY_SHA256")), 0o644)
 }
 
 func writeNsjailCfg(path, execPath, pathEnv string, args []string) error {

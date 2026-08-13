@@ -28,8 +28,13 @@ func main() {
 	// shouldn't block the DC app's own jailed execution, only its ability
 	// to later reach PDMS (which requires a valid access token).
 	go func() {
-		if err := startAttestation(context.Background()); err != nil {
+		ctx := context.Background()
+		if err := startAttestation(ctx); err != nil {
 			log.Printf("sce-unit: attestation failed: %v", err)
+			return
+		}
+		if err := callPDMS(ctx); err != nil {
+			log.Printf("sce-unit: PDMS call failed: %v", err)
 		}
 	}()
 

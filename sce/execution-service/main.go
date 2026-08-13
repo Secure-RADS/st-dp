@@ -22,6 +22,7 @@ var (
 	enclaveSecurityGroupId    string
 	enclaveInstanceProfileArn string
 	verifierDomain            string
+	pdmsDomain                string
 )
 
 func main() {
@@ -39,6 +40,7 @@ func main() {
 	enclaveSecurityGroupId = os.Getenv("ENCLAVE_SECURITY_GROUP_ID")
 	enclaveInstanceProfileArn = os.Getenv("ENCLAVE_INSTANCE_PROFILE_ARN")
 	verifierDomain = os.Getenv("VERIFIER_DOMAIN")
+	pdmsDomain = os.Getenv("PDMS_DOMAIN")
 
 	r := gin.Default()
 

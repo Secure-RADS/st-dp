@@ -17,10 +17,13 @@ const (
 	enclaveMemoryMiB = 2048
 )
 
-// Fixed vsock port sce-unit dials (CID 3 = parent instance) to reach
-// verifier-service through the outbound-only vsock-proxy tunnel - the
+// Fixed vsock ports sce-unit dials (CID 3 = parent instance) to reach
+// verifier-service/PDMS through the outbound-only vsock-proxy tunnels - the
 // enclave has no direct network access at all.
-const verifierProxyVsockPort = 8000
+const (
+	verifierProxyVsockPort = 8000
+	pdmsProxyVsockPort     = 8001
+)
 
 // launchEnclaveInstance starts a fresh Nitro-Enclave-capable EC2 instance
 // that downloads the given EIF from S3, runs it, and terminates itself once
@@ -72,6 +75,17 @@ allowlist:
 EOF
 vsock-proxy %d %s 443 --config /tmp/vsock-proxy-verifier.yaml &
 
+# PDMS is a stub not deployed anywhere yet - only start its proxy if a
+# domain was actually configured, rather than fail vsock-proxy on an empty
+# destination.
+if [ -n "%s" ]; then
+  cat > /tmp/vsock-proxy-pdms.yaml <<EOF
+allowlist:
+  - {address: %s, port: 443}
+EOF
+  vsock-proxy %d %s 443 --config /tmp/vsock-proxy-pdms.yaml &
+fi
+
 mkdir -p /opt/eif
 aws s3 cp "s3://%s/%s" /opt/eif/app.eif --region "%s"
 
@@ -80,7 +94,9 @@ nitro-cli run-enclave --cpu-count %d --memory %d --eif-path /opt/eif/app.eif --e
 while nitro-cli describe-enclaves | grep -q '"EnclaveID"'; do
   sleep 5
 done
-`, s3Bucket, s3Bucket, s3Bucket, enclaveMemoryMiB, enclaveCPUCount, verifierDomain, verifierProxyVsockPort, verifierDomain, s3Bucket, s3Key, awsRegion, enclaveCPUCount, enclaveMemoryMiB)
+`, s3Bucket, s3Bucket, s3Bucket, enclaveMemoryMiB, enclaveCPUCount, verifierDomain, verifierProxyVsockPort, verifierDomain,
+		pdmsDomain, pdmsDomain, pdmsProxyVsockPort, pdmsDomain,
+		s3Bucket, s3Key, awsRegion, enclaveCPUCount, enclaveMemoryMiB)
 
 	out, err := ec2Client.RunInstances(ctx, &ec2.RunInstancesInput{
 		ImageId:      &enclaveAmiId,

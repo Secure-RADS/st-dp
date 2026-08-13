@@ -1,6 +1,7 @@
 *.pem
 !verifier-service/certs/*.pem
 csav/registry-service/tls/
+pdms/certs/
 csav/registry-service/registry-service
 sce/execution-service/execution-service
 sce-unit/sce-unit
