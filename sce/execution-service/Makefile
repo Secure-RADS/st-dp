@@ -21,6 +21,7 @@ ENCLAVE_SECURITY_GROUP_ID = $(shell aws cloudformation describe-stacks --stack-n
 	--query "Stacks[0].Outputs[?OutputKey=='EnclaveHostSecurityGroupId'].OutputValue" --output text)
 ENCLAVE_INSTANCE_PROFILE_ARN = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='EnclaveHostInstanceProfileArn'].OutputValue" --output text)
+VERIFIER_DOMAIN ?= gdpr-verifier.prdai.dev
 
 .PHONY: build test run clean image ship remote-up remote-down logs
 
@@ -50,6 +51,7 @@ ship: image
 	echo "ENCLAVE_INSTANCE_TYPE=$(ENCLAVE_INSTANCE_TYPE)" >> /tmp/execution-service.env
 	echo "ENCLAVE_SECURITY_GROUP_ID=$(ENCLAVE_SECURITY_GROUP_ID)" >> /tmp/execution-service.env
 	echo "ENCLAVE_INSTANCE_PROFILE_ARN=$(ENCLAVE_INSTANCE_PROFILE_ARN)" >> /tmp/execution-service.env
+	echo "VERIFIER_DOMAIN=$(VERIFIER_DOMAIN)" >> /tmp/execution-service.env
 	$(SSH) "mkdir -p $(REMOTE_DIR)"
 	$(SCP) /tmp/execution-service.tar ../docker-compose.yml $(REMOTE):$(REMOTE_DIR)/
 	$(SCP) /tmp/execution-service.env $(REMOTE):$(REMOTE_DIR)/.env

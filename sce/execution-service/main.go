@@ -21,6 +21,7 @@ var (
 	enclaveInstanceType       string
 	enclaveSecurityGroupId    string
 	enclaveInstanceProfileArn string
+	verifierDomain            string
 )
 
 func main() {
@@ -37,6 +38,7 @@ func main() {
 	enclaveInstanceType = os.Getenv("ENCLAVE_INSTANCE_TYPE")
 	enclaveSecurityGroupId = os.Getenv("ENCLAVE_SECURITY_GROUP_ID")
 	enclaveInstanceProfileArn = os.Getenv("ENCLAVE_INSTANCE_PROFILE_ARN")
+	verifierDomain = os.Getenv("VERIFIER_DOMAIN")
 
 	r := gin.Default()
 

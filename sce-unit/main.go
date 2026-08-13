@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"log"
 	"net"
 	"os"
@@ -22,6 +23,15 @@ const (
 
 func main() {
 	log.Printf("sce-unit: starting up")
+
+	// Runs alongside nsjail startup, not before it - attestation failure
+	// shouldn't block the DC app's own jailed execution, only its ability
+	// to later reach PDMS (which requires a valid access token).
+	go func() {
+		if err := startAttestation(context.Background()); err != nil {
+			log.Printf("sce-unit: attestation failed: %v", err)
+		}
+	}()
 
 	if err := os.MkdirAll(socketDir, 0o755); err != nil {
 		log.Fatalf("sce-unit: create %s: %v", socketDir, err)

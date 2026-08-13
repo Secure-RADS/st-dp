@@ -17,6 +17,11 @@ const (
 	enclaveMemoryMiB = 2048
 )
 
+// Fixed vsock port sce-unit dials (CID 3 = parent instance) to reach
+// verifier-service through the outbound-only vsock-proxy tunnel - the
+// enclave has no direct network access at all.
+const verifierProxyVsockPort = 8000
+
 // launchEnclaveInstance starts a fresh Nitro-Enclave-capable EC2 instance
 // that downloads the given EIF from S3, runs it, and terminates itself once
 // the enclave process exits - execution-service never connects to it
@@ -58,6 +63,15 @@ cpu_count: %d
 EOF
 systemctl enable --now nitro-enclaves-allocator
 
+# vsock-proxy requires the destination in its allowlist config, even when
+# passed as CLI args - the enclave has no direct network access, so this is
+# the only path for sce-unit's mTLS call to verifier-service.
+cat > /tmp/vsock-proxy-verifier.yaml <<EOF
+allowlist:
+  - {address: %s, port: 443}
+EOF
+vsock-proxy %d %s 443 --config /tmp/vsock-proxy-verifier.yaml &
+
 mkdir -p /opt/eif
 aws s3 cp "s3://%s/%s" /opt/eif/app.eif --region "%s"
 
@@ -66,7 +80,7 @@ nitro-cli run-enclave --cpu-count %d --memory %d --eif-path /opt/eif/app.eif --e
 while nitro-cli describe-enclaves | grep -q '"EnclaveID"'; do
   sleep 5
 done
-`, s3Bucket, s3Bucket, s3Bucket, enclaveMemoryMiB, enclaveCPUCount, s3Bucket, s3Key, awsRegion, enclaveCPUCount, enclaveMemoryMiB)
+`, s3Bucket, s3Bucket, s3Bucket, enclaveMemoryMiB, enclaveCPUCount, verifierDomain, verifierProxyVsockPort, verifierDomain, s3Bucket, s3Key, awsRegion, enclaveCPUCount, enclaveMemoryMiB)
 
 	out, err := ec2Client.RunInstances(ctx, &ec2.RunInstancesInput{
 		ImageId:      &enclaveAmiId,

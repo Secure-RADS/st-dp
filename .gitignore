@@ -3,5 +3,7 @@
 csav/registry-service/tls/
 csav/registry-service/registry-service
 sce/execution-service/execution-service
+sce-unit/sce-unit
+csav/registry-service/sce-tls/
 node_modules/
 .serverless/

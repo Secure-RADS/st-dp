@@ -64,7 +64,7 @@ func buildAndPush(ctx context.Context, algorithmId, tarPath string) (string, err
 	log.Printf("build[%s]: resolved entrypoint %s %v", tarPath, execPath, args)
 
 	log.Printf("build[%s]: composing final rootfs", tarPath)
-	if err := composeFinalRootfs(bundleDir, execPath, pathEnv, args); err != nil {
+	if err := composeFinalRootfs(bundleDir, algorithmId, execPath, pathEnv, args); err != nil {
 		return "", fmt.Errorf("compose final rootfs: %w", err)
 	}
 
