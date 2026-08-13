@@ -34,6 +34,11 @@ Parameters:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
     Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64
 
+  EnclaveInstanceType:
+    Type: String
+    Default: c6g.large
+    Description: Nitro-Enclave-capable instance type for per-run enclave hosts. AWS excludes the .medium size from enclave support in every Graviton family (confirmed via the Nitro Enclaves docs) - c6g.large is the cheapest size that actually works.
+
 Resources:
   ExecutionServiceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -78,12 +83,92 @@ Resources:
               - Effect: Allow
                 Action: dynamodb:GetItem
                 Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AlgorithmTableName}"
+        - PolicyName: LaunchEnclaveHost
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: ec2:RunInstances
+                Resource:
+                  - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*"
+                  - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:volume/*"
+                  - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:network-interface/*"
+                  - !Sub "arn:aws:ec2:${AWS::Region}::image/*"
+                  - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:security-group/*"
+                  - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:subnet/*"
+              - Effect: Allow
+                Action: ec2:CreateTags
+                Resource: !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*"
+                Condition:
+                  StringEquals:
+                    "ec2:CreateAction": RunInstances
+              - Effect: Allow
+                Action: iam:PassRole
+                Resource: !GetAtt EnclaveHostInstanceRole.Arn
+              - Effect: Allow
+                Action: ec2:DescribeInstances
+                Resource: "*"
 
   ExecutionServiceInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
       Roles:
         - !Ref ExecutionServiceInstanceRole
+
+  # No ingress at all - the enclave host only makes outbound calls (S3 EIF
+  # download now, mTLS to verifier-service/PDMS later). execution-service
+  # never connects to it directly; it launches the instance and moves on,
+  # and the instance terminates itself once the enclave process exits.
+  EnclaveHostSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for per-run Nitro Enclave host instances.
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - IpProtocol: "-1"
+          CidrIp: 0.0.0.0/0
+
+  EnclaveHostInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ArtifactBucketRead
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub "arn:aws:s3:::${ArtifactBucketName}/*"
+        - PolicyName: RunStatusWrite
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: s3:PutObject
+                Resource: !Sub "arn:aws:s3:::${ArtifactBucketName}/runs/*"
+        - PolicyName: SelfTerminate
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: ec2:TerminateInstances
+                Resource: !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*"
+                Condition:
+                  StringEquals:
+                    "ec2:ResourceTag/ManagedBy": execution-service
+
+  EnclaveHostInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref EnclaveHostInstanceRole
 
   ExecutionServiceInstance:
     Type: AWS::EC2::Instance
@@ -119,3 +204,12 @@ Outputs:
 
   ExecutionServiceInstancePublicIp:
     Value: !GetAtt ExecutionServiceInstance.PublicIp
+
+  EnclaveHostSecurityGroupId:
+    Value: !Ref EnclaveHostSecurityGroup
+
+  EnclaveHostInstanceProfileArn:
+    Value: !GetAtt EnclaveHostInstanceProfile.Arn
+
+  EnclaveHostAmiId:
+    Value: !Ref LatestAmiId

@@ -8,8 +8,13 @@ RUN git clone --branch v0.6.0 --depth 1 https://github.com/aws/aws-nitro-enclave
 WORKDIR /src
 RUN cargo build --release -p eif_build
 
+# Pinned to match the exact version the enclave host installs at boot
+# (sce/execution-service/ec2.go's UserData) - the kernel/init blobs here
+# and the enclave manager on the host talk a version-specific vsock
+# protocol; a mismatch kills the boot handshake before the enclave ever
+# gets a chance to run (observed as AWS's E36/E39 "ready signal" errors).
 FROM amazonlinux:2023 AS blobs
-RUN dnf install -y aws-nitro-enclaves-cli-devel && \
+RUN dnf install -y aws-nitro-enclaves-cli-devel-1.4.4-0.amzn2023 && \
     mkdir -p /opt/assets/eif && \
     cp /usr/share/nitro_enclaves/blobs/Image /opt/assets/eif/bzImage && \
     cp /usr/share/nitro_enclaves/blobs/Image.config /opt/assets/eif/bzImage.config && \

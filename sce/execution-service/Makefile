@@ -12,6 +12,15 @@ REMOTE_HOST = $(shell aws ec2 describe-instances --instance-ids $(INSTANCE_ID) -
 REMOTE = ec2-user@$(REMOTE_HOST)
 SSH := ssh -i $(KEY_PATH) $(REMOTE)
 SCP := scp -i $(KEY_PATH)
+ALGORITHM_TABLE = $(shell aws cloudformation describe-stacks --stack-name registry-service-storage --region $(REGION) \
+	--query "Stacks[0].Outputs[?OutputKey=='AlgorithmTableName'].OutputValue" --output text)
+ENCLAVE_AMI_ID = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
+	--query "Stacks[0].Outputs[?OutputKey=='EnclaveHostAmiId'].OutputValue" --output text)
+ENCLAVE_INSTANCE_TYPE ?= c6g.large
+ENCLAVE_SECURITY_GROUP_ID = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
+	--query "Stacks[0].Outputs[?OutputKey=='EnclaveHostSecurityGroupId'].OutputValue" --output text)
+ENCLAVE_INSTANCE_PROFILE_ARN = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
+	--query "Stacks[0].Outputs[?OutputKey=='EnclaveHostInstanceProfileArn'].OutputValue" --output text)
 
 .PHONY: build test run clean image ship remote-up remote-down logs
 
@@ -36,6 +45,11 @@ image:
 ship: image
 	docker save $(IMAGE) -o /tmp/execution-service.tar
 	echo "AWS_REGION=$(REGION)" > /tmp/execution-service.env
+	echo "ALGORITHM_TABLE=$(ALGORITHM_TABLE)" >> /tmp/execution-service.env
+	echo "ENCLAVE_AMI_ID=$(ENCLAVE_AMI_ID)" >> /tmp/execution-service.env
+	echo "ENCLAVE_INSTANCE_TYPE=$(ENCLAVE_INSTANCE_TYPE)" >> /tmp/execution-service.env
+	echo "ENCLAVE_SECURITY_GROUP_ID=$(ENCLAVE_SECURITY_GROUP_ID)" >> /tmp/execution-service.env
+	echo "ENCLAVE_INSTANCE_PROFILE_ARN=$(ENCLAVE_INSTANCE_PROFILE_ARN)" >> /tmp/execution-service.env
 	$(SSH) "mkdir -p $(REMOTE_DIR)"
 	$(SCP) /tmp/execution-service.tar ../docker-compose.yml $(REMOTE):$(REMOTE_DIR)/
 	$(SCP) /tmp/execution-service.env $(REMOTE):$(REMOTE_DIR)/.env
