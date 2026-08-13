@@ -1,0 +1,37 @@
+# CSAV
+
+Consent Specification and Algorithm Verification. Runs as an EC2 instance.
+
+Diagrams: https://www.figma.com/design/6l8ibdvznuSH79Aq0HsTOL/GDPR-Research?node-id=0-1&t=d3eVEK5dE1mpFEKO-1
+
+## What it does
+
+Handles verification of algorithms and consent management. Maintains the Registry Service for build artifacts. Manages the mapping of `AlgorithmId` to the users it affects.
+
+Consent/algorithm-compliance verification logic (checking creation is authorized before it happens) is future work, out of scope for now.
+
+## Registry Service (part of CSAV)
+
+Builds the EIF for Nitro Enclaves from a Data Controller's OCI image:
+
+```mermaid
+flowchart TD
+    A["Data Controller OCI image"] -->|unpack during trusted build| B["controller-rootfs/
+    app/, usr/, lib/, etc/, ..."]
+    B -->|embedded into final image| C["Final EIF filesystem"]
+    C --> D["usr/local/bin/sce"]
+    C --> E["usr/local/bin/nsjail"]
+    C --> F["etc/sce/nsjail.cfg"]
+    C --> G["opt/controller/rootfs/ (the DC app)"]
+```
+
+- **nsjail**: enforces the privilege boundary at runtime — DC algorithm gets its rootfs and a socket to the SCE Unit, nothing else.
+- **Trust material**: public key pin or CA cert injected into the EIF at build time, so the enclave can verify the Verifier Service, Personal Data Management Service, KMS, and Log Service later.
+- **Storage**: final EIF goes to S3, `AlgorithmId` -> S3 path goes to DynamoDB. Registry Service also generates PCR values and sends them to the Verifier Service.
+
+## Design Decisions
+
+- Registry Service (as part of CSAV) owns the build — DC only ever produces an OCI image, never the EIF, which is what makes attestation measurements meaningful.
+- nsjail + image composition together are the privilege story: layout says where things live, nsjail says what they can do.
+- Trust material baked in at build time, not configurable at runtime.
+- TLS: public key pinning for the PoC; CA cert verification is a later step.

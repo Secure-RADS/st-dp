@@ -1,0 +1,72 @@
+# No "chroot" field - the DC's rootfs replaces "/" via a bind mount instead.
+# exec_bin is generated per-build from the uploaded image's own
+# ENTRYPOINT/CMD - no universal binary path across arbitrary DC images.
+#
+# /run/sce is a shared socket dir, not a single socket file: nsjail's
+# mounts run before the DC app exists to create its socket, so the dir
+# gets bind-mounted (visible on both sides once the app creates the file)
+# instead - see socketDir in sce-unit/main.go.
+
+name: "data-controller-application-jail"
+
+hostname: "dc-app"
+
+iface_no_lo: true
+
+mount_proc: true
+
+# nsjail strips env vars by default; PATH here is sourced from the DC's own image (see pathFromEnv in build.go).
+envar: "PATH={{.PathEnv}}"
+
+rlimit_as: 2048
+rlimit_cpu: 3600
+rlimit_fsize: 1024
+rlimit_nofile: 64
+rlimit_nproc: 16
+
+mount {
+	src: "/opt/dc-app/rootfs"
+	dst: "/"
+	is_bind: true
+	is_dir: true
+	rw: true
+	nosuid: true
+	nodev: true
+}
+
+mount {
+	dst: "/tmp"
+	fstype: "tmpfs"
+	rw: true
+	nosuid: true
+	nodev: true
+}
+
+mount {
+	src: "/opt/dc-app/rootfs/run/sce"
+	dst: "/run/sce"
+	is_bind: true
+	is_dir: true
+	rw: true
+	nosuid: true
+	nodev: true
+}
+
+seccomp_string: "KILL_PROCESS {"
+seccomp_string: "	ptrace,"
+seccomp_string: "	process_vm_readv,"
+seccomp_string: "	process_vm_writev,"
+seccomp_string: "	mount,"
+seccomp_string: "	reboot,"
+seccomp_string: "	init_module,"
+seccomp_string: "	delete_module,"
+seccomp_string: "	acct"
+seccomp_string: "}"
+seccomp_string: "DEFAULT ALLOW"
+
+exec_bin {
+	path: {{printf "%q" .Path}}
+{{- range .Args}}
+	arg: {{printf "%q" .}}
+{{- end}}
+}
