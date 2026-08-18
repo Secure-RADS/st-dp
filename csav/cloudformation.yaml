@@ -25,6 +25,10 @@ Parameters:
     Type: String
     Description: Name of the registry-service artifact bucket (from the registry-service-storage stack), for the instance's S3 write permission.
 
+  AlgorithmTableName:
+    Type: String
+    Description: Name of the registry-service AlgorithmId->S3 path table (from the registry-service-storage stack), for the instance's DynamoDB write permission.
+
   LatestAmiId:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
     Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64
@@ -66,6 +70,13 @@ Resources:
               - Effect: Allow
                 Action: s3:PutObject
                 Resource: !Sub "arn:aws:s3:::${ArtifactBucketName}/*"
+        - PolicyName: AlgorithmTableWrite
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: dynamodb:PutItem
+                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AlgorithmTableName}"
 
   CsavInstanceProfile:
     Type: AWS::IAM::InstanceProfile
