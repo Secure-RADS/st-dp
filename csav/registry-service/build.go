@@ -9,16 +9,11 @@ import (
 	"time"
 )
 
-// buildAndPush unpacks the uploaded OCI image, jails the Data Controller's
-// app behind nsjail (with the SCE Unit as the composed image's real
-// entrypoint), builds a Nitro Enclave EIF from the result, and uploads that
-// straight to S3. The raw upload and the intermediate OCI bundle never get
-// persisted - only the EIF does.
-//
-// Unpack goes through skopeo + umoci rather than a daemon: no docker.sock,
-// no buildah-style unshare/capabilities either - umoci's rootless unpack
-// needs nothing beyond normal filesystem access. The EIF build itself
-// (eif.go) avoids docker too, via eif_build directly on the composed rootfs.
+// buildAndPush unpacks the uploaded image, jails the Data Controller's app
+// behind nsjail with the SCE Unit as entrypoint, builds a Nitro Enclave EIF
+// from the result, and uploads only that to S3. The whole pipeline is
+// daemonless: skopeo + rootless umoci for unpack, eif_build directly on the
+// composed rootfs (eif.go) - no docker.sock anywhere.
 func buildAndPush(ctx context.Context, algorithmId, tarPath string) (string, error) {
 	start := time.Now()
 	log.Printf("build[%s]: start", tarPath)
