@@ -10,9 +10,10 @@ import (
 )
 
 const (
-	eifKernelPath  = "/opt/assets/eif/bzImage"
-	eifKernelCfg   = "/opt/assets/eif/bzImage.config"
-	eifInitRamdisk = "/opt/assets/eif/nsm.cpio"
+	eifKernelPath  = "/opt/assets/eif/Image"
+	eifKernelCfg   = "/opt/assets/eif/Image.config"
+	eifInitRamdisk = "/opt/assets/eif/bootstrap.cpio"
+	eifCmdlinePath = "/opt/assets/eif/cmdline"
 	eifBuildBin    = "/opt/assets/eif/eif_build"
 )
 
@@ -22,10 +23,9 @@ type pcrMeasurements struct {
 	PCR2 string `json:"PCR2"`
 }
 
-// Standard Nitro Enclave init cmdline - matches what nitro-cli itself passes
-// to the linuxkit-based init ramdisk (aws-nitro-enclaves-cli's blobs are
-// built expecting exactly this).
-const eifCmdline = "reboot=k panic=30 pci=off nomodules console=ttyS0 i8042.noaux i8042.nomux i8042.nopnp i8042.dumbkbd"
+// Kernel cmdline comes verbatim from the blobs' per-arch cmdline file
+// (the previous hardcoded string was the x86_64 variant, missing aarch64's
+// root=/dev/ram0).
 
 // AWS's own init (aws/aws-nitro-enclaves-sdk-bootstrap, init/init.c) expects
 // the app ramdisk laid out as /rootfs (the actual filesystem, which it
@@ -53,10 +53,15 @@ func buildEIF(ctx context.Context, rootfsDir, workDir string) (eifPath string, p
 
 	eifPath = filepath.Join(workDir, "out.eif")
 
+	cmdlineBytes, err := os.ReadFile(eifCmdlinePath)
+	if err != nil {
+		return "", pcrMeasurements{}, fmt.Errorf("read cmdline blob: %w", err)
+	}
+
 	out, err := run(ctx, eifBuildBin,
 		"--kernel", eifKernelPath,
 		"--kernel_config", eifKernelCfg,
-		"--cmdline", eifCmdline,
+		"--cmdline", strings.TrimSpace(string(cmdlineBytes)),
 		"--ramdisk", eifInitRamdisk,
 		"--ramdisk", appRamdisk,
 		"--output", eifPath,
@@ -88,6 +93,11 @@ func stageAppRamdisk(rootfsDir, stagingDir string) error {
 	}
 	if err := copyTree(rootfsDir, stagedRootfs); err != nil {
 		return fmt.Errorf("copy rootfs into staging: %w", err)
+	}
+	// Empty env still written: init warns on a missing /env but then
+	// fclose()s the NULL handle, which crashes it post-heartbeat on musl.
+	if err := os.WriteFile(filepath.Join(stagingDir, "env"), nil, 0o644); err != nil {
+		return err
 	}
 	return os.WriteFile(filepath.Join(stagingDir, "cmd"), []byte(sceEntrypoint+"\n"), 0o644)
 }
