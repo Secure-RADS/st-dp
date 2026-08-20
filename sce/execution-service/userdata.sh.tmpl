@@ -2,12 +2,7 @@
 set -uo pipefail
 exec > >(tee /var/log/execution-service-run.log) 2>&1
 
-# Always self-terminate on exit, success or failure - otherwise a failed
-# step (e.g. the enclave failing to boot) leaves this instance running
-# indefinitely, since execution-service never connects to it directly to
-# find out what happened. Also uploads a status marker + full log to S3,
-# since console output is unreliable to poll (delayed/cleared on terminate)
-# and this instance has no other way to report back what happened.
+# Always self-terminate on exit and report status/logs to S3 - no direct connection back, and console output polling is unreliable.
 finish() {
   STATUS=$?
   TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
@@ -21,10 +16,7 @@ finish() {
 }
 trap finish EXIT
 
-# Version pinned to match eif-build/Dockerfile exactly - the kernel/init
-# blobs baked into the EIF and this host's enclave manager talk a
-# version-specific vsock protocol, so they must be built from the same
-# aws-nitro-enclaves-cli-devel release or the boot handshake fails silently.
+# Pinned to match eif-build/Dockerfile - version mismatch fails the boot handshake silently.
 dnf install -y aws-nitro-enclaves-cli-1.4.4-0.amzn2023 aws-nitro-enclaves-cli-devel-1.4.4-0.amzn2023 awscli
 
 cat > /etc/nitro_enclaves/allocator.yaml <<EOF
