@@ -76,6 +76,14 @@ Resources:
               - Effect: Allow
                 Action: s3:GetObject
                 Resource: !Sub "arn:aws:s3:::${ArtifactBucketName}/*"
+              # Without ListBucket, GetObject on a not-yet-written runs/ key is a 403, not a 404,
+              # so the result poll cannot tell "not finished" from "denied".
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !Sub "arn:aws:s3:::${ArtifactBucketName}"
+                Condition:
+                  StringLike:
+                    "s3:prefix": "runs/*"
         - PolicyName: AlgorithmTableRead
           PolicyDocument:
             Version: "2012-10-17"

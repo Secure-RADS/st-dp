@@ -8,10 +8,12 @@ finish() {
   TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
   INSTANCE_ID=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-id)
   REGION=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/placement/region)
+  aws s3 cp /var/log/execution-service-run.log "s3://{{.S3Bucket}}/runs/$INSTANCE_ID/log.txt" --region "$REGION" || true
+  [ -s /tmp/output.txt ] && aws s3 cp /tmp/output.txt "s3://{{.S3Bucket}}/runs/$INSTANCE_ID/output.txt" --region "$REGION" || true
+  aws s3 sync /var/log/nitro_enclaves/ "s3://{{.S3Bucket}}/runs/$INSTANCE_ID/nitro_enclaves_logs/" --region "$REGION" || true
+  # status.txt is the done-sentinel execution-service polls for, so it must be the last upload.
   echo "exit:$STATUS" > /tmp/status.txt
   aws s3 cp /tmp/status.txt "s3://{{.S3Bucket}}/runs/$INSTANCE_ID/status.txt" --region "$REGION" || true
-  aws s3 cp /var/log/execution-service-run.log "s3://{{.S3Bucket}}/runs/$INSTANCE_ID/log.txt" --region "$REGION" || true
-  aws s3 sync /var/log/nitro_enclaves/ "s3://{{.S3Bucket}}/runs/$INSTANCE_ID/nitro_enclaves_logs/" --region "$REGION" || true
   aws ec2 terminate-instances --instance-ids "$INSTANCE_ID" --region "$REGION"
 }
 trap finish EXIT
@@ -28,6 +30,18 @@ systemctl enable --now nitro-enclaves-allocator
 
 mkdir -p /opt/eif
 aws s3 cp "s3://{{.S3Bucket}}/{{.S3Key}}" /opt/eif/app.eif --region "{{.Region}}"
+
+# sce-unit connects back to the parent (CID 3) on this port and streams the DC app's output; one connection per run.
+python3 - <<'PYEOF' &
+import socket
+s = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
+s.bind((socket.VMADDR_CID_ANY, 5000))
+s.listen(1)
+conn, _ = s.accept()
+with open("/tmp/output.txt", "wb") as f:
+    while chunk := conn.recv(65536):
+        f.write(chunk)
+PYEOF
 
 nitro-cli run-enclave --cpu-count {{.CPUCount}} --memory {{.MemoryMiB}} --eif-path /opt/eif/app.eif --enclave-cid 16
 

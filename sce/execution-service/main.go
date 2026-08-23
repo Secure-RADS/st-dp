@@ -8,14 +8,17 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/gin-gonic/gin"
 )
 
 var (
-	dynamoClient *dynamodb.Client
-	dynamoTable  string
-	ec2Client    *ec2.Client
-	awsRegion    string
+	dynamoClient   *dynamodb.Client
+	dynamoTable    string
+	ec2Client      *ec2.Client
+	s3Client       *s3.Client
+	artifactBucket string
+	awsRegion      string
 
 	enclaveAmiId              string
 	enclaveInstanceType       string
@@ -31,6 +34,8 @@ func main() {
 	dynamoClient = dynamodb.NewFromConfig(cfg)
 	dynamoTable = os.Getenv("ALGORITHM_TABLE")
 	ec2Client = ec2.NewFromConfig(cfg)
+	s3Client = s3.NewFromConfig(cfg)
+	artifactBucket = os.Getenv("ARTIFACT_BUCKET")
 	awsRegion = os.Getenv("AWS_REGION")
 
 	enclaveAmiId = os.Getenv("ENCLAVE_AMI_ID")
@@ -65,7 +70,20 @@ func main() {
 			return
 		}
 
-		c.JSON(http.StatusAccepted, gin.H{"algorithmId": req.AlgorithmId, "instanceId": instanceId})
+		// Synchronous by design for now: the caller holds the request until the
+		// enclave has run and its output is back, so one curl shows the whole loop.
+		result, err := waitForResult(c.Request.Context(), instanceId)
+		if err != nil {
+			c.String(http.StatusGatewayTimeout, "run %s on %s: %v", req.AlgorithmId, instanceId, err)
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"algorithmId": req.AlgorithmId,
+			"instanceId":  instanceId,
+			"status":      result.Status,
+			"output":      result.Output,
+		})
 	})
 
 	r.Run(":8080")
