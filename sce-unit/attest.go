@@ -16,11 +16,11 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/hf/nsm"
 	"github.com/hf/nsm/request"
+	"github.com/mdlayher/vsock"
 	"golang.org/x/sys/unix"
 )
 
@@ -206,33 +206,27 @@ func verifierHTTPClient(cfg runConfig) *http.Client {
 	}
 }
 
+// net.FileConn doesn't recognize AF_VSOCK (returns "protocol not supported"), so this needs a real vsock-aware
+// net.Conn rather than the raw-fd wrapping used elsewhere in this file.
 func dialVsock(ctx context.Context, cid, port uint32) (net.Conn, error) {
-	fd, err := unix.Socket(unix.AF_VSOCK, unix.SOCK_STREAM, 0)
-	if err != nil {
-		return nil, err
+	type result struct {
+		conn net.Conn
+		err  error
 	}
-
-	connectErr := make(chan error, 1)
-	go func() { connectErr <- unix.Connect(fd, &unix.SockaddrVM{CID: cid, Port: port}) }()
+	resultCh := make(chan result, 1)
+	go func() {
+		conn, err := vsock.Dial(cid, port, nil)
+		resultCh <- result{conn, err}
+	}()
 
 	select {
-	case err := <-connectErr:
-		if err != nil {
-			unix.Close(fd)
-			return nil, err
-		}
+	case res := <-resultCh:
+		return res.conn, res.err
 	case <-ctx.Done():
-		unix.Close(fd)
 		return nil, ctx.Err()
 	case <-time.After(vsockDialTimeout):
-		unix.Close(fd)
 		return nil, fmt.Errorf("timed out after %s dialing vsock CID %d port %d", vsockDialTimeout, cid, port)
 	}
-
-	f := os.NewFile(uintptr(fd), "vsock")
-	conn, err := net.FileConn(f)
-	f.Close()
-	return conn, err
 }
 
 func pinnedCertVerifier(wantSHA256Hex string) func([][]byte, [][]*x509.Certificate) error {

@@ -51,7 +51,11 @@ PYEOF
 # The enclave has no direct network - vsock-proxy (from aws-nitro-enclaves-cli, installed above) is the only path
 # out. It listens for the enclave's vsock connections on port 8001 and forwards them over real TCP/TLS to
 # verifier-service, resolving VERIFIER_HOST here on the host since the enclave itself has no DNS.
-vsock-proxy 8001 "{{.VerifierHost}}" 443 &
+cat > /etc/nitro_enclaves/vsock-proxy.yaml <<EOF
+allowlist:
+  - {address: "{{.VerifierHost}}", port: 443}
+EOF
+vsock-proxy 8001 "{{.VerifierHost}}" 443 --config /etc/nitro_enclaves/vsock-proxy.yaml &
 
 nitro-cli run-enclave --cpu-count {{.CPUCount}} --memory {{.MemoryMiB}} --eif-path /opt/eif/app.eif --enclave-cid 16
 
