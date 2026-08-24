@@ -1,0 +1,55 @@
+#!/bin/bash
+set -uo pipefail
+exec > >(tee /var/log/execution-service-run.log) 2>&1
+
+# Always self-terminate on exit and POST the run result back to execution-service,
+# which holds the original /run request open until this callback lands.
+finish() {
+  STATUS=$?
+  TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+  INSTANCE_ID=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-id)
+  REGION=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/placement/region)
+  python3 - "$STATUS" > /tmp/result.json <<'PYEOF'
+import json, sys
+out = ""
+try:
+    out = open("/tmp/output.txt", "rb").read().decode("utf-8", "replace")
+except FileNotFoundError:
+    pass
+print(json.dumps({"status": "exit:" + sys.argv[1], "output": out}))
+PYEOF
+  curl -s -m 10 -X POST -H "Content-Type: application/json" --data-binary @/tmp/result.json "{{.CallbackURL}}/result/$INSTANCE_ID" || true
+  aws ec2 terminate-instances --instance-ids "$INSTANCE_ID" --region "$REGION"
+}
+trap finish EXIT
+
+# Pinned to match eif-build/Dockerfile - version mismatch fails the boot handshake silently.
+dnf install -y aws-nitro-enclaves-cli-1.4.4-0.amzn2023 aws-nitro-enclaves-cli-devel-1.4.4-0.amzn2023 awscli
+
+cat > /etc/nitro_enclaves/allocator.yaml <<EOF
+---
+memory_mib: {{.MemoryMiB}}
+cpu_count: {{.CPUCount}}
+EOF
+systemctl enable --now nitro-enclaves-allocator
+
+mkdir -p /opt/eif
+aws s3 cp "s3://{{.S3Bucket}}/{{.S3Key}}" /opt/eif/app.eif --region "{{.Region}}"
+
+# sce-unit connects back to the parent (CID 3) on this port and streams the DC app's output; one connection per run.
+python3 - <<'PYEOF' &
+import socket
+s = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
+s.bind((socket.VMADDR_CID_ANY, 5000))
+s.listen(1)
+conn, _ = s.accept()
+with open("/tmp/output.txt", "wb") as f:
+    while chunk := conn.recv(65536):
+        f.write(chunk)
+PYEOF
+
+nitro-cli run-enclave --cpu-count {{.CPUCount}} --memory {{.MemoryMiB}} --eif-path /opt/eif/app.eif --enclave-cid 16
+
+while nitro-cli describe-enclaves | grep -q '"EnclaveID"'; do
+  sleep 5
+done

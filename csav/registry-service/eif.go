@@ -4,14 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 )
 
 const (
-	eifKernelPath  = "/opt/assets/eif/bzImage"
-	eifKernelCfg   = "/opt/assets/eif/bzImage.config"
-	eifInitRamdisk = "/opt/assets/eif/nsm.cpio"
+	eifKernelPath  = "/opt/assets/eif/Image"
+	eifKernelCfg   = "/opt/assets/eif/Image.config"
+	eifInitRamdisk = "/opt/assets/eif/bootstrap.cpio"
+	eifCmdlinePath = "/opt/assets/eif/cmdline"
 	eifBuildBin    = "/opt/assets/eif/eif_build"
 )
 
@@ -21,27 +23,33 @@ type pcrMeasurements struct {
 	PCR2 string `json:"PCR2"`
 }
 
-// Standard Nitro Enclave init cmdline - matches what nitro-cli itself passes
-// to the linuxkit-based init ramdisk (aws-nitro-enclaves-cli's blobs are
-// built expecting exactly this).
-const eifCmdline = "reboot=k panic=30 pci=off nomodules console=ttyS0 i8042.noaux i8042.nomux i8042.nopnp i8042.dumbkbd"
+// AWS's own init binary (which we can't modify) requires /rootfs, /cmd (argv to exec after
+// pivoting into /rootfs), and /env (fopen'd unconditionally; missing it crashes musl's fclose(NULL)).
+const sceEntrypoint = "/usr/local/bin/sce"
 
-// buildEIF turns the composed rootfs into a Nitro Enclave image file via
-// eif_build directly (no docker involved - eif_build only needs a kernel,
-// an init/NSM ramdisk, and the app rootfs as a second ramdisk). Measurements
-// print as JSON to stdout, not a file - there's no --pcrs_output flag.
+// buildEIF measurements come as JSON on stdout - eif_build has no --pcrs_output flag.
 func buildEIF(ctx context.Context, rootfsDir, workDir string) (eifPath string, pcrs pcrMeasurements, err error) {
+	appStagingDir := filepath.Join(workDir, "app-ramdisk")
+	if err := stageAppRamdisk(rootfsDir, appStagingDir); err != nil {
+		return "", pcrMeasurements{}, fmt.Errorf("stage app ramdisk: %w", err)
+	}
+
 	appRamdisk := filepath.Join(workDir, "app.cpio")
-	if err := buildCPIO(ctx, rootfsDir, appRamdisk); err != nil {
+	if err := buildCPIO(ctx, appStagingDir, appRamdisk); err != nil {
 		return "", pcrMeasurements{}, fmt.Errorf("build app ramdisk: %w", err)
 	}
 
 	eifPath = filepath.Join(workDir, "out.eif")
 
+	cmdlineBytes, err := os.ReadFile(eifCmdlinePath)
+	if err != nil {
+		return "", pcrMeasurements{}, fmt.Errorf("read cmdline blob: %w", err)
+	}
+
 	out, err := run(ctx, eifBuildBin,
 		"--kernel", eifKernelPath,
 		"--kernel_config", eifKernelCfg,
-		"--cmdline", eifCmdline,
+		"--cmdline", strings.TrimSpace(string(cmdlineBytes)),
 		"--ramdisk", eifInitRamdisk,
 		"--ramdisk", appRamdisk,
 		"--output", eifPath,
@@ -62,6 +70,20 @@ func buildEIF(ctx context.Context, rootfsDir, workDir string) (eifPath string, p
 	}
 
 	return eifPath, result, nil
+}
+
+func stageAppRamdisk(rootfsDir, stagingDir string) error {
+	stagedRootfs := filepath.Join(stagingDir, "rootfs")
+	if err := os.MkdirAll(filepath.Dir(stagedRootfs), 0o755); err != nil {
+		return err
+	}
+	if err := copyTree(rootfsDir, stagedRootfs); err != nil {
+		return fmt.Errorf("copy rootfs into staging: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(stagingDir, "env"), nil, 0o644); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(stagingDir, "cmd"), []byte(sceEntrypoint+"\n"), 0o644)
 }
 
 func buildCPIO(ctx context.Context, srcDir, dst string) error {
