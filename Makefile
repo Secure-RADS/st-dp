@@ -21,7 +21,6 @@ csav-down:
 csav-ssh:
 	$(MAKE) -C csav ssh
 
-# --- sce (execution-service) ---
 .PHONY: sce-deploy sce-destroy sce-status sce-up sce-down sce-ssh sce-logs
 
 sce-deploy:
@@ -45,8 +44,7 @@ sce-ssh:
 sce-logs:
 	$(MAKE) -C sce logs
 
-# --- demo: end-to-end build + execution ---
-# Resolved lazily so only the demo targets hit AWS.
+# Demo: end-to-end build + execution. Resolved lazily so only the demo targets hit AWS.
 REGION ?= ap-south-1
 KEY_PATH := $(HOME)/.ssh/csav-key.pem
 instance_ip = $(shell aws ec2 describe-instances --region $(REGION) --instance-ids $(shell aws cloudformation describe-stacks \

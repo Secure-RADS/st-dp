@@ -23,17 +23,21 @@ type pcrMeasurements struct {
 	PCR2 string `json:"PCR2"`
 }
 
-// Kernel cmdline comes verbatim from the blobs' per-arch cmdline file
-// (the previous hardcoded string was the x86_64 variant, missing aarch64's
-// root=/dev/ram0).
-
-// AWS's own init (aws/aws-nitro-enclaves-sdk-bootstrap, init/init.c) expects
-// the app ramdisk laid out as /rootfs (the actual filesystem, which it
-// bind-mounts and pivots into via chroot) plus a top-level /cmd file - a
-// newline-separated argv telling init what to exec after the pivot. Without
-// this, init falls through its own default argv ("sh") at best, or - as
-// observed - dies before ever reaching the ready-signal handshake if the
-// /rootfs bind mount it unconditionally attempts doesn't exist.
+// The app ramdisk's layout is dictated by AWS's own init binary (aws/aws-nitro-enclaves-sdk-bootstrap,
+// init/init.c), which we can't modify - it's baked into the kernel blobs AWS ships. It expects three
+// top-level entries:
+//   - /rootfs: the actual app filesystem, which init bind-mounts and pivots into via chroot.
+//   - /cmd: a newline-separated argv telling init what to exec after the pivot. Without it, init
+//     falls back to a plain shell at best, or - if the /rootfs mount itself fails - dies before
+//     ever reaching the ready-signal handshake the parent instance is waiting on.
+//   - /env: init always fopen()s this, even when we don't intend to supply one, and then
+//     fclose()s the result unconditionally. A missing file makes fopen return NULL, and this init
+//     is built against musl, where fclose(NULL) crashes (glibc treats it as a harmless no-op).
+//     So /env must exist even when empty, purely to dodge that crash.
+//
+// The kernel boot cmdline has the same "must match this exact init binary" requirement, and also
+// varies by CPU architecture. It's read verbatim from the arch-specific blob file rather than
+// hardcoded, after a hardcoded x86_64 string was found to be missing aarch64's root=/dev/ram0.
 const sceEntrypoint = "/usr/local/bin/sce"
 
 // buildEIF turns the composed rootfs into a Nitro Enclave image file via
@@ -94,8 +98,6 @@ func stageAppRamdisk(rootfsDir, stagingDir string) error {
 	if err := copyTree(rootfsDir, stagedRootfs); err != nil {
 		return fmt.Errorf("copy rootfs into staging: %w", err)
 	}
-	// Empty env still written: init warns on a missing /env but then
-	// fclose()s the NULL handle, which crashes it post-heartbeat on musl.
 	if err := os.WriteFile(filepath.Join(stagingDir, "env"), nil, 0o644); err != nil {
 		return err
 	}
