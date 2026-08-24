@@ -23,27 +23,11 @@ type pcrMeasurements struct {
 	PCR2 string `json:"PCR2"`
 }
 
-// The app ramdisk's layout is dictated by AWS's own init binary (aws/aws-nitro-enclaves-sdk-bootstrap,
-// init/init.c), which we can't modify - it's baked into the kernel blobs AWS ships. It expects three
-// top-level entries:
-//   - /rootfs: the actual app filesystem, which init bind-mounts and pivots into via chroot.
-//   - /cmd: a newline-separated argv telling init what to exec after the pivot. Without it, init
-//     falls back to a plain shell at best, or - if the /rootfs mount itself fails - dies before
-//     ever reaching the ready-signal handshake the parent instance is waiting on.
-//   - /env: init always fopen()s this, even when we don't intend to supply one, and then
-//     fclose()s the result unconditionally. A missing file makes fopen return NULL, and this init
-//     is built against musl, where fclose(NULL) crashes (glibc treats it as a harmless no-op).
-//     So /env must exist even when empty, purely to dodge that crash.
-//
-// The kernel boot cmdline has the same "must match this exact init binary" requirement, and also
-// varies by CPU architecture. It's read verbatim from the arch-specific blob file rather than
-// hardcoded, after a hardcoded x86_64 string was found to be missing aarch64's root=/dev/ram0.
+// AWS's own init binary (which we can't modify) requires /rootfs, /cmd (argv to exec after
+// pivoting into /rootfs), and /env (fopen'd unconditionally; missing it crashes musl's fclose(NULL)).
 const sceEntrypoint = "/usr/local/bin/sce"
 
-// buildEIF turns the composed rootfs into a Nitro Enclave image file via
-// eif_build directly (no docker involved - eif_build only needs a kernel,
-// an init/NSM ramdisk, and the app rootfs as a second ramdisk). Measurements
-// print as JSON to stdout, not a file - there's no --pcrs_output flag.
+// buildEIF measurements come as JSON on stdout - eif_build has no --pcrs_output flag.
 func buildEIF(ctx context.Context, rootfsDir, workDir string) (eifPath string, pcrs pcrMeasurements, err error) {
 	appStagingDir := filepath.Join(workDir, "app-ramdisk")
 	if err := stageAppRamdisk(rootfsDir, appStagingDir); err != nil {
@@ -88,8 +72,6 @@ func buildEIF(ctx context.Context, rootfsDir, workDir string) (eifPath string, p
 	return eifPath, result, nil
 }
 
-// stageAppRamdisk wraps the composed rootfs under staging/rootfs and writes
-// staging/cmd, matching the init contract described above.
 func stageAppRamdisk(rootfsDir, stagingDir string) error {
 	stagedRootfs := filepath.Join(stagingDir, "rootfs")
 	if err := os.MkdirAll(filepath.Dir(stagedRootfs), 0o755); err != nil {
