@@ -8,17 +8,15 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/gin-gonic/gin"
 )
 
 var (
 	dynamoClient   *dynamodb.Client
 	dynamoTable    string
-	ec2Client      *ec2.Client
-	s3Client       *s3.Client
-	artifactBucket string
-	awsRegion      string
+	ec2Client   *ec2.Client
+	awsRegion   string
+	callbackURL string
 
 	enclaveAmiId              string
 	enclaveInstanceType       string
@@ -34,9 +32,8 @@ func main() {
 	dynamoClient = dynamodb.NewFromConfig(cfg)
 	dynamoTable = os.Getenv("ALGORITHM_TABLE")
 	ec2Client = ec2.NewFromConfig(cfg)
-	s3Client = s3.NewFromConfig(cfg)
-	artifactBucket = os.Getenv("ARTIFACT_BUCKET")
 	awsRegion = os.Getenv("AWS_REGION")
+	callbackURL = os.Getenv("CALLBACK_URL")
 
 	enclaveAmiId = os.Getenv("ENCLAVE_AMI_ID")
 	enclaveInstanceType = os.Getenv("ENCLAVE_INSTANCE_TYPE")
@@ -70,9 +67,12 @@ func main() {
 			return
 		}
 
+		ch := registerRun(instanceId)
+		defer unregisterRun(instanceId)
+
 		// Synchronous by design for now: the caller holds the request until the
 		// enclave has run and its output is back, so one curl shows the whole loop.
-		result, err := waitForResult(c.Request.Context(), instanceId)
+		result, err := waitForResult(c.Request.Context(), instanceId, ch)
 		if err != nil {
 			c.String(http.StatusGatewayTimeout, "run %s on %s: %v", req.AlgorithmId, instanceId, err)
 			return
@@ -84,6 +84,20 @@ func main() {
 			"status":      result.Status,
 			"output":      result.Output,
 		})
+	})
+
+	// Called by the enclave host (same VPC) right before it self-terminates.
+	r.POST("/result/:instanceId", func(c *gin.Context) {
+		var res runResult
+		if err := c.ShouldBindJSON(&res); err != nil {
+			c.String(http.StatusBadRequest, "invalid result: %v", err)
+			return
+		}
+		if !deliverResult(c.Param("instanceId"), res) {
+			c.String(http.StatusNotFound, "no pending run for %s", c.Param("instanceId"))
+			return
+		}
+		c.Status(http.StatusNoContent)
 	})
 
 	r.Run(":8080")

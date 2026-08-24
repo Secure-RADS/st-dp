@@ -26,15 +26,15 @@ const (
 )
 
 // launchEnclaveInstance starts a fresh Nitro-Enclave-capable EC2 instance
-// that downloads the given EIF from S3, runs it, and terminates itself once
-// the enclave process exits - execution-service never connects to it
-// directly (its security group has no ingress at all).
+// that downloads the given EIF from S3, runs it, POSTs the result back to
+// execution-service, and terminates itself - execution-service never
+// connects to it (its security group has no ingress at all).
 func launchEnclaveInstance(ctx context.Context, s3Bucket, s3Key string) (string, error) {
 	var userData bytes.Buffer
 	err := userDataTmpl.Execute(&userData, struct {
-		S3Bucket, S3Key, Region string
-		CPUCount, MemoryMiB     int
-	}{S3Bucket: s3Bucket, S3Key: s3Key, Region: awsRegion, CPUCount: enclaveCPUCount, MemoryMiB: enclaveMemoryMiB})
+		S3Bucket, S3Key, Region, CallbackURL string
+		CPUCount, MemoryMiB                  int
+	}{S3Bucket: s3Bucket, S3Key: s3Key, Region: awsRegion, CallbackURL: callbackURL, CPUCount: enclaveCPUCount, MemoryMiB: enclaveMemoryMiB})
 	if err != nil {
 		return "", fmt.Errorf("render user data: %w", err)
 	}

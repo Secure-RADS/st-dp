@@ -2,18 +2,23 @@
 set -uo pipefail
 exec > >(tee /var/log/execution-service-run.log) 2>&1
 
-# Always self-terminate on exit and report status/logs to S3 - no direct connection back, and console output polling is unreliable.
+# Always self-terminate on exit and POST the run result back to execution-service,
+# which holds the original /run request open until this callback lands.
 finish() {
   STATUS=$?
   TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
   INSTANCE_ID=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-id)
   REGION=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/placement/region)
-  aws s3 cp /var/log/execution-service-run.log "s3://{{.S3Bucket}}/runs/$INSTANCE_ID/log.txt" --region "$REGION" || true
-  [ -s /tmp/output.txt ] && aws s3 cp /tmp/output.txt "s3://{{.S3Bucket}}/runs/$INSTANCE_ID/output.txt" --region "$REGION" || true
-  aws s3 sync /var/log/nitro_enclaves/ "s3://{{.S3Bucket}}/runs/$INSTANCE_ID/nitro_enclaves_logs/" --region "$REGION" || true
-  # status.txt is the done-sentinel execution-service polls for, so it must be the last upload.
-  echo "exit:$STATUS" > /tmp/status.txt
-  aws s3 cp /tmp/status.txt "s3://{{.S3Bucket}}/runs/$INSTANCE_ID/status.txt" --region "$REGION" || true
+  python3 - "$STATUS" > /tmp/result.json <<'PYEOF'
+import json, sys
+out = ""
+try:
+    out = open("/tmp/output.txt", "rb").read().decode("utf-8", "replace")
+except FileNotFoundError:
+    pass
+print(json.dumps({"status": "exit:" + sys.argv[1], "output": out}))
+PYEOF
+  curl -s -m 10 -X POST -H "Content-Type: application/json" --data-binary @/tmp/result.json "{{.CallbackURL}}/result/$INSTANCE_ID" || true
   aws ec2 terminate-instances --instance-ids "$INSTANCE_ID" --region "$REGION"
 }
 trap finish EXIT

@@ -24,7 +24,7 @@ Parameters:
 
   ArtifactBucketName:
     Type: String
-    Description: Name of the registry-service artifact bucket (from the registry-service-storage stack), for reading EIF objects.
+    Description: Name of the registry-service artifact bucket (from the registry-service-storage stack); the enclave host reads EIF objects from it.
 
   AlgorithmTableName:
     Type: String
@@ -69,21 +69,6 @@ Resources:
               Service: ec2.amazonaws.com
             Action: sts:AssumeRole
       Policies:
-        - PolicyName: ArtifactBucketRead
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action: s3:GetObject
-                Resource: !Sub "arn:aws:s3:::${ArtifactBucketName}/*"
-              # Without ListBucket, GetObject on a not-yet-written runs/ key is a 403, not a 404,
-              # so the result poll cannot tell "not finished" from "denied".
-              - Effect: Allow
-                Action: s3:ListBucket
-                Resource: !Sub "arn:aws:s3:::${ArtifactBucketName}"
-                Condition:
-                  StringLike:
-                    "s3:prefix": "runs/*"
         - PolicyName: AlgorithmTableRead
           PolicyDocument:
             Version: "2012-10-17"
@@ -124,9 +109,9 @@ Resources:
         - !Ref ExecutionServiceInstanceRole
 
   # No ingress at all - the enclave host only makes outbound calls (S3 EIF
-  # download now, mTLS to verifier-service/PDMS later). execution-service
-  # never connects to it directly; it launches the instance and moves on,
-  # and the instance terminates itself once the enclave process exits.
+  # download, result callback to execution-service, mTLS to
+  # verifier-service/PDMS later). execution-service never connects to it;
+  # the instance terminates itself once the enclave process exits.
   EnclaveHostSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -154,13 +139,6 @@ Resources:
               - Effect: Allow
                 Action: s3:GetObject
                 Resource: !Sub "arn:aws:s3:::${ArtifactBucketName}/*"
-        - PolicyName: RunStatusWrite
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action: s3:PutObject
-                Resource: !Sub "arn:aws:s3:::${ArtifactBucketName}/runs/*"
         - PolicyName: SelfTerminate
           PolicyDocument:
             Version: "2012-10-17"

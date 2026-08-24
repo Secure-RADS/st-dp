@@ -2,67 +2,58 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io"
-	"strings"
+	"sync"
 	"time"
-
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
-// The enclave host has no inbound path, so its run status and the DC app's
-// output arrive as objects under runs/<instance-id>/ in the artifact bucket.
-const (
-	resultPollInterval = 5 * time.Second
-	resultTimeout      = 10 * time.Minute
-)
+// The enclave host POSTs its result to /result/<instance-id> as its last act
+// before self-terminating; /run blocks on the matching channel until then.
+const resultTimeout = 10 * time.Minute
 
 type runResult struct {
-	Status string
-	Output string
+	Status string `json:"status"`
+	Output string `json:"output"`
 }
 
-// waitForResult blocks until the host has written status.txt (its last act
-// before self-terminating), then reads the output the enclave sent, if any.
-func waitForResult(ctx context.Context, instanceId string) (*runResult, error) {
-	prefix := "runs/" + instanceId + "/"
-	deadline := time.Now().Add(resultTimeout)
-	for {
-		status, err := getObject(ctx, prefix+"status.txt")
-		if err == nil {
-			output, oerr := getObject(ctx, prefix+"output.txt")
-			if oerr != nil && !isNotFound(oerr) {
-				return nil, fmt.Errorf("read output: %w", oerr)
-			}
-			return &runResult{Status: strings.TrimSpace(status), Output: output}, nil
-		}
-		if !isNotFound(err) {
-			return nil, fmt.Errorf("read status: %w", err)
-		}
-		if time.Now().After(deadline) {
-			return nil, fmt.Errorf("timed out after %s waiting for %s", resultTimeout, prefix+"status.txt")
-		}
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-time.After(resultPollInterval):
-		}
+var (
+	pendingMu sync.Mutex
+	pending   = map[string]chan runResult{}
+)
+
+func registerRun(instanceId string) chan runResult {
+	ch := make(chan runResult, 1)
+	pendingMu.Lock()
+	pending[instanceId] = ch
+	pendingMu.Unlock()
+	return ch
+}
+
+func unregisterRun(instanceId string) {
+	pendingMu.Lock()
+	delete(pending, instanceId)
+	pendingMu.Unlock()
+}
+
+// deliverResult hands the callback payload to the waiting /run handler;
+// false means no run is waiting for that instance (unknown or timed out).
+func deliverResult(instanceId string, res runResult) bool {
+	pendingMu.Lock()
+	ch, ok := pending[instanceId]
+	pendingMu.Unlock()
+	if ok {
+		ch <- res
 	}
+	return ok
 }
 
-func getObject(ctx context.Context, key string) (string, error) {
-	out, err := s3Client.GetObject(ctx, &s3.GetObjectInput{Bucket: &artifactBucket, Key: &key})
-	if err != nil {
-		return "", err
+func waitForResult(ctx context.Context, instanceId string, ch chan runResult) (*runResult, error) {
+	select {
+	case res := <-ch:
+		return &res, nil
+	case <-time.After(resultTimeout):
+		return nil, fmt.Errorf("timed out after %s waiting for result from %s", resultTimeout, instanceId)
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	}
-	defer out.Body.Close()
-	b, err := io.ReadAll(out.Body)
-	return string(b), err
-}
-
-func isNotFound(err error) bool {
-	var nsk *types.NoSuchKey
-	return errors.As(err, &nsk)
 }

@@ -54,11 +54,9 @@ instance_ip = $(shell aws ec2 describe-instances --region $(REGION) --instance-i
 	--query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
 CSAV_IP = $(call instance_ip,csav,CsavInstanceId)
 SCE_IP = $(call instance_ip,execution-service,ExecutionServiceInstanceId)
-ARTIFACT_BUCKET = $(shell aws cloudformation describe-stacks --stack-name registry-service-storage --region $(REGION) \
-	--query "Stacks[0].Outputs[?OutputKey=='ArtifactBucketName'].OutputValue" --output text)
 SAMPLE_TAR := /tmp/registry-oci.tar
 
-.PHONY: registry-logs demo-sample demo-build demo-run demo-status demo-log
+.PHONY: registry-logs demo-sample demo-build demo-run
 
 # Tail registry-service's compose logs on the csav host (build phase).
 registry-logs:
@@ -75,21 +73,9 @@ demo-build:
 	scp -i $(KEY_PATH) $(SAMPLE_TAR) ec2-user@$(CSAV_IP):/tmp/registry-oci.tar
 	ssh -i $(KEY_PATH) ec2-user@$(CSAV_IP) 'curl -sS -F "image=@/tmp/registry-oci.tar" http://localhost:8080/upload; echo'
 
-# Execution phase: make demo-run ALGORITHM_ID=<id from demo-build>. Prints {algorithmId, instanceId}.
+# Execution phase: make demo-run ALGORITHM_ID=<id from demo-build>.
+# Blocks until the enclave host calls back, then prints {algorithmId, instanceId, status, output}.
 demo-run:
 	@test -n "$(ALGORITHM_ID)" || { echo "ALGORITHM_ID is required"; exit 1; }
-	curl -sS -X POST http://$(SCE_IP):8080/run -H 'Content-Type: application/json' \
+	curl -sS -m 660 -X POST http://$(SCE_IP):8080/run -H 'Content-Type: application/json' \
 		-d '{"algorithmId":"$(ALGORITHM_ID)"}'; echo
-
-# Enclave host state + run status: make demo-status INSTANCE_ID=<id from demo-run>.
-# status.txt only exists once the host has finished and self-terminated.
-demo-status:
-	@test -n "$(INSTANCE_ID)" || { echo "INSTANCE_ID is required"; exit 1; }
-	aws ec2 describe-instances --region $(REGION) --instance-ids $(INSTANCE_ID) \
-		--query 'Reservations[0].Instances[0].[State.Name,InstanceType,EnclaveOptions.Enabled]' --output text
-	-aws s3 cp s3://$(ARTIFACT_BUCKET)/runs/$(INSTANCE_ID)/status.txt - --region $(REGION)
-
-# Enclave host log, with the s3 progress spam stripped: make demo-log INSTANCE_ID=<id>.
-demo-log:
-	@test -n "$(INSTANCE_ID)" || { echo "INSTANCE_ID is required"; exit 1; }
-	aws s3 cp s3://$(ARTIFACT_BUCKET)/runs/$(INSTANCE_ID)/log.txt - --region $(REGION) | tr '\r' '\n' | grep -v "Completed .* remaining"
