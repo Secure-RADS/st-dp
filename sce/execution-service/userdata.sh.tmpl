@@ -48,7 +48,35 @@ with open("/tmp/output.txt", "wb") as f:
         f.write(chunk)
 PYEOF
 
+# The enclave has no direct network - vsock-proxy (from aws-nitro-enclaves-cli, installed above) is the only path
+# out. It listens for the enclave's vsock connections on port 8001 and forwards them over real TCP/TLS to
+# verifier-service, resolving VERIFIER_HOST here on the host since the enclave itself has no DNS.
+vsock-proxy 8001 "{{.VerifierHost}}" 443 &
+
 nitro-cli run-enclave --cpu-count {{.CPUCount}} --memory {{.MemoryMiB}} --eif-path /opt/eif/app.eif --enclave-cid 16
+
+# The enclave has no other way to learn which algorithm it's running or where to reach verifier-service, so the
+# host pushes it once as a single JSON message over vsock right after boot. sce-unit blocks on this at startup.
+ALGORITHM_ID="{{.AlgorithmId}}" VERIFIER_HOST="{{.VerifierHost}}" VERIFIER_PUBKEY_SHA256="{{.VerifierPubKeySHA256}}" python3 - <<'PYEOF' &
+import json, os, socket, time
+payload = json.dumps({
+    "algorithmId": os.environ["ALGORITHM_ID"],
+    "verifierHost": os.environ["VERIFIER_HOST"],
+    "verifierProxyPort": 8001,
+    "verifierPubKeySHA256": os.environ["VERIFIER_PUBKEY_SHA256"],
+}).encode()
+for _ in range(20):
+    try:
+        s = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
+        s.connect((16, 5001))
+        break
+    except OSError:
+        time.sleep(0.5)
+else:
+    raise SystemExit("could not reach sce-unit's config listener")
+s.sendall(payload)
+s.close()
+PYEOF
 
 while nitro-cli describe-enclaves | grep -q '"EnclaveID"'; do
   sleep 5

@@ -32,6 +32,13 @@ const (
 func main() {
 	log.Printf("sce-unit: starting up")
 
+	cfg, err := receiveRunConfig()
+	if err != nil {
+		log.Printf("sce-unit: receive run config: %v", err)
+	} else {
+		logAttestOutcome(cfg)
+	}
+
 	if err := os.MkdirAll(socketDir, 0o755); err != nil {
 		log.Fatalf("sce-unit: create %s: %v", socketDir, err)
 	}

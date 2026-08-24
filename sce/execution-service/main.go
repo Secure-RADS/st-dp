@@ -12,11 +12,13 @@ import (
 )
 
 var (
-	dynamoClient   *dynamodb.Client
-	dynamoTable    string
-	ec2Client   *ec2.Client
-	awsRegion   string
-	callbackURL string
+	dynamoClient         *dynamodb.Client
+	dynamoTable          string
+	ec2Client            *ec2.Client
+	awsRegion            string
+	callbackURL          string
+	verifierHost         string
+	verifierPubKeySHA256 string
 
 	enclaveAmiId              string
 	enclaveInstanceType       string
@@ -34,6 +36,8 @@ func main() {
 	ec2Client = ec2.NewFromConfig(cfg)
 	awsRegion = os.Getenv("AWS_REGION")
 	callbackURL = os.Getenv("CALLBACK_URL")
+	verifierHost = os.Getenv("VERIFIER_HOST")
+	verifierPubKeySHA256 = os.Getenv("VERIFIER_PUBKEY_SHA256")
 
 	enclaveAmiId = os.Getenv("ENCLAVE_AMI_ID")
 	enclaveInstanceType = os.Getenv("ENCLAVE_INSTANCE_TYPE")
@@ -61,7 +65,7 @@ func main() {
 			return
 		}
 
-		instanceId, err := launchEnclaveInstance(c.Request.Context(), rec.S3Bucket, rec.S3Key)
+		instanceId, err := launchEnclaveInstance(c.Request.Context(), req.AlgorithmId, rec.S3Bucket, rec.S3Key)
 		if err != nil {
 			c.String(http.StatusInternalServerError, "launch failed: %v", err)
 			return

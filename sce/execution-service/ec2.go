@@ -27,12 +27,16 @@ const (
 
 // launchEnclaveInstance starts a fresh Nitro-Enclave-capable EC2 instance and returns immediately -
 // execution-service never connects to it directly, only receives its result callback.
-func launchEnclaveInstance(ctx context.Context, s3Bucket, s3Key string) (string, error) {
+func launchEnclaveInstance(ctx context.Context, algorithmId, s3Bucket, s3Key string) (string, error) {
 	var userData bytes.Buffer
 	err := userDataTmpl.Execute(&userData, struct {
-		S3Bucket, S3Key, Region, CallbackURL string
-		CPUCount, MemoryMiB                  int
-	}{S3Bucket: s3Bucket, S3Key: s3Key, Region: awsRegion, CallbackURL: callbackURL, CPUCount: enclaveCPUCount, MemoryMiB: enclaveMemoryMiB})
+		AlgorithmId, S3Bucket, S3Key, Region, CallbackURL, VerifierHost, VerifierPubKeySHA256 string
+		CPUCount, MemoryMiB                                                                   int
+	}{
+		AlgorithmId: algorithmId, S3Bucket: s3Bucket, S3Key: s3Key, Region: awsRegion,
+		CallbackURL: callbackURL, VerifierHost: verifierHost, VerifierPubKeySHA256: verifierPubKeySHA256,
+		CPUCount: enclaveCPUCount, MemoryMiB: enclaveMemoryMiB,
+	})
 	if err != nil {
 		return "", fmt.Errorf("render user data: %w", err)
 	}
