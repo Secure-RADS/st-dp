@@ -17,6 +17,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/hf/nsm"
 	"github.com/hf/nsm/request"
@@ -25,6 +26,15 @@ import (
 
 // The host pushes runConfig here once, right after nitro-cli run-enclave starts us (see userdata.sh.tmpl).
 const configPort = 5001
+
+// None of this has a fallback if it hangs - sce-unit runs it before starting nsjail, so every step needs its own
+// bound; otherwise a stuck host, vsock-proxy, or verifier-service wedges the whole run forever.
+const (
+	receiveConfigTimeout = 30 * time.Second
+	vsockDialTimeout     = 10 * time.Second
+	tlsHandshakeTimeout  = 10 * time.Second
+	attestRequestTimeout = 30 * time.Second
+)
 
 // runConfig is the one-shot JSON message the host pushes over vsock at boot - the enclave has no other way to
 // learn which algorithm it's running or how to reach verifier-service, since Nitro Enclaves take no user-data.
@@ -49,11 +59,34 @@ func receiveRunConfig() (runConfig, error) {
 		return runConfig{}, err
 	}
 
-	connFd, _, err := unix.Accept(fd)
-	if err != nil {
-		return runConfig{}, err
+	// unix.Accept blocks with no timeout parameter of its own, so race it against a timer in a goroutine -
+	// closing fd is what actually unblocks the syscall if the host never connects.
+	type acceptResult struct {
+		fd  int
+		err error
+	}
+	acceptCh := make(chan acceptResult, 1)
+	go func() {
+		connFd, _, err := unix.Accept(fd)
+		acceptCh <- acceptResult{connFd, err}
+	}()
+
+	var connFd int
+	select {
+	case res := <-acceptCh:
+		if res.err != nil {
+			return runConfig{}, res.err
+		}
+		connFd = res.fd
+	case <-time.After(receiveConfigTimeout):
+		return runConfig{}, fmt.Errorf("timed out after %s waiting for the host to push run config", receiveConfigTimeout)
 	}
 	defer unix.Close(connFd)
+
+	deadline := unix.NsecToTimeval(receiveConfigTimeout.Nanoseconds())
+	if err := unix.SetsockoptTimeval(connFd, unix.SOL_SOCKET, unix.SO_RCVTIMEO, &deadline); err != nil {
+		return runConfig{}, fmt.Errorf("set read timeout: %w", err)
+	}
 
 	var buf bytes.Buffer
 	chunk := make([]byte, 4096)
@@ -117,8 +150,17 @@ func attest(cfg runConfig) (accessToken, refreshToken string, err error) {
 		return "", "", err
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), attestRequestTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://"+cfg.VerifierHost+"/attest", bytes.NewReader(body))
+	if err != nil {
+		return "", "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
 	client := verifierHTTPClient(cfg)
-	resp, err := client.Post("https://"+cfg.VerifierHost+"/attest", "application/json", bytes.NewReader(body))
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", "", fmt.Errorf("POST /attest: %w", err)
 	}
@@ -144,10 +186,15 @@ func attest(cfg runConfig) (accessToken, refreshToken string, err error) {
 // there's no CA bundle in this rootfs to do normal chain verification against.
 func verifierHTTPClient(cfg runConfig) *http.Client {
 	return &http.Client{
+		Timeout: attestRequestTimeout,
 		Transport: &http.Transport{
-			DialTLSContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-				raw, err := dialVsock(hostCID, uint32(cfg.VerifierProxyPort))
+			DialTLSContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+				raw, err := dialVsock(ctx, hostCID, uint32(cfg.VerifierProxyPort))
 				if err != nil {
+					return nil, err
+				}
+				if err := raw.SetDeadline(time.Now().Add(tlsHandshakeTimeout)); err != nil {
+					raw.Close()
 					return nil, err
 				}
 				tlsConn := tls.Client(raw, &tls.Config{
@@ -159,21 +206,42 @@ func verifierHTTPClient(cfg runConfig) *http.Client {
 					raw.Close()
 					return nil, err
 				}
+				// Clear the handshake-only deadline; the client's overall Timeout above (and ctx cancellation,
+				// which the http transport enforces by closing the conn) still bound the rest of the request.
+				if err := raw.SetDeadline(time.Time{}); err != nil {
+					tlsConn.Close()
+					return nil, err
+				}
 				return tlsConn, nil
 			},
 		},
 	}
 }
 
-func dialVsock(cid, port uint32) (net.Conn, error) {
+// dialVsock races unix.Connect against ctx, since a raw AF_VSOCK connect otherwise has no way to be interrupted.
+func dialVsock(ctx context.Context, cid, port uint32) (net.Conn, error) {
 	fd, err := unix.Socket(unix.AF_VSOCK, unix.SOCK_STREAM, 0)
 	if err != nil {
 		return nil, err
 	}
-	if err := unix.Connect(fd, &unix.SockaddrVM{CID: cid, Port: port}); err != nil {
+
+	connectErr := make(chan error, 1)
+	go func() { connectErr <- unix.Connect(fd, &unix.SockaddrVM{CID: cid, Port: port}) }()
+
+	select {
+	case err := <-connectErr:
+		if err != nil {
+			unix.Close(fd)
+			return nil, err
+		}
+	case <-ctx.Done():
 		unix.Close(fd)
-		return nil, err
+		return nil, ctx.Err()
+	case <-time.After(vsockDialTimeout):
+		unix.Close(fd)
+		return nil, fmt.Errorf("timed out after %s dialing vsock CID %d port %d", vsockDialTimeout, cid, port)
 	}
+
 	f := os.NewFile(uintptr(fd), "vsock")
 	conn, err := net.FileConn(f)
 	f.Close()
@@ -198,6 +266,8 @@ func pinnedCertVerifier(wantSHA256Hex string) func([][]byte, [][]*x509.Certifica
 	}
 }
 
+// logAttestOutcome never blocks the DC app run on attestation succeeding - same log-and-continue pattern as
+// relayRequest/sendOutput elsewhere in this file's package, now that every step above has its own timeout.
 func logAttestOutcome(cfg runConfig) {
 	accessToken, _, err := attest(cfg)
 	if err != nil {
