@@ -64,7 +64,6 @@ func main() {
 	log.Printf("sce-unit: nsjail exited cleanly")
 }
 
-// relayRequest polls for the DC app's socket (created after nsjail starts it), sends a trivial trigger, and returns the response.
 func relayRequest() ([]byte, error) {
 	log.Printf("sce-unit: waiting for dc app socket at %s", socketPath)
 	deadline := time.Now().Add(dialTimeout)
@@ -98,8 +97,7 @@ func relayRequest() ([]byte, error) {
 	return out.Bytes(), scanner.Err()
 }
 
-// sendOutput streams the DC app's response to the parent instance over vsock
-// - the enclave's only channel out; the host writes it to S3 for the caller.
+// sendOutput streams the DC app's response to the parent instance over vsock - the enclave's only channel out.
 func sendOutput(output []byte) error {
 	fd, err := unix.Socket(unix.AF_VSOCK, unix.SOCK_STREAM, 0)
 	if err != nil {

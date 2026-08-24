@@ -25,10 +25,8 @@ const (
 	enclaveMemoryMiB = 2048
 )
 
-// launchEnclaveInstance starts a fresh Nitro-Enclave-capable EC2 instance
-// that downloads the given EIF from S3, runs it, POSTs the result back to
-// execution-service, and terminates itself - execution-service never
-// connects to it (its security group has no ingress at all).
+// launchEnclaveInstance starts a fresh Nitro-Enclave-capable EC2 instance and returns immediately -
+// execution-service never connects to it directly, only receives its result callback.
 func launchEnclaveInstance(ctx context.Context, s3Bucket, s3Key string) (string, error) {
 	var userData bytes.Buffer
 	err := userDataTmpl.Execute(&userData, struct {
