@@ -27,8 +27,6 @@ import (
 // The host pushes runConfig here once, right after nitro-cli run-enclave starts us (see userdata.sh.tmpl).
 const configPort = 5001
 
-// None of this has a fallback if it hangs - sce-unit runs it before starting nsjail, so every step needs its own
-// bound; otherwise a stuck host, vsock-proxy, or verifier-service wedges the whole run forever.
 const (
 	receiveConfigTimeout = 30 * time.Second
 	vsockDialTimeout     = 10 * time.Second
@@ -59,8 +57,6 @@ func receiveRunConfig() (runConfig, error) {
 		return runConfig{}, err
 	}
 
-	// unix.Accept blocks with no timeout parameter of its own, so race it against a timer in a goroutine -
-	// closing fd is what actually unblocks the syscall if the host never connects.
 	type acceptResult struct {
 		fd  int
 		err error
@@ -107,9 +103,6 @@ func receiveRunConfig() (runConfig, error) {
 	return cfg, nil
 }
 
-// attest generates an ephemeral P-384 keypair, gets a Nitro attestation document over it from the NSM device
-// (proof of exactly which measured code is running - this is the real identity mechanism, so there's no separate
-// client cert here; see verifier-service's /attest), and exchanges it for an access/refresh token pair.
 func attest(cfg runConfig) (accessToken, refreshToken string, err error) {
 	priv, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
 	if err != nil {
@@ -181,9 +174,6 @@ func attest(cfg runConfig) (accessToken, refreshToken string, err error) {
 	return tokens.AccessToken, tokens.RefreshToken, nil
 }
 
-// verifierHTTPClient dials out over vsock to the host's vsock-proxy (the enclave has no direct network) and pins
-// verifier-service's leaf pubkey, same scheme registry-service already uses (csav/registry-service/verifier.go) -
-// there's no CA bundle in this rootfs to do normal chain verification against.
 func verifierHTTPClient(cfg runConfig) *http.Client {
 	return &http.Client{
 		Timeout: attestRequestTimeout,
@@ -206,8 +196,6 @@ func verifierHTTPClient(cfg runConfig) *http.Client {
 					raw.Close()
 					return nil, err
 				}
-				// Clear the handshake-only deadline; the client's overall Timeout above (and ctx cancellation,
-				// which the http transport enforces by closing the conn) still bound the rest of the request.
 				if err := raw.SetDeadline(time.Time{}); err != nil {
 					tlsConn.Close()
 					return nil, err
@@ -218,7 +206,6 @@ func verifierHTTPClient(cfg runConfig) *http.Client {
 	}
 }
 
-// dialVsock races unix.Connect against ctx, since a raw AF_VSOCK connect otherwise has no way to be interrupted.
 func dialVsock(ctx context.Context, cid, port uint32) (net.Conn, error) {
 	fd, err := unix.Socket(unix.AF_VSOCK, unix.SOCK_STREAM, 0)
 	if err != nil {
@@ -266,8 +253,6 @@ func pinnedCertVerifier(wantSHA256Hex string) func([][]byte, [][]*x509.Certifica
 	}
 }
 
-// logAttestOutcome never blocks the DC app run on attestation succeeding - same log-and-continue pattern as
-// relayRequest/sendOutput elsewhere in this file's package, now that every step above has its own timeout.
 func logAttestOutcome(cfg runConfig) {
 	accessToken, _, err := attest(cfg)
 	if err != nil {
