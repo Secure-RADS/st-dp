@@ -1,5 +1,5 @@
+import { createVerify, X509Certificate } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { X509Certificate, createVerify } from "node:crypto";
 import { decode as cborDecode, encode as cborEncode } from "cbor";
 
 // Pinned at build time, not fetched at runtime - matches this repo's existing
@@ -28,12 +28,7 @@ export function verifyAttestationDocument(raw: Buffer): AttestationDocument {
   if (!Array.isArray(coseSign1) || coseSign1.length !== 4) {
     throw new Error("not a COSE_Sign1 structure");
   }
-  const [protectedHeaderBytes, , payloadBytes, signature] = coseSign1 as [
-    Buffer,
-    unknown,
-    Buffer,
-    Buffer,
-  ];
+  const [protectedHeaderBytes, , payloadBytes, signature] = coseSign1 as [Buffer, unknown, Buffer, Buffer];
 
   // Unlike the pcrs sub-map below (integer keys, decodes as a Map since
   // object keys can't be numbers), this top-level map has all-string keys

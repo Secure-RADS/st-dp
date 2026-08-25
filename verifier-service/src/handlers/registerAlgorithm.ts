@@ -1,9 +1,10 @@
-import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
+import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
+import { requiredEnv } from "../lib/env.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
-const tableName = process.env.ALGORITHM_PCR_TABLE!;
+const tableName = requiredEnv("ALGORITHM_PCR_TABLE");
 
 interface RegisterAlgorithmBody {
   algorithmId: string;

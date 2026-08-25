@@ -6,11 +6,16 @@
   "scripts": {
     "deploy": "serverless deploy",
     "remove": "serverless remove",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check src",
+    "lint:fix": "biome check --write src",
+    "knip": "knip"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.5.10",
     "@types/aws-lambda": "^8.10.152",
     "@types/node": "^22.0.0",
+    "knip": "^6.32.2",
     "serverless": "^4.4.0",
     "typescript": "^5.7.0"
   },

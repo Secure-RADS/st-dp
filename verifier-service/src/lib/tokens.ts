@@ -1,9 +1,10 @@
-import { randomBytes, createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, PutCommand, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import { requiredEnv } from "./env.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
-const tableName = process.env.ATTESTATION_SESSION_TABLE!;
+const tableName = requiredEnv("ATTESTATION_SESSION_TABLE");
 
 // Short-lived access token so a leaked one has a small blast radius; longer
 // refresh token so sce-unit doesn't have to re-attest (fetch a fresh

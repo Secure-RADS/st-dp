@@ -1,11 +1,12 @@
-import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
-import { verifyAttestationDocument, pcrHex } from "../lib/attestation.js";
+import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
+import { type AttestationDocument, pcrHex, verifyAttestationDocument } from "../lib/attestation.js";
+import { requiredEnv } from "../lib/env.js";
 import { issueTokenPair } from "../lib/tokens.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
-const algorithmPcrTable = process.env.ALGORITHM_PCR_TABLE!;
+const algorithmPcrTable = requiredEnv("ALGORITHM_PCR_TABLE");
 
 interface AttestBody {
   algorithmId: string;
@@ -41,7 +42,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     return { statusCode: 404, body: "algorithmId not registered" };
   }
 
-  let doc;
+  let doc: AttestationDocument;
   try {
     doc = verifyAttestationDocument(Buffer.from(body.attestationDocument, "base64"));
   } catch (err) {
