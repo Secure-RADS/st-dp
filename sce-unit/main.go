@@ -35,8 +35,12 @@ func main() {
 	cfg, err := loadRunConfig()
 	if err != nil {
 		log.Printf("sce-unit: load run config: %v", err)
+	} else if tp, err := attest(cfg); err != nil {
+		log.Printf("sce-unit: attestation failed: %v", err)
 	} else {
-		logAttestOutcome(cfg)
+		log.Printf("sce-unit: attested successfully, access token expires %s", tp.AccessTokenExpiresAt.Format(time.RFC3339))
+		setTokens(tp)
+		go refreshLoop(cfg)
 	}
 
 	if err := os.MkdirAll(socketDir, 0o755); err != nil {
