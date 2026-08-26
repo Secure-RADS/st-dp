@@ -1,3 +1,5 @@
+import { stringify } from "csv-stringify/sync";
+
 export interface EventRow {
   algorithmId: string;
   runId: string;
@@ -7,28 +9,12 @@ export interface EventRow {
   detail: unknown;
 }
 
-const COLUMNS = ["algorithmId", "runId", "event", "timestamp", "receivedAt", "detail"] as const;
-
-function escapeCell(value: string): string {
-  if (/[",\n\r]/.test(value)) {
-    return `"${value.replace(/"/g, '""')}"`;
-  }
-  return value;
-}
+const COLUMNS = ["algorithmId", "runId", "event", "timestamp", "receivedAt", "detail"];
 
 export function toCsv(rows: EventRow[]): string {
-  const lines = [COLUMNS.join(",")];
-  for (const row of rows) {
-    lines.push(
-      [
-        escapeCell(row.algorithmId),
-        escapeCell(row.runId),
-        escapeCell(row.event),
-        escapeCell(row.timestamp),
-        escapeCell(row.receivedAt),
-        escapeCell(row.detail == null ? "" : JSON.stringify(row.detail)),
-      ].join(","),
-    );
-  }
-  return `${lines.join("\n")}\n`;
+  // detail is an object; flatten it to compact JSON so csv-stringify emits one cell, not [object Object].
+  return stringify(
+    rows.map((row) => ({ ...row, detail: row.detail == null ? "" : JSON.stringify(row.detail) })),
+    { header: true, columns: COLUMNS },
+  );
 }
