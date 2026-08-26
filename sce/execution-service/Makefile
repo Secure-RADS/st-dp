@@ -20,10 +20,9 @@ ALGORITHM_TABLE = $(shell aws cloudformation describe-stacks --stack-name regist
 ENCLAVE_AMI_ID = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='EnclaveHostAmiId'].OutputValue" --output text)
 ENCLAVE_INSTANCE_TYPE ?= c6g.large
-# Same verifier-service deployment and pinning scheme registry-service already uses (csav/registry-service/Makefile) -
-# the enclave has no CA bundle to do normal chain verification, so it pins the leaf pubkey instead, same as build-time.
+# Only used to configure vsock-proxy's allowlist on the host - the pinned pubkey itself is baked into the EIF
+# by registry-service now (see csav/registry-service/rootfs.go), not passed in here.
 VERIFIER_HOST ?= gdpr-verifier.prdai.dev
-VERIFIER_PUBKEY_SHA256 ?= 172602c618994c4bd5e408b3343f1c49ffa019595d7d19788f331a8f0e928316
 ENCLAVE_SECURITY_GROUP_ID = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='EnclaveHostSecurityGroupId'].OutputValue" --output text)
 ENCLAVE_INSTANCE_PROFILE_ARN = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
@@ -55,7 +54,6 @@ ship: image
 	echo "ALGORITHM_TABLE=$(ALGORITHM_TABLE)" >> /tmp/execution-service.env
 	echo "CALLBACK_URL=http://$(PRIVATE_IP):8080" >> /tmp/execution-service.env
 	echo "VERIFIER_HOST=$(VERIFIER_HOST)" >> /tmp/execution-service.env
-	echo "VERIFIER_PUBKEY_SHA256=$(VERIFIER_PUBKEY_SHA256)" >> /tmp/execution-service.env
 	echo "ENCLAVE_AMI_ID=$(ENCLAVE_AMI_ID)" >> /tmp/execution-service.env
 	echo "ENCLAVE_INSTANCE_TYPE=$(ENCLAVE_INSTANCE_TYPE)" >> /tmp/execution-service.env
 	echo "ENCLAVE_SECURITY_GROUP_ID=$(ENCLAVE_SECURITY_GROUP_ID)" >> /tmp/execution-service.env

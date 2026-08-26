@@ -18,7 +18,10 @@ const (
 	verifierPinnedPubKeyEnv = "VERIFIER_PUBKEY_SHA256"
 )
 
-var verifierURL = os.Getenv("VERIFIER_URL")
+var (
+	verifierURL  = os.Getenv("VERIFIER_URL")
+	verifierHost = os.Getenv("VERIFIER_HOST")
+)
 
 type registerPCRsRequest struct {
 	AlgorithmId string `json:"algorithmId"`

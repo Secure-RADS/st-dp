@@ -32,9 +32,9 @@ const (
 func main() {
 	log.Printf("sce-unit: starting up")
 
-	cfg, err := receiveRunConfig()
+	cfg, err := loadRunConfig()
 	if err != nil {
-		log.Printf("sce-unit: receive run config: %v", err)
+		log.Printf("sce-unit: load run config: %v", err)
 	} else {
 		logAttestOutcome(cfg)
 	}

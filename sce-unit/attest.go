@@ -16,88 +16,41 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/hf/nsm"
 	"github.com/hf/nsm/request"
 	"github.com/mdlayher/vsock"
-	"golang.org/x/sys/unix"
 )
 
-// The host pushes runConfig here once, right after nitro-cli run-enclave starts us (see userdata.sh.tmpl).
-const configPort = 5001
+// registry-service writes this at build time (see rootfs.go) - it's part of the measured image, not runtime config.
+const runConfigPath = "/etc/sce/run-config.json"
+
+// The host's vsock-proxy always listens on this fixed port (see userdata.sh.tmpl).
+const verifierProxyPort = 8001
 
 const (
-	receiveConfigTimeout = 30 * time.Second
 	vsockDialTimeout     = 10 * time.Second
 	tlsHandshakeTimeout  = 10 * time.Second
 	attestRequestTimeout = 30 * time.Second
 )
 
-// runConfig is the one-shot JSON message the host pushes over vsock at boot - the enclave has no other way to
-// learn which algorithm it's running or how to reach verifier-service, since Nitro Enclaves take no user-data.
+// runConfig is baked into the EIF at build time - the enclave has no other way to learn which algorithm it's
+// running or how to reach verifier-service, since Nitro Enclaves take no user-data.
 type runConfig struct {
 	AlgorithmId          string `json:"algorithmId"`
 	VerifierHost         string `json:"verifierHost"`
-	VerifierProxyPort    int    `json:"verifierProxyPort"`
 	VerifierPubKeySHA256 string `json:"verifierPubKeySHA256"`
 }
 
-func receiveRunConfig() (runConfig, error) {
-	fd, err := unix.Socket(unix.AF_VSOCK, unix.SOCK_STREAM, 0)
+func loadRunConfig() (runConfig, error) {
+	data, err := os.ReadFile(runConfigPath)
 	if err != nil {
-		return runConfig{}, err
+		return runConfig{}, fmt.Errorf("read %s: %w", runConfigPath, err)
 	}
-	defer unix.Close(fd)
-
-	if err := unix.Bind(fd, &unix.SockaddrVM{CID: unix.VMADDR_CID_ANY, Port: configPort}); err != nil {
-		return runConfig{}, err
-	}
-	if err := unix.Listen(fd, 1); err != nil {
-		return runConfig{}, err
-	}
-
-	type acceptResult struct {
-		fd  int
-		err error
-	}
-	acceptCh := make(chan acceptResult, 1)
-	go func() {
-		connFd, _, err := unix.Accept(fd)
-		acceptCh <- acceptResult{connFd, err}
-	}()
-
-	var connFd int
-	select {
-	case res := <-acceptCh:
-		if res.err != nil {
-			return runConfig{}, res.err
-		}
-		connFd = res.fd
-	case <-time.After(receiveConfigTimeout):
-		return runConfig{}, fmt.Errorf("timed out after %s waiting for the host to push run config", receiveConfigTimeout)
-	}
-	defer unix.Close(connFd)
-
-	deadline := unix.NsecToTimeval(receiveConfigTimeout.Nanoseconds())
-	if err := unix.SetsockoptTimeval(connFd, unix.SOL_SOCKET, unix.SO_RCVTIMEO, &deadline); err != nil {
-		return runConfig{}, fmt.Errorf("set read timeout: %w", err)
-	}
-
-	var buf bytes.Buffer
-	chunk := make([]byte, 4096)
-	for {
-		n, err := unix.Read(connFd, chunk)
-		if n > 0 {
-			buf.Write(chunk[:n])
-		}
-		if err != nil || n == 0 {
-			break
-		}
-	}
-
 	var cfg runConfig
-	if err := json.Unmarshal(buf.Bytes(), &cfg); err != nil {
+	if err := json.Unmarshal(data, &cfg); err != nil {
 		return runConfig{}, fmt.Errorf("parse run config: %w", err)
 	}
 	return cfg, nil
@@ -179,7 +132,7 @@ func verifierHTTPClient(cfg runConfig) *http.Client {
 		Timeout: attestRequestTimeout,
 		Transport: &http.Transport{
 			DialTLSContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-				raw, err := dialVsock(ctx, hostCID, uint32(cfg.VerifierProxyPort))
+				raw, err := dialVsock(ctx, hostCID, verifierProxyPort)
 				if err != nil {
 					return nil, err
 				}

@@ -57,29 +57,6 @@ vsock-proxy 8001 "{{.VerifierHost}}" 443 --config /etc/nitro_enclaves/vsock-prox
 
 nitro-cli run-enclave --cpu-count {{.CPUCount}} --memory {{.MemoryMiB}} --eif-path /opt/eif/app.eif --enclave-cid 16
 
-# The enclave has no other way to learn which algorithm it's running or where to reach verifier-service, so the
-# host pushes it once as a single JSON message over vsock right after boot. sce-unit blocks on this at startup.
-ALGORITHM_ID="{{.AlgorithmId}}" VERIFIER_HOST="{{.VerifierHost}}" VERIFIER_PUBKEY_SHA256="{{.VerifierPubKeySHA256}}" python3 - <<'PYEOF' &
-import json, os, socket, time
-payload = json.dumps({
-    "algorithmId": os.environ["ALGORITHM_ID"],
-    "verifierHost": os.environ["VERIFIER_HOST"],
-    "verifierProxyPort": 8001,
-    "verifierPubKeySHA256": os.environ["VERIFIER_PUBKEY_SHA256"],
-}).encode()
-for _ in range(20):
-    try:
-        s = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
-        s.connect((16, 5001))
-        break
-    except OSError:
-        time.sleep(0.5)
-else:
-    raise SystemExit("could not reach sce-unit's config listener")
-s.sendall(payload)
-s.close()
-PYEOF
-
 while nitro-cli describe-enclaves | grep -q '"EnclaveID"'; do
   sleep 5
 done
