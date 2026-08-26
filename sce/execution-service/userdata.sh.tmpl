@@ -61,8 +61,7 @@ EOF
 vsock-proxy 8001 "{{.VerifierHost}}" 443 --config /etc/nitro_enclaves/vsock-proxy.yaml &
 vsock-proxy 8002 "{{.PdmHost}}" 443 --config /etc/nitro_enclaves/vsock-proxy.yaml &
 
-# nitro-cli run-enclave can transiently fail right after the allocator starts (hugepages not yet reserved),
-# which would otherwise leave no enclave and a silent empty result - retry a few times before giving up.
+# run-enclave can transiently fail right after the allocator starts (hugepages not yet reserved) - retry.
 launched=false
 for attempt in 1 2 3 4 5; do
   if nitro-cli run-enclave --cpu-count {{.CPUCount}} --memory {{.MemoryMiB}} --eif-path /opt/eif/app.eif --enclave-cid 16 >> /tmp/run-enclave.log 2>&1; then
@@ -74,9 +73,7 @@ for attempt in 1 2 3 4 5; do
 done
 
 if [ "$launched" = true ]; then
-  # run-enclave has returned, so the enclave is up. Wait for it to actually exit, but tolerate transient
-  # describe-enclaves hiccups: a single empty reading right after launch would otherwise fall straight through
-  # to finish() and terminate the instance mid-run, killing sce-unit with no trace. Require consecutive misses.
+  # Wait for the enclave to exit, requiring consecutive describe-enclaves misses so a transient hiccup right after launch doesn't terminate the instance mid-run.
   misses=0
   while true; do
     if nitro-cli describe-enclaves 2>/dev/null | grep -q '"EnclaveID"'; then
