@@ -48,9 +48,7 @@ with open("/tmp/output.txt", "wb") as f:
         f.write(chunk)
 PYEOF
 
-# The enclave has no direct network - vsock-proxy (from aws-nitro-enclaves-cli, installed above) is the only path
-# out. It listens for the enclave's vsock connections on port 8001 and forwards them over real TCP/TLS to
-# verifier-service, resolving VERIFIER_HOST here on the host since the enclave itself has no DNS.
+# Only way out of the enclave: vsock-proxy forwards its vsock traffic to VerifierHost:443 over real TCP/TLS, resolving DNS here since the enclave has none.
 cat > /etc/nitro_enclaves/vsock-proxy.yaml <<EOF
 allowlist:
   - {address: "{{.VerifierHost}}", port: 443}
