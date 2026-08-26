@@ -61,9 +61,16 @@ func buildAndPush(ctx context.Context, algorithmId, tarPath string) (string, err
 	if verifierHost == "" || verifierHostPubKeySHA256 == "" {
 		return "", fmt.Errorf("VERIFIER_HOST / VERIFIER_HOST_PUBKEY_SHA256 not configured")
 	}
+	if pdmHost == "" || pdmHostPubKeySHA256 == "" {
+		return "", fmt.Errorf("PDM_HOST / PDM_HOST_PUBKEY_SHA256 not configured")
+	}
 
 	log.Printf("build[%s]: composing final rootfs", tarPath)
-	rc := runConfig{AlgorithmId: algorithmId, VerifierHost: verifierHost, VerifierPubKeySHA256: verifierHostPubKeySHA256}
+	rc := runConfig{
+		AlgorithmId:  algorithmId,
+		VerifierHost: verifierHost, VerifierPubKeySHA256: verifierHostPubKeySHA256,
+		PdmHost: pdmHost, PdmPubKeySHA256: pdmHostPubKeySHA256,
+	}
 	if err := composeFinalRootfs(bundleDir, execPath, pathEnv, args, rc); err != nil {
 		return "", fmt.Errorf("compose final rootfs: %w", err)
 	}

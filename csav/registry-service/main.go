@@ -52,7 +52,13 @@ func main() {
 			return
 		}
 
-		algorithmId := uuid.NewString()
+		// The caller assigns the algorithmId so the EIF binds to the same id its dataset was seeded under in
+		// the PDM table - server-generated ids could never line up with pre-seeded data.
+		algorithmId := c.PostForm("algorithmId")
+		if _, err := uuid.Parse(algorithmId); err != nil {
+			c.String(http.StatusBadRequest, "missing or invalid 'algorithmId' form field (must be a UUID): %v", err)
+			return
+		}
 
 		uploadDir := "/tmp/registry-service-uploads"
 		// 0o755: standard dir perms - MkdirAll requires a mode, no bare option.

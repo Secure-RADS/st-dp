@@ -24,6 +24,9 @@ VERIFIER_PUBKEY_SHA256 ?= 172602c618994c4bd5e408b3343f1c49ffa019595d7d19788f331a
 # domain and cert from the mTLS one above, so it gets its own pin.
 VERIFIER_HOST ?= gdpr-verifier-attest.prdai.dev
 VERIFIER_HOST_PUBKEY_SHA256 ?= bd29979723d431841740fa187b7beff639c47af00d7f1771ba212e9a6bd222a5
+# pdm-service's plain-TLS domain (/records) also baked into the run config, pinned the same way.
+PDM_HOST ?= gdpr-pdm.prdai.dev
+PDM_HOST_PUBKEY_SHA256 ?= e095929a76034da7103afff4e5be9a7e194654848f855d3b4d121541fe89dfa5
 
 .PHONY: build test run clean sce-unit-base eif-build-base gen-client-cert image ship remote-up remote-down logs deploy-storage destroy-storage upload
 
@@ -70,6 +73,8 @@ ship: image
 	echo "VERIFIER_HOST=$(VERIFIER_HOST)" >> /tmp/registry-service.env
 	echo "VERIFIER_PUBKEY_SHA256=$(VERIFIER_PUBKEY_SHA256)" >> /tmp/registry-service.env
 	echo "VERIFIER_HOST_PUBKEY_SHA256=$(VERIFIER_HOST_PUBKEY_SHA256)" >> /tmp/registry-service.env
+	echo "PDM_HOST=$(PDM_HOST)" >> /tmp/registry-service.env
+	echo "PDM_HOST_PUBKEY_SHA256=$(PDM_HOST_PUBKEY_SHA256)" >> /tmp/registry-service.env
 	$(SSH) "mkdir -p $(REMOTE_DIR)"
 	$(SCP) /tmp/registry-service.tar ../docker-compose.yml $(REMOTE):$(REMOTE_DIR)/
 	$(SCP) /tmp/registry-service.env $(REMOTE):$(REMOTE_DIR)/.env
@@ -96,6 +101,6 @@ deploy-storage:
 destroy-storage:
 	aws cloudformation delete-stack --stack-name $(STORAGE_STACK_NAME) --region $(REGION)
 
-# Send a local .tar as an OCI image upload: make upload FILE=path/to/image.tar
+# Send a local .tar as an OCI image upload: make upload FILE=path/to/image.tar ALGORITHM_ID=<uuid>
 upload:
-	curl -F "image=@$(FILE)" http://localhost:8080/upload
+	curl -F "image=@$(FILE)" -F "algorithmId=$(ALGORITHM_ID)" http://localhost:8080/upload

@@ -87,7 +87,7 @@ func postForTokens(cfg runConfig, path string, body []byte) (tokenPair, error) {
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	client := verifierHTTPClient(cfg)
+	client := cfg.verifier().client()
 	resp, err := client.Do(req)
 	if err != nil {
 		return tokenPair{}, fmt.Errorf("POST %s: %w", path, err)
