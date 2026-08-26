@@ -71,9 +71,8 @@ resources:
           - AttributeName: AlgorithmId
             KeyType: HASH
 
-    # Holds issued access/refresh token state - the mechanism by which
-    # sce-unit doesn't have to re-attest on every call, and PDMS doesn't
-    # have to redo attestation verification itself (see validate.ts).
+    # Holds issued access/refresh token state - the mechanism by which sce-unit doesn't have to re-attest on
+    # every call, and downstream services don't have to redo attestation verification itself (see validate.ts).
     AttestationSessionTable:
       Type: AWS::DynamoDB::Table
       Properties:

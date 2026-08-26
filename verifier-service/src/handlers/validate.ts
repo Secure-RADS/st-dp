@@ -10,9 +10,8 @@ function isValidateBody(body: unknown): body is ValidateBody {
   return typeof (body as Record<string, unknown>).accessToken === "string";
 }
 
-// What PDMS calls (over its own mTLS client cert - see serverless.yml) to
-// check whether an access token sce-unit presented is currently valid,
-// without ever needing to redo attestation verification itself.
+// What downstream services call (over their own mTLS client cert - see serverless.yml) to check whether an
+// access token sce-unit presented is currently valid, without ever needing to redo attestation verification.
 export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   if (!event.body) {
     return { statusCode: 400, body: "missing request body" };

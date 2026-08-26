@@ -80,7 +80,7 @@ async function findByIndex(indexName: string, keyName: string, tokenHash: string
   };
 }
 
-// What PDMS calls to check whether an access token is currently valid.
+// What downstream services call to check whether an access token is currently valid.
 export async function validateAccessToken(accessToken: string): Promise<Session | null> {
   const session = await findByIndex("AccessTokenIndex", "AccessTokenHash", hashToken(accessToken));
   if (!session || session.revoked) return null;
