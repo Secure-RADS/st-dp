@@ -29,7 +29,7 @@ PDM_HOST ?= gdpr-pdm.prdai.dev
 PDM_HOST_PUBKEY_SHA256 ?= e095929a76034da7103afff4e5be9a7e194654848f855d3b4d121541fe89dfa5
 # log-service's plain-TLS domain (/events), baked in and pinned so the enclave can log its run timeline.
 LOG_HOST ?= gdpr-log.prdai.dev
-LOG_HOST_PUBKEY_SHA256 ?=
+LOG_HOST_PUBKEY_SHA256 ?= eefc2c52ef2476ec593bea5580fd9a213e61e177ebac3cfa0f506f5a2563a486
 
 .PHONY: build test run clean sce-unit-base eif-build-base gen-client-cert image ship remote-up remote-down logs deploy-storage destroy-storage upload
 
