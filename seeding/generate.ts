@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { faker } from "@faker-js/faker";
+import { DATASETS } from "./config";
 
 const OUT_DIR = join(import.meta.dir, "datasets");
 
@@ -208,17 +209,18 @@ function ehealthData() {
   };
 }
 
-// name, algorithmId, record count, faker seed, generator.
-const DATASETS: [string, string, number, number, (index: number, count: number) => object][] = [
-  ["health", "662fa378-dc53-425d-9225-a187b11ea7dc", 250, 101, () => healthData()],
-  ["finance", "c7cc14fa-e962-4548-aff4-a54148798cd8", 1000, 202, () => financeData()],
-  ["ecommerce", "3b8bba4a-8106-4309-9446-7bce99a1453a", 2500, 303, () => ecommerceData()],
-  ["social", "e4082659-08d6-4f0a-9e60-327e9410c710", 5000, 404, (i, n) => socialData(i, n)],
-  ["ehealth", "e587067e-47dc-4835-8f87-5e66fc979adf", 10000, 505, () => ehealthData()],
-];
+// Generators keyed by dataset name; the dataset registry (name/id/count/seed) lives in config.ts.
+const GENERATORS: Record<string, (index: number, count: number) => object> = {
+  health: () => healthData(),
+  finance: () => financeData(),
+  ecommerce: () => ecommerceData(),
+  social: (i, n) => socialData(i, n),
+  ehealth: () => ehealthData(),
+};
 
 mkdirSync(OUT_DIR, { recursive: true });
-for (const [name, algorithmId, count, seed, gen] of DATASETS) {
+for (const { name, algorithmId, count, seed } of DATASETS) {
+  const gen = GENERATORS[name];
   faker.seed(seed);
   const records = [];
   for (let i = 1; i <= count; i++) {
