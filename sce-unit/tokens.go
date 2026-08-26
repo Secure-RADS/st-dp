@@ -6,11 +6,10 @@ import (
 	"time"
 )
 
-// refreshMargin is how long before expiry the background loop refreshes, so a reader never observes an
-// access token that's about to (or has just) expired.
-const refreshMargin = 30 * time.Second
-
-const refreshRetryBackoff = 10 * time.Second
+const (
+	refreshMargin       = 30 * time.Second
+	refreshRetryBackoff = 10 * time.Second
+)
 
 type tokenPair struct {
 	AccessToken          string
@@ -18,8 +17,7 @@ type tokenPair struct {
 	AccessTokenExpiresAt time.Time
 }
 
-// currentTokens is process-wide, mutex-guarded state - the one place that holds the live access/refresh token
-// pair, kept fresh by refreshLoop and read by anything in sce-unit that needs to authenticate as this run.
+// currentTokens holds the live access/refresh token pair, kept fresh by refreshLoop.
 var currentTokens struct {
 	mu   sync.RWMutex
 	pair tokenPair
@@ -39,8 +37,6 @@ func getTokens() (tokenPair, bool) {
 	return currentTokens.pair, currentTokens.set
 }
 
-// CurrentAccessToken returns the access token currently in effect, for anything in sce-unit that needs to
-// authenticate a call as this run.
 func CurrentAccessToken() (string, bool) {
 	tp, ok := getTokens()
 	if !ok {
@@ -49,8 +45,6 @@ func CurrentAccessToken() (string, bool) {
 	return tp.AccessToken, true
 }
 
-// refreshLoop runs for the lifetime of the process, proactively exchanging the refresh token for a new access
-// token shortly before the current one expires, so it never goes stale between reads.
 func refreshLoop(cfg runConfig) {
 	for {
 		tp, ok := getTokens()
