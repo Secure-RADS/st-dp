@@ -2,14 +2,14 @@
 set -uo pipefail
 exec > >(tee /var/log/execution-service-run.log) 2>&1
 
-# Always self-terminate on exit and POST the run result back to execution-service,
-# which holds the original /run request open until this callback lands.
+# Always self-terminate on exit and send the run result to SQS, where a consumer Lambda persists it for the
+# caller to poll (GET /run/<runId>). The result carries the runId execution-service assigned at launch.
 finish() {
   STATUS=$?
   TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
   INSTANCE_ID=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-id)
   REGION=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/placement/region)
-  python3 - "$STATUS" > /tmp/result.json <<'PYEOF'
+  python3 - "$STATUS" "$INSTANCE_ID" > /tmp/result.json <<'PYEOF'
 import json, sys
 def read(path):
     try:
@@ -20,9 +20,9 @@ out = read("/tmp/output.txt")
 # When the DC app produced no output, surface the enclave launch log so an empty result is diagnosable
 # instead of silent (the enclave console is otherwise lost when the host terminates).
 diag = {"runEnclave": read("/tmp/run-enclave.log")} if not out else {}
-print(json.dumps({"status": "exit:" + sys.argv[1], "output": out, "diag": diag}))
+print(json.dumps({"runId": "{{.RunId}}", "algorithmId": "{{.AlgorithmId}}", "instanceId": sys.argv[2], "status": "exit:" + sys.argv[1], "output": out, "diag": diag}))
 PYEOF
-  curl -s -m 10 -X POST -H "Content-Type: application/json" --data-binary @/tmp/result.json "{{.CallbackURL}}/result/$INSTANCE_ID" || true
+  aws sqs send-message --queue-url "{{.QueueUrl}}" --message-body file:///tmp/result.json --region "$REGION" || true
   aws ec2 terminate-instances --instance-ids "$INSTANCE_ID" --region "$REGION"
 }
 trap finish EXIT
@@ -52,14 +52,30 @@ with open("/tmp/output.txt", "wb") as f:
         f.write(chunk)
 PYEOF
 
+# Serve this run's runId to the enclave on port 5001 - the enclave takes no user-data, so it has no other way
+# to learn the per-run id (the EIF only carries per-algorithm config).
+python3 - <<'PYEOF' &
+import socket
+s = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
+s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+s.bind((socket.VMADDR_CID_ANY, 5001))
+s.listen(5)
+while True:
+    conn, _ = s.accept()
+    conn.sendall(b"{{.RunId}}")
+    conn.close()
+PYEOF
+
 # Only way out of the enclave: one vsock-proxy per allowed host forwards vsock traffic over real TCP/TLS, resolving DNS here since the enclave has none.
 cat > /etc/nitro_enclaves/vsock-proxy.yaml <<EOF
 allowlist:
   - {address: "{{.VerifierHost}}", port: 443}
   - {address: "{{.PdmHost}}", port: 443}
+  - {address: "{{.LogHost}}", port: 443}
 EOF
 vsock-proxy 8001 "{{.VerifierHost}}" 443 --config /etc/nitro_enclaves/vsock-proxy.yaml &
 vsock-proxy 8002 "{{.PdmHost}}" 443 --config /etc/nitro_enclaves/vsock-proxy.yaml &
+vsock-proxy 8003 "{{.LogHost}}" 443 --config /etc/nitro_enclaves/vsock-proxy.yaml &
 
 # run-enclave can transiently fail right after the allocator starts (hugepages not yet reserved) - retry.
 launched=false

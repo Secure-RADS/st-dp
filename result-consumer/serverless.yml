@@ -1,0 +1,66 @@
+service: result-consumer
+
+# Bundled as CJS, not ESM, same as pdm-service - esbuild's ESM output can't interop with plain
+# top-level require() in some deps, and nothing here actually needs ESM at runtime.
+build:
+  esbuild:
+    format: cjs
+    outExtension:
+      ".js": ".cjs"
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: ${param:region, 'ap-south-1'}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action: dynamodb:PutItem
+          Resource: !GetAtt RunResultsTable.Arn
+  environment:
+    RUN_RESULTS_TABLE: !Ref RunResultsTable
+    LOG_EVENTS_URL: ${param:logEventsUrl, 'https://gdpr-log.prdai.dev/events'}
+
+functions:
+  consume:
+    handler: src/handlers/consume.handler
+    events:
+      - sqs:
+          arn: !GetAtt RunResultsQueue.Arn
+          batchSize: 10
+
+resources:
+  Resources:
+    RunResultsQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        VisibilityTimeout: 60
+        MessageRetentionPeriod: 1209600
+        RedrivePolicy:
+          deadLetterTargetArn: !GetAtt RunResultsDLQ.Arn
+          maxReceiveCount: 3
+
+    RunResultsDLQ:
+      Type: AWS::SQS::Queue
+
+    RunResultsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: RunId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: RunId
+            KeyType: HASH
+
+  Outputs:
+    RunResultsQueueUrl:
+      Value: !Ref RunResultsQueue
+    RunResultsQueueArn:
+      Value: !GetAtt RunResultsQueue.Arn
+    RunResultsTableName:
+      Value: !Ref RunResultsTable
+    RunResultsTableArn:
+      Value: !GetAtt RunResultsTable.Arn

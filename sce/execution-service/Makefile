@@ -12,11 +12,15 @@ REMOTE_HOST = $(shell aws ec2 describe-instances --instance-ids $(INSTANCE_ID) -
 REMOTE = ec2-user@$(REMOTE_HOST)
 SSH := ssh -i $(KEY_PATH) $(REMOTE)
 SCP := scp -i $(KEY_PATH)
-# Private IP persists across stop/start (unlike the public one), so baking it into .env at ship time is safe.
-PRIVATE_IP = $(shell aws ec2 describe-instances --instance-ids $(INSTANCE_ID) --region $(REGION) \
-	--query 'Reservations[0].Instances[0].PrivateIpAddress' --output text)
 ALGORITHM_TABLE = $(shell aws cloudformation describe-stacks --stack-name registry-service-storage --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='AlgorithmTableName'].OutputValue" --output text)
+# Queue the enclave host sends results to, and the table this service reads for GET /run/<runId> - both from
+# the result-consumer serverless stack.
+RESULT_CONSUMER_STACK := result-consumer-dev
+RUN_RESULTS_QUEUE_URL = $(shell aws cloudformation describe-stacks --stack-name $(RESULT_CONSUMER_STACK) --region $(REGION) \
+	--query "Stacks[0].Outputs[?OutputKey=='RunResultsQueueUrl'].OutputValue" --output text)
+RUN_RESULTS_TABLE = $(shell aws cloudformation describe-stacks --stack-name $(RESULT_CONSUMER_STACK) --region $(REGION) \
+	--query "Stacks[0].Outputs[?OutputKey=='RunResultsTableName'].OutputValue" --output text)
 ENCLAVE_AMI_ID = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='EnclaveHostAmiId'].OutputValue" --output text)
 ENCLAVE_INSTANCE_TYPE ?= c6g.large
@@ -24,6 +28,7 @@ ENCLAVE_INSTANCE_TYPE ?= c6g.large
 # by registry-service now (see csav/registry-service/rootfs.go), not passed in here.
 VERIFIER_HOST ?= gdpr-verifier-attest.prdai.dev
 PDM_HOST ?= gdpr-pdm.prdai.dev
+LOG_HOST ?= gdpr-log.prdai.dev
 ENCLAVE_SECURITY_GROUP_ID = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='EnclaveHostSecurityGroupId'].OutputValue" --output text)
 ENCLAVE_INSTANCE_PROFILE_ARN = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
@@ -53,9 +58,11 @@ ship: image
 	docker save $(IMAGE) -o /tmp/execution-service.tar
 	echo "AWS_REGION=$(REGION)" > /tmp/execution-service.env
 	echo "ALGORITHM_TABLE=$(ALGORITHM_TABLE)" >> /tmp/execution-service.env
-	echo "CALLBACK_URL=http://$(PRIVATE_IP):8080" >> /tmp/execution-service.env
+	echo "RUN_RESULTS_QUEUE_URL=$(RUN_RESULTS_QUEUE_URL)" >> /tmp/execution-service.env
+	echo "RUN_RESULTS_TABLE=$(RUN_RESULTS_TABLE)" >> /tmp/execution-service.env
 	echo "VERIFIER_HOST=$(VERIFIER_HOST)" >> /tmp/execution-service.env
 	echo "PDM_HOST=$(PDM_HOST)" >> /tmp/execution-service.env
+	echo "LOG_HOST=$(LOG_HOST)" >> /tmp/execution-service.env
 	echo "ENCLAVE_AMI_ID=$(ENCLAVE_AMI_ID)" >> /tmp/execution-service.env
 	echo "ENCLAVE_INSTANCE_TYPE=$(ENCLAVE_INSTANCE_TYPE)" >> /tmp/execution-service.env
 	echo "ENCLAVE_SECURITY_GROUP_ID=$(ENCLAVE_SECURITY_GROUP_ID)" >> /tmp/execution-service.env

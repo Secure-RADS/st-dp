@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // buildAndPush unpacks the uploaded image, jails the Data Controller's app
@@ -14,9 +16,18 @@ import (
 // from the result, and uploads only that to S3. The whole pipeline is
 // daemonless: skopeo + rootless umoci for unpack, eif_build directly on the
 // composed rootfs (eif.go) - no docker.sock anywhere.
-func buildAndPush(ctx context.Context, algorithmId, tarPath string) (string, error) {
+func buildAndPush(ctx context.Context, algorithmId, tarPath string) (key string, err error) {
 	start := time.Now()
 	log.Printf("build[%s]: start", tarPath)
+
+	// buildId is the runId under which this build's timeline is recorded (a build has no execution runId).
+	buildId := uuid.NewString()
+	logEvent(algorithmId, buildId, eventBuildStarted, nil)
+	defer func() {
+		if err != nil {
+			logEvent(algorithmId, buildId, eventBuildFailed, map[string]any{"error": err.Error()})
+		}
+	}()
 
 	workDir := filepath.Join(os.TempDir(), "registry-build-"+algorithmId)
 	if err := os.Mkdir(workDir, 0o755); err != nil {
@@ -64,12 +75,16 @@ func buildAndPush(ctx context.Context, algorithmId, tarPath string) (string, err
 	if pdmHost == "" || pdmHostPubKeySHA256 == "" {
 		return "", fmt.Errorf("PDM_HOST / PDM_HOST_PUBKEY_SHA256 not configured")
 	}
+	if logHost == "" || logHostPubKeySHA256 == "" {
+		return "", fmt.Errorf("LOG_HOST / LOG_HOST_PUBKEY_SHA256 not configured")
+	}
 
 	log.Printf("build[%s]: composing final rootfs", tarPath)
 	rc := runConfig{
 		AlgorithmId:  algorithmId,
 		VerifierHost: verifierHost, VerifierPubKeySHA256: verifierHostPubKeySHA256,
 		PdmHost: pdmHost, PdmPubKeySHA256: pdmHostPubKeySHA256,
+		LogHost: logHost, LogPubKeySHA256: logHostPubKeySHA256,
 	}
 	if err := composeFinalRootfs(bundleDir, execPath, pathEnv, args, rc); err != nil {
 		return "", fmt.Errorf("compose final rootfs: %w", err)
@@ -80,6 +95,7 @@ func buildAndPush(ctx context.Context, algorithmId, tarPath string) (string, err
 	if err != nil {
 		return "", fmt.Errorf("build EIF: %w", err)
 	}
+	logEvent(algorithmId, buildId, eventEifBuilt, map[string]any{"pcr0": pcrs.PCR0})
 
 	f, err := os.Open(eifPath)
 	if err != nil {
@@ -87,7 +103,7 @@ func buildAndPush(ctx context.Context, algorithmId, tarPath string) (string, err
 	}
 	defer f.Close()
 
-	key := algorithmId + ".eif"
+	key = algorithmId + ".eif"
 	log.Printf("build[%s]: uploading to s3 key=%s", tarPath, key)
 	if err := uploadToS3(ctx, key, f); err != nil {
 		return "", fmt.Errorf("upload EIF: %w", err)
@@ -97,7 +113,9 @@ func buildAndPush(ctx context.Context, algorithmId, tarPath string) (string, err
 	if err := registerPCRs(ctx, algorithmId, pcrs); err != nil {
 		return "", fmt.Errorf("register PCRs: %w", err)
 	}
+	logEvent(algorithmId, buildId, eventPcrsRegistered, nil)
 
 	log.Printf("build[%s]: done key=%s took=%s", tarPath, key, time.Since(start))
+	logEvent(algorithmId, buildId, eventBuildCompleted, map[string]any{"key": key})
 	return key, nil
 }

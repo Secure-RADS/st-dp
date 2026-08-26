@@ -30,6 +30,14 @@ Parameters:
     Type: String
     Description: Name of the registry-service AlgorithmId->S3 path table (from the registry-service-storage stack), for looking up EIF locations.
 
+  RunResultsQueueArn:
+    Type: String
+    Description: ARN of the run-results SQS queue (from the result-consumer stack); enclave hosts send their result here.
+
+  RunResultsTableName:
+    Type: String
+    Description: Name of the run-results table (from the result-consumer stack); execution-service reads it to serve GET /run/<runId>.
+
   LatestAmiId:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
     Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64
@@ -76,6 +84,13 @@ Resources:
               - Effect: Allow
                 Action: dynamodb:GetItem
                 Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AlgorithmTableName}"
+        - PolicyName: RunResultsTableRead
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: dynamodb:GetItem
+                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${RunResultsTableName}"
         - PolicyName: LaunchEnclaveHost
           PolicyDocument:
             Version: "2012-10-17"
@@ -109,9 +124,9 @@ Resources:
         - !Ref ExecutionServiceInstanceRole
 
   # No ingress at all - the enclave host only makes outbound calls (S3 EIF
-  # download, result callback to execution-service, mTLS to
-  # verifier-service/PDMS later). execution-service never connects to it;
-  # the instance terminates itself once the enclave process exits.
+  # download, TLS to verifier-service/PDMS, and the SQS result send).
+  # execution-service never connects to it; the instance terminates itself
+  # once the enclave process exits.
   EnclaveHostSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -149,6 +164,13 @@ Resources:
                 Condition:
                   StringEquals:
                     "ec2:ResourceTag/ManagedBy": execution-service
+        - PolicyName: SendRunResult
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !Ref RunResultsQueueArn
 
   EnclaveHostInstanceProfile:
     Type: AWS::IAM::InstanceProfile
