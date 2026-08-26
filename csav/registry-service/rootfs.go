@@ -2,6 +2,7 @@ package main
 
 import (
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -17,8 +18,15 @@ const (
 	sceUnitBin       = "/opt/assets/sce-unit"
 )
 
+// runConfig is baked into /etc/sce/run-config.json (see sce-unit/attest.go) and is part of the measured PCRs, so changing verifierHost or the pinned pubkey means rebuilding and re-registering the EIF.
+type runConfig struct {
+	AlgorithmId          string `json:"algorithmId"`
+	VerifierHost         string `json:"verifierHost"`
+	VerifierPubKeySHA256 string `json:"verifierPubKeySHA256"`
+}
+
 // composeFinalRootfs replaces the bundle's rootfs with nsjail's runtime as the base, the DC's own rootfs nested under opt/dc-app/rootfs, the SCE Unit binary, and a generated nsjail.cfg.
-func composeFinalRootfs(bundleDir, execPath, pathEnv string, execArgs []string) error {
+func composeFinalRootfs(bundleDir, execPath, pathEnv string, execArgs []string, cfg runConfig) error {
 	dcRootfs := filepath.Join(bundleDir, "rootfs")
 	tmpFinal := bundleDir + "-final-rootfs"
 	defer os.RemoveAll(tmpFinal)
@@ -50,6 +58,9 @@ func composeFinalRootfs(bundleDir, execPath, pathEnv string, execArgs []string) 
 	if err := writeNsjailCfg(filepath.Join(cfgDir, "nsjail.cfg"), execPath, pathEnv, execArgs); err != nil {
 		return err
 	}
+	if err := writeRunConfig(filepath.Join(cfgDir, "run-config.json"), cfg); err != nil {
+		return err
+	}
 
 	if err := os.RemoveAll(dcRootfs); err != nil && !os.IsNotExist(err) {
 		return err
@@ -74,4 +85,12 @@ func writeNsjailCfg(path, execPath, pathEnv string, args []string) error {
 		PathEnv string
 		Args    []string
 	}{Path: execPath, PathEnv: pathEnv, Args: args})
+}
+
+func writeRunConfig(path string, cfg runConfig) error {
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0o644)
 }

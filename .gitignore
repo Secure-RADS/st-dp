@@ -1,6 +1,8 @@
 *.pem
+!verifier-service/certs/*.pem
 csav/registry-service/tls/
 csav/registry-service/registry-service
 sce/execution-service/execution-service
+sce-unit/sce-unit
 node_modules/
 .serverless/

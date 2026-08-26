@@ -12,11 +12,12 @@ import (
 )
 
 var (
-	dynamoClient   *dynamodb.Client
-	dynamoTable    string
-	ec2Client   *ec2.Client
-	awsRegion   string
-	callbackURL string
+	dynamoClient *dynamodb.Client
+	dynamoTable  string
+	ec2Client    *ec2.Client
+	awsRegion    string
+	callbackURL  string
+	verifierHost string
 
 	enclaveAmiId              string
 	enclaveInstanceType       string
@@ -34,6 +35,7 @@ func main() {
 	ec2Client = ec2.NewFromConfig(cfg)
 	awsRegion = os.Getenv("AWS_REGION")
 	callbackURL = os.Getenv("CALLBACK_URL")
+	verifierHost = os.Getenv("VERIFIER_HOST")
 
 	enclaveAmiId = os.Getenv("ENCLAVE_AMI_ID")
 	enclaveInstanceType = os.Getenv("ENCLAVE_INSTANCE_TYPE")

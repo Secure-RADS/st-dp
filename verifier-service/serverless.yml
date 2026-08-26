@@ -1,5 +1,14 @@
 service: verifier-service
 
+# Bundled as CJS, not ESM, even though package.json has "type": "module" (for local tooling only) - cbor does
+# a plain top-level require('stream') that esbuild's ESM output can't interop with ("Dynamic require of
+# 'stream' is not supported"), and nothing here actually needs ESM at runtime.
+build:
+  esbuild:
+    format: cjs
+    outExtension:
+      ".js": ".cjs"
+
 provider:
   name: aws
   runtime: nodejs20.x
@@ -12,8 +21,22 @@ provider:
         - Effect: Allow
           Action: dynamodb:PutItem
           Resource: !GetAtt AlgorithmPCRTable.Arn
+        - Effect: Allow
+          Action: dynamodb:GetItem
+          Resource: !GetAtt AlgorithmPCRTable.Arn
+        - Effect: Allow
+          Action:
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+          Resource: !GetAtt AttestationSessionTable.Arn
+        - Effect: Allow
+          Action: dynamodb:Query
+          Resource:
+            - !Sub "${AttestationSessionTable.Arn}/index/AccessTokenIndex"
+            - !Sub "${AttestationSessionTable.Arn}/index/RefreshTokenIndex"
   environment:
     ALGORITHM_PCR_TABLE: !Ref AlgorithmPCRTable
+    ATTESTATION_SESSION_TABLE: !Ref AttestationSessionTable
 
 functions:
   registerAlgorithm:
@@ -22,6 +45,18 @@ functions:
       - httpApi:
           method: POST
           path: /algorithms
+
+  # No httpApi event here on purpose - these three are wired to PublicHttpApi (plain TLS, no mTLS) by hand in
+  # resources below, since Serverless's httpApi shorthand only ever targets one implicit API per service, and
+  # /algorithms needs mTLS while these don't (a static client cert baked into the EIF would be extractable).
+  attest:
+    handler: src/handlers/attest.handler
+
+  refresh:
+    handler: src/handlers/refresh.handler
+
+  validate:
+    handler: src/handlers/validate.handler
 
 resources:
   Resources:
@@ -35,6 +70,36 @@ resources:
         KeySchema:
           - AttributeName: AlgorithmId
             KeyType: HASH
+
+    # Holds issued access/refresh token state - the mechanism by which sce-unit doesn't have to re-attest on
+    # every call, and downstream services don't have to redo attestation verification itself (see validate.ts).
+    AttestationSessionTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: SessionId
+            AttributeType: S
+          - AttributeName: AccessTokenHash
+            AttributeType: S
+          - AttributeName: RefreshTokenHash
+            AttributeType: S
+        KeySchema:
+          - AttributeName: SessionId
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: AccessTokenIndex
+            KeySchema:
+              - AttributeName: AccessTokenHash
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+          - IndexName: RefreshTokenIndex
+            KeySchema:
+              - AttributeName: RefreshTokenHash
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
 
     # PEM bundle containing registry-service's client cert public cert
     # (csav/registry-service/tls/client.crt) - upload it here before deploy.
@@ -63,8 +128,110 @@ resources:
         ApiId: !Ref HttpApi
         Stage: !Ref HttpApiStage
 
+    # Separate API from the mTLS one above - /attest, /refresh, /validate are plain server-auth TLS, pinned to
+    # this domain's leaf pubkey by callers instead (sce-unit has no client cert to present).
+    PublicHttpApi:
+      Type: AWS::ApiGatewayV2::Api
+      Properties:
+        Name: verifier-service-public
+        ProtocolType: HTTP
+
+    PublicHttpApiStage:
+      Type: AWS::ApiGatewayV2::Stage
+      Properties:
+        ApiId: !Ref PublicHttpApi
+        StageName: $default
+        AutoDeploy: true
+
+    AttestIntegration:
+      Type: AWS::ApiGatewayV2::Integration
+      Properties:
+        ApiId: !Ref PublicHttpApi
+        IntegrationType: AWS_PROXY
+        IntegrationUri: !GetAtt AttestLambdaFunction.Arn
+        PayloadFormatVersion: "2.0"
+
+    AttestRoute:
+      Type: AWS::ApiGatewayV2::Route
+      Properties:
+        ApiId: !Ref PublicHttpApi
+        RouteKey: POST /attest
+        Target: !Sub "integrations/${AttestIntegration}"
+
+    AttestInvokePermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        FunctionName: !Ref AttestLambdaFunction
+        Action: lambda:InvokeFunction
+        Principal: apigateway.amazonaws.com
+        SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicHttpApi}/*/*/attest"
+
+    RefreshIntegration:
+      Type: AWS::ApiGatewayV2::Integration
+      Properties:
+        ApiId: !Ref PublicHttpApi
+        IntegrationType: AWS_PROXY
+        IntegrationUri: !GetAtt RefreshLambdaFunction.Arn
+        PayloadFormatVersion: "2.0"
+
+    RefreshRoute:
+      Type: AWS::ApiGatewayV2::Route
+      Properties:
+        ApiId: !Ref PublicHttpApi
+        RouteKey: POST /refresh
+        Target: !Sub "integrations/${RefreshIntegration}"
+
+    RefreshInvokePermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        FunctionName: !Ref RefreshLambdaFunction
+        Action: lambda:InvokeFunction
+        Principal: apigateway.amazonaws.com
+        SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicHttpApi}/*/*/refresh"
+
+    ValidateIntegration:
+      Type: AWS::ApiGatewayV2::Integration
+      Properties:
+        ApiId: !Ref PublicHttpApi
+        IntegrationType: AWS_PROXY
+        IntegrationUri: !GetAtt ValidateLambdaFunction.Arn
+        PayloadFormatVersion: "2.0"
+
+    ValidateRoute:
+      Type: AWS::ApiGatewayV2::Route
+      Properties:
+        ApiId: !Ref PublicHttpApi
+        RouteKey: POST /validate
+        Target: !Sub "integrations/${ValidateIntegration}"
+
+    ValidateInvokePermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        FunctionName: !Ref ValidateLambdaFunction
+        Action: lambda:InvokeFunction
+        Principal: apigateway.amazonaws.com
+        SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicHttpApi}/*/*/validate"
+
+    PublicApiCustomDomain:
+      Type: AWS::ApiGatewayV2::DomainName
+      Properties:
+        DomainName: ${param:publicDomainName}
+        DomainNameConfigurations:
+          - CertificateArn: ${param:publicCertificateArn}
+
+    PublicApiDomainMapping:
+      Type: AWS::ApiGatewayV2::ApiMapping
+      Properties:
+        DomainName: !Ref PublicApiCustomDomain
+        ApiId: !Ref PublicHttpApi
+        Stage: !Ref PublicHttpApiStage
+
   Outputs:
     AlgorithmPCRTableName:
       Value: !Ref AlgorithmPCRTable
+    AttestationSessionTableName:
+      Value: !Ref AttestationSessionTable
     TruststoreBucketName:
       Value: !Ref TruststoreBucket
+    PublicApiRegionalDomainName:
+      Value: !GetAtt PublicApiCustomDomain.RegionalDomainName

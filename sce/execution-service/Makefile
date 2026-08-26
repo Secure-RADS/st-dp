@@ -20,6 +20,9 @@ ALGORITHM_TABLE = $(shell aws cloudformation describe-stacks --stack-name regist
 ENCLAVE_AMI_ID = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='EnclaveHostAmiId'].OutputValue" --output text)
 ENCLAVE_INSTANCE_TYPE ?= c6g.large
+# Only used to configure vsock-proxy's allowlist on the host - the pinned pubkey itself is baked into the EIF
+# by registry-service now (see csav/registry-service/rootfs.go), not passed in here.
+VERIFIER_HOST ?= gdpr-verifier-attest.prdai.dev
 ENCLAVE_SECURITY_GROUP_ID = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='EnclaveHostSecurityGroupId'].OutputValue" --output text)
 ENCLAVE_INSTANCE_PROFILE_ARN = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
@@ -50,6 +53,7 @@ ship: image
 	echo "AWS_REGION=$(REGION)" > /tmp/execution-service.env
 	echo "ALGORITHM_TABLE=$(ALGORITHM_TABLE)" >> /tmp/execution-service.env
 	echo "CALLBACK_URL=http://$(PRIVATE_IP):8080" >> /tmp/execution-service.env
+	echo "VERIFIER_HOST=$(VERIFIER_HOST)" >> /tmp/execution-service.env
 	echo "ENCLAVE_AMI_ID=$(ENCLAVE_AMI_ID)" >> /tmp/execution-service.env
 	echo "ENCLAVE_INSTANCE_TYPE=$(ENCLAVE_INSTANCE_TYPE)" >> /tmp/execution-service.env
 	echo "ENCLAVE_SECURITY_GROUP_ID=$(ENCLAVE_SECURITY_GROUP_ID)" >> /tmp/execution-service.env
