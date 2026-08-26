@@ -1,0 +1,76 @@
+service: pdm-service
+
+# Bundled as CJS, not ESM, same as verifier-service - esbuild's ESM output can't interop with plain
+# top-level require() in some deps, and nothing here actually needs ESM at runtime.
+build:
+  esbuild:
+    format: cjs
+    outExtension:
+      ".js": ".cjs"
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: ${param:region, 'ap-south-1'}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action: dynamodb:Query
+          Resource: !GetAtt PersonalDataTable.Arn
+        - Effect: Allow
+          Action: ssm:GetParameter
+          Resource:
+            - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/pdm-service/verifier-client-cert"
+            - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/pdm-service/verifier-client-key"
+  environment:
+    PDM_TABLE: !Ref PersonalDataTable
+    VERIFIER_VALIDATE_URL: ${param:verifierValidateUrl, 'https://gdpr-verifier.prdai.dev/validate'}
+    VERIFIER_PUBKEY_SHA256: ${param:verifierPubkeySha256}
+
+functions:
+  records:
+    handler: src/handlers/records.handler
+    events:
+      - httpApi:
+          method: GET
+          path: /records
+
+resources:
+  Resources:
+    PersonalDataTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: AlgorithmId
+            AttributeType: S
+          - AttributeName: RecordId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: AlgorithmId
+            KeyType: HASH
+          - AttributeName: RecordId
+            KeyType: RANGE
+
+    # Plain server-auth TLS only - the enclave authenticates with the bearer access token it got from
+    # verifier-service's /attest, not a client cert (which would be extractable from the EIF).
+    ApiCustomDomain:
+      Type: AWS::ApiGatewayV2::DomainName
+      Properties:
+        DomainName: ${param:domainName}
+        DomainNameConfigurations:
+          - CertificateArn: ${param:certificateArn}
+
+    ApiDomainMapping:
+      Type: AWS::ApiGatewayV2::ApiMapping
+      Properties:
+        DomainName: !Ref ApiCustomDomain
+        ApiId: !Ref HttpApi
+        Stage: !Ref HttpApiStage
+
+  Outputs:
+    PersonalDataTableName:
+      Value: !Ref PersonalDataTable
+    ApiRegionalDomainName:
+      Value: !GetAtt ApiCustomDomain.RegionalDomainName

@@ -15,6 +15,8 @@ type runConfig struct {
 	AlgorithmId          string `json:"algorithmId"`
 	VerifierHost         string `json:"verifierHost"`
 	VerifierPubKeySHA256 string `json:"verifierPubKeySHA256"`
+	PdmHost              string `json:"pdmHost"`
+	PdmPubKeySHA256      string `json:"pdmPubKeySHA256"`
 }
 
 func loadRunConfig() (runConfig, error) {

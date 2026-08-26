@@ -1,0 +1,27 @@
+{
+  "name": "pdm-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deploy": "serverless deploy",
+    "remove": "serverless remove",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check src",
+    "lint:fix": "biome check --write src",
+    "knip": "knip"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.10",
+    "@types/aws-lambda": "^8.10.152",
+    "@types/node": "^22.0.0",
+    "knip": "^6.32.2",
+    "serverless": "^4.4.0",
+    "typescript": "^5.7.0"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.700.0",
+    "@aws-sdk/client-ssm": "^3.700.0",
+    "@aws-sdk/lib-dynamodb": "^3.700.0"
+  }
+}

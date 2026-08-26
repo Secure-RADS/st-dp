@@ -30,11 +30,11 @@ const (
 func launchEnclaveInstance(ctx context.Context, s3Bucket, s3Key string) (string, error) {
 	var userData bytes.Buffer
 	err := userDataTmpl.Execute(&userData, struct {
-		S3Bucket, S3Key, Region, CallbackURL, VerifierHost string
-		CPUCount, MemoryMiB                                int
+		S3Bucket, S3Key, Region, CallbackURL, VerifierHost, PdmHost string
+		CPUCount, MemoryMiB                                         int
 	}{
 		S3Bucket: s3Bucket, S3Key: s3Key, Region: awsRegion,
-		CallbackURL: callbackURL, VerifierHost: verifierHost,
+		CallbackURL: callbackURL, VerifierHost: verifierHost, PdmHost: pdmHost,
 		CPUCount: enclaveCPUCount, MemoryMiB: enclaveMemoryMiB,
 	})
 	if err != nil {

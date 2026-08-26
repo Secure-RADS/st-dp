@@ -23,6 +23,8 @@ type runConfig struct {
 	AlgorithmId          string `json:"algorithmId"`
 	VerifierHost         string `json:"verifierHost"`
 	VerifierPubKeySHA256 string `json:"verifierPubKeySHA256"`
+	PdmHost              string `json:"pdmHost"`
+	PdmPubKeySHA256      string `json:"pdmPubKeySHA256"`
 }
 
 // composeFinalRootfs replaces the bundle's rootfs with nsjail's runtime as the base, the DC's own rootfs nested under opt/dc-app/rootfs, the SCE Unit binary, and a generated nsjail.cfg.

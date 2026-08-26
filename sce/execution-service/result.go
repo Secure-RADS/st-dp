@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -12,8 +13,9 @@ import (
 const resultTimeout = 10 * time.Minute
 
 type runResult struct {
-	Status string `json:"status"`
-	Output string `json:"output"`
+	Status string          `json:"status"`
+	Output string          `json:"output"`
+	Diag   json.RawMessage `json:"diag,omitempty"`
 }
 
 var (

@@ -13,20 +13,23 @@ import (
 	"github.com/mdlayher/vsock"
 )
 
-// The host's vsock-proxy always listens on this fixed port (see userdata.sh.tmpl).
-const verifierProxyPort = 8001
+// The host runs one vsock-proxy per outside host, each on a fixed port (see userdata.sh.tmpl).
+const (
+	verifierProxyPort = 8001
+	pdmProxyPort      = 8002
+)
 
 const (
 	vsockDialTimeout    = 10 * time.Second
 	tlsHandshakeTimeout = 10 * time.Second
 )
 
-func verifierHTTPClient(cfg runConfig) *http.Client {
+func pinnedVsockHTTPClient(host, pinSHA256 string, proxyPort uint32) *http.Client {
 	return &http.Client{
 		Timeout: attestRequestTimeout,
 		Transport: &http.Transport{
 			DialTLSContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-				raw, err := dialVsock(ctx, hostCID, verifierProxyPort)
+				raw, err := dialVsock(ctx, hostCID, proxyPort)
 				if err != nil {
 					return nil, err
 				}
@@ -35,9 +38,9 @@ func verifierHTTPClient(cfg runConfig) *http.Client {
 					return nil, err
 				}
 				tlsConn := tls.Client(raw, &tls.Config{
-					ServerName:            cfg.VerifierHost,
+					ServerName:            host,
 					InsecureSkipVerify:    true, // chain verification replaced by pinning below
-					VerifyPeerCertificate: pinnedCertVerifier(cfg.VerifierPubKeySHA256),
+					VerifyPeerCertificate: pinnedCertVerifier(pinSHA256),
 				})
 				if err := tlsConn.Handshake(); err != nil {
 					raw.Close()

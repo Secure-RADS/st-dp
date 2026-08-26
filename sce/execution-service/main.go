@@ -18,6 +18,7 @@ var (
 	awsRegion    string
 	callbackURL  string
 	verifierHost string
+	pdmHost      string
 
 	enclaveAmiId              string
 	enclaveInstanceType       string
@@ -36,6 +37,7 @@ func main() {
 	awsRegion = os.Getenv("AWS_REGION")
 	callbackURL = os.Getenv("CALLBACK_URL")
 	verifierHost = os.Getenv("VERIFIER_HOST")
+	pdmHost = os.Getenv("PDM_HOST")
 
 	enclaveAmiId = os.Getenv("ENCLAVE_AMI_ID")
 	enclaveInstanceType = os.Getenv("ENCLAVE_INSTANCE_TYPE")
@@ -85,6 +87,7 @@ func main() {
 			"instanceId":  instanceId,
 			"status":      result.Status,
 			"output":      result.Output,
+			"diag":        result.Diag,
 		})
 	})
 
