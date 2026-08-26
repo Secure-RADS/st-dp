@@ -18,8 +18,7 @@ const (
 	sceUnitBin       = "/opt/assets/sce-unit"
 )
 
-// runConfig is baked into the image at /etc/sce/run-config.json (see sce-unit/attest.go) - it becomes part of
-// the measured PCRs, so changing verifierHost or the pinned pubkey means rebuilding and re-registering the EIF.
+// runConfig is baked into /etc/sce/run-config.json (see sce-unit/attest.go) and is part of the measured PCRs, so changing verifierHost or the pinned pubkey means rebuilding and re-registering the EIF.
 type runConfig struct {
 	AlgorithmId          string `json:"algorithmId"`
 	VerifierHost         string `json:"verifierHost"`
