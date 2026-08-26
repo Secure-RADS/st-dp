@@ -51,12 +51,12 @@ functions:
           method: POST
           path: /refresh
 
-  introspect:
-    handler: src/handlers/introspect.handler
+  validate:
+    handler: src/handlers/validate.handler
     events:
       - httpApi:
           method: POST
-          path: /introspect
+          path: /validate
 
 resources:
   Resources:
@@ -73,7 +73,7 @@ resources:
 
     # Holds issued access/refresh token state - the mechanism by which
     # sce-unit doesn't have to re-attest on every call, and PDMS doesn't
-    # have to redo attestation verification itself (see introspect.ts).
+    # have to redo attestation verification itself (see validate.ts).
     AttestationSessionTable:
       Type: AWS::DynamoDB::Table
       Properties:

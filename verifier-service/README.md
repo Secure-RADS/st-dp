@@ -7,7 +7,7 @@ Serverless Framework v4, TypeScript. Receives `AlgorithmId` + PCR values from re
 - `POST /algorithms` - registry-service registers `AlgorithmId` -> PCR0/1/2 at build time.
 - `POST /attest` - sce-unit submits a real Nitro attestation document (base64 COSE_Sign1 bytes) + `algorithmId`. Verified against the pinned AWS Nitro root cert chain and the registered PCRs; on success, issues a short-lived access token + longer-lived refresh token, persisted in `AttestationSessionTable`.
 - `POST /refresh` - exchanges a still-valid refresh token for a new access token, without requiring a fresh attestation document.
-- `POST /introspect` - what PDMS calls to check whether an access token sce-unit presented is currently valid, without redoing attestation verification itself.
+- `POST /validate` - what PDMS calls to check whether an access token sce-unit presented is currently valid, without redoing attestation verification itself.
 
 The AWS Nitro root cert (`certs/AWS_NitroEnclaves_Root-G1.pem`) is pinned/committed here, not fetched at runtime - downloaded from `https://aws-nitro-enclaves.amazonaws.com/AWS_NitroEnclaves_Root-G1.zip` per AWS's own documented distribution channel.
 

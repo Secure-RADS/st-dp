@@ -88,7 +88,7 @@ async function findByIndex(indexName: string, keyName: string, tokenHash: string
 // What PDMS calls to check "is this access token currently valid" - the
 // point of this whole table is that PDMS/anyone else never has to redo
 // attestation verification themselves, just ask verifier-service.
-export async function introspectAccessToken(accessToken: string): Promise<Session | null> {
+export async function validateAccessToken(accessToken: string): Promise<Session | null> {
   const session = await findByIndex("AccessTokenIndex", "AccessTokenHash", hashToken(accessToken));
   if (!session || session.revoked) return null;
   if (new Date(session.accessTokenExpiresAt) < new Date()) return null;

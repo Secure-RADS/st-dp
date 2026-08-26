@@ -1,11 +1,11 @@
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
-import { introspectAccessToken } from "../lib/tokens.js";
+import { validateAccessToken } from "../lib/tokens.js";
 
-interface IntrospectBody {
+interface ValidateBody {
   accessToken: string;
 }
 
-function isIntrospectBody(body: unknown): body is IntrospectBody {
+function isValidateBody(body: unknown): body is ValidateBody {
   if (typeof body !== "object" || body === null) return false;
   return typeof (body as Record<string, unknown>).accessToken === "string";
 }
@@ -25,11 +25,11 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     return { statusCode: 400, body: "invalid JSON" };
   }
 
-  if (!isIntrospectBody(body)) {
+  if (!isValidateBody(body)) {
     return { statusCode: 400, body: "expected accessToken as a string" };
   }
 
-  const session = await introspectAccessToken(body.accessToken);
+  const session = await validateAccessToken(body.accessToken);
   if (!session) {
     return { statusCode: 200, body: JSON.stringify({ active: false }) };
   }
