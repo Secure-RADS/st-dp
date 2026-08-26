@@ -46,18 +46,14 @@ functions:
           method: POST
           path: /algorithms
 
-  # No httpApi event on attest/refresh on purpose - they are wired to PublicHttpApi (plain TLS, no mTLS) by
-  # hand in resources below, since Serverless's httpApi shorthand only ever targets one implicit API per
-  # service, and /algorithms needs mTLS while these don't (a static client cert baked into the EIF would be
-  # extractable).
+  # attest/refresh are plain TLS: wired by hand to PublicHttpApi in resources below, not the mTLS httpApi.
   attest:
     handler: src/handlers/attest.handler
 
   refresh:
     handler: src/handlers/refresh.handler
 
-  # validate serves both domains: the httpApi event puts it on the mTLS domain for downstream services
-  # (pdm-service), and the hand-wired PublicHttpApi route below keeps it publicly reachable too.
+  # validate is on both domains: this httpApi event (mTLS, for pdm-service) plus the PublicHttpApi route below.
   validate:
     handler: src/handlers/validate.handler
     events:
