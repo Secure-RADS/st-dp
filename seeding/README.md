@@ -2,7 +2,7 @@
 
 Seed-data platform for the PDM DynamoDB table. Standalone bun + TypeScript, not part of any service.
 
-`generate.ts` deterministically produces the JSON datasets in `datasets/` (seeded PRNG, fixed seeds; regeneration is byte-identical). `seed.ts` batch-writes every dataset record into the PDM table as `{AlgorithmId, RecordId, Data}` using local AWS credentials.
+`generate.ts` produces the JSON datasets in `datasets/` using `@faker-js/faker` with a fixed seed per dataset, so regeneration is byte-identical. `seed.ts` batch-writes every dataset record into the PDM table as `{AlgorithmId, RecordId, Data}` using local AWS credentials.
 
 ## Usage
 
