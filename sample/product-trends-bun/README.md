@@ -1,4 +1,4 @@
-# product-trends-node
+# product-trends-bun
 
 Sample Data Controller app (TypeScript on the Bun runtime). Listens on
 `/run/sce/dc.sock`, receives one JSON
@@ -11,5 +11,5 @@ categories by revenue for each age band (18-29, 30-44, 45-59, 60+).
 Build:
 
 ```
-docker build --platform linux/arm64 -t product-trends-node sample/product-trends-node
+docker build --platform linux/arm64 -t product-trends-bun sample/product-trends-bun
 ```

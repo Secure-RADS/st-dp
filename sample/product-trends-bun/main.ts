@@ -71,7 +71,7 @@ function analyze(request: Request) {
 }
 
 function main() {
-  console.error("product-trends-node starting");
+  console.error("product-trends-bun starting");
   if (fs.existsSync(SOCKET_PATH)) fs.unlinkSync(SOCKET_PATH);
 
   const server = net.createServer((conn) => {
