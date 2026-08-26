@@ -24,6 +24,27 @@ const (
 	tlsHandshakeTimeout = 10 * time.Second
 )
 
+// pinnedEndpoint bundles the three things needed to reach one pinned service - its host, the pinned pubkey
+// hash, and the fixed vsock-proxy port - so they always travel together instead of as loose arguments.
+type pinnedEndpoint struct {
+	host      string
+	pubKeySHA string
+	proxyPort uint32
+}
+
+func (e pinnedEndpoint) client() *http.Client {
+	return pinnedVsockHTTPClient(e.host, e.pubKeySHA, e.proxyPort)
+}
+
+// verifier and pdm pair each service's baked-in host/pin with its fixed proxy port.
+func (c runConfig) verifier() pinnedEndpoint {
+	return pinnedEndpoint{c.VerifierHost, c.VerifierPubKeySHA256, verifierProxyPort}
+}
+
+func (c runConfig) pdm() pinnedEndpoint {
+	return pinnedEndpoint{c.PdmHost, c.PdmPubKeySHA256, pdmProxyPort}
+}
+
 func pinnedVsockHTTPClient(host, pinSHA256 string, proxyPort uint32) *http.Client {
 	return &http.Client{
 		Timeout: attestRequestTimeout,

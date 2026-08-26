@@ -16,7 +16,7 @@ const pdmRequestTimeout = 60 * time.Second
 // following pagination cursors until exhausted. The bearer token is all pdm-service needs - it derives the
 // algorithmId from the token's attestation session via verifier-service, never from us.
 func fetchAllRecords(cfg runConfig, accessToken string) ([]json.RawMessage, error) {
-	client := pinnedVsockHTTPClient(cfg.PdmHost, cfg.PdmPubKeySHA256, pdmProxyPort)
+	client := cfg.pdm().client()
 
 	var records []json.RawMessage
 	cursor := ""
