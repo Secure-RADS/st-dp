@@ -76,9 +76,7 @@ func main() {
 	waitErr := cmd.Wait()
 
 	if err != nil || len(output) == 0 {
-		// The enclave's stdout is unreachable once the host self-terminates, so surface the failure and the
-		// jailed app's own stderr/stdout as the delivered result - otherwise an empty relay is
-		// indistinguishable from an app that ran fine but printed nothing.
+		// The enclave console is lost when the host terminates, so deliver the failure and the jailed app's own output - otherwise an empty relay looks like an app that just printed nothing.
 		log.Printf("sce-unit: relay failed or empty: err=%v bytes=%d waitErr=%v", err, len(output), waitErr)
 		failure, _ := json.Marshal(struct {
 			Error   string `json:"error"`
