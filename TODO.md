@@ -1,9 +1,0 @@
-# TODO
-
-- Move `docker-compose.yml` off scp-per-ship and bake it into the CSAV instance at boot (systemd unit) instead, once there are multiple services sharing the compose file.
-- ~~Split the build step (docker.sock access) out of registry-service into a separate internal-only process.~~ Resolved differently: switched the whole build pipeline off Docker/buildah entirely, onto skopeo+umoci - no daemon, no socket, no special capabilities needed at all.
-- Go through `csav/registry-service/nsjail.cfg.tmpl` again and see if there are more configurations we can add to lock down the DC app's permissions further (e.g. more syscalls to deny, tighter rlimits).
-- Put nginx in front of registry-service as a reverse proxy - requests hit nginx first, nginx forwards to the app, instead of the app's :8080 being exposed directly.
-- Replace the sce-unit<->DC app placeholder protocol (currently: any non-empty bytes triggers a response) with real gRPC over the same unix socket - .proto contract shared between sce-unit (Go) and the DC app template (Python), matches the design docs' intended "Protobuf-based gRPC contract".
-- Consider switching nsjail.cfg.tmpl's seccomp policy from a denylist (KILL_PROCESS on a few dangerous syscalls, DEFAULT ALLOW) to an allowlist. More secure, but genuinely hard for arbitrary DC images - the correct allowed-syscall set differs per language/runtime, so this needs either constraining what runs in the jail or per-image tuning, not a quick config change.
-- Consider encrypting the EIF artifact at rest in S3 (SSE-KMS or client-side envelope encryption before upload). Right now it's stored plaintext, so anyone with S3 read access can pull and decompose it - not a secret-leak risk today since we no longer bake any static key material into the image, but still worth closing off.
