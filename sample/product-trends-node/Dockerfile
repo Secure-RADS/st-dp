@@ -1,6 +1,5 @@
-FROM node:24-alpine
+FROM oven/bun:1-alpine
 
-COPY main.ts /app/main.ts
+COPY main.ts package.json /app/
 
-# Node 24 strips TypeScript types natively - no build step or tsc needed.
-ENTRYPOINT ["node", "/app/main.ts"]
+ENTRYPOINT ["bun", "run", "/app/main.ts"]
