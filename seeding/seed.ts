@@ -7,8 +7,7 @@ import pMap from "p-map";
 const DATASETS_DIR = join(import.meta.dir, "datasets");
 const BATCH_SIZE = 25;
 const MAX_RETRIES = 8;
-// Batches within a dataset are independent, so write this many at once. On-demand throttling just surfaces as
-// UnprocessedItems, which writeBatch retries with backoff.
+// How many independent batches to write at once; throttling just surfaces as UnprocessedItems (retried below).
 const CONCURRENCY = 20;
 
 interface DatasetFile {
