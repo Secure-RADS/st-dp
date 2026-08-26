@@ -2,10 +2,14 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { BatchWriteCommand, DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+import pMap from "p-map";
 
 const DATASETS_DIR = join(import.meta.dir, "datasets");
 const BATCH_SIZE = 25;
 const MAX_RETRIES = 8;
+// Batches within a dataset are independent, so write this many at once. On-demand throttling just surfaces as
+// UnprocessedItems, which writeBatch retries with backoff.
+const CONCURRENCY = 20;
 
 interface DatasetFile {
   algorithmId: string;
@@ -50,18 +54,31 @@ if (files.length === 0) {
 for (const file of files) {
   const ds: DatasetFile = JSON.parse(readFileSync(join(DATASETS_DIR, file), "utf8"));
   console.log(`${ds.name} (${ds.algorithmId}): seeding ${ds.records.length} records`);
-  let written = 0;
+
+  const batches: Record<string, unknown>[][] = [];
   for (let i = 0; i < ds.records.length; i += BATCH_SIZE) {
-    const batch = ds.records.slice(i, i + BATCH_SIZE).map((r) => ({
-      AlgorithmId: ds.algorithmId,
-      RecordId: r.recordId,
-      Data: r.data,
-    }));
-    await writeBatch(batch);
-    written += batch.length;
-    if (written % 1000 === 0 || written === ds.records.length) {
-      console.log(`${ds.name}: ${written}/${ds.records.length}`);
-    }
+    batches.push(
+      ds.records.slice(i, i + BATCH_SIZE).map((r) => ({
+        AlgorithmId: ds.algorithmId,
+        RecordId: r.recordId,
+        Data: r.data,
+      })),
+    );
   }
+
+  let written = 0;
+  let nextLog = 1000;
+  await pMap(
+    batches,
+    async (batch) => {
+      await writeBatch(batch);
+      written += batch.length;
+      if (written >= nextLog || written === ds.records.length) {
+        console.log(`${ds.name}: ${written}/${ds.records.length}`);
+        nextLog = written + 1000;
+      }
+    },
+    { concurrency: CONCURRENCY },
+  );
 }
 console.log("done");
