@@ -32,16 +32,7 @@ const (
 func main() {
 	log.Printf("sce-unit: starting up")
 
-	cfg, err := loadRunConfig()
-	if err != nil {
-		log.Printf("sce-unit: load run config: %v", err)
-	} else if tp, err := attest(cfg); err != nil {
-		log.Printf("sce-unit: attestation failed: %v", err)
-	} else {
-		log.Printf("sce-unit: attested successfully, access token expires %s", tp.AccessTokenExpiresAt.Format(time.RFC3339))
-		setTokens(tp)
-		go refreshLoop(cfg)
-	}
+	attestAndTrack()
 
 	if err := os.MkdirAll(socketDir, 0o755); err != nil {
 		log.Fatalf("sce-unit: create %s: %v", socketDir, err)
@@ -73,6 +64,24 @@ func main() {
 		log.Fatalf("sce-unit: nsjail wait: %v", err)
 	}
 	log.Printf("sce-unit: nsjail exited cleanly")
+}
+
+func attestAndTrack() {
+	cfg, err := loadRunConfig()
+	if err != nil {
+		log.Printf("sce-unit: load run config: %v", err)
+		return
+	}
+
+	tp, err := attest(cfg)
+	if err != nil {
+		log.Printf("sce-unit: attestation failed: %v", err)
+		return
+	}
+
+	log.Printf("sce-unit: attested successfully, access token expires %s", tp.AccessTokenExpiresAt.Format(time.RFC3339))
+	setTokens(tp)
+	go refreshLoop(cfg)
 }
 
 func relayRequest() ([]byte, error) {
