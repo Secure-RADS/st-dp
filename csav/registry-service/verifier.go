@@ -18,9 +18,12 @@ const (
 	verifierPinnedPubKeyEnv = "VERIFIER_PUBKEY_SHA256"
 )
 
+// verifierHost/verifierHostPubKeySHA256 pin the plain-TLS public domain (/attest, /refresh, /validate) baked
+// into the EIF's run config - a different domain, and a different cert, from verifierURL below (mTLS, /algorithms).
 var (
-	verifierURL  = os.Getenv("VERIFIER_URL")
-	verifierHost = os.Getenv("VERIFIER_HOST")
+	verifierURL              = os.Getenv("VERIFIER_URL")
+	verifierHost             = os.Getenv("VERIFIER_HOST")
+	verifierHostPubKeySHA256 = os.Getenv("VERIFIER_HOST_PUBKEY_SHA256")
 )
 
 type registerPCRsRequest struct {

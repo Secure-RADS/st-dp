@@ -17,9 +17,13 @@ ARTIFACT_BUCKET = $(shell aws cloudformation describe-stacks --stack-name $(STOR
 	--query "Stacks[0].Outputs[?OutputKey=='ArtifactBucketName'].OutputValue" --output text)
 DYNAMO_TABLE = $(shell aws cloudformation describe-stacks --stack-name $(STORAGE_STACK_NAME) --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='AlgorithmTableName'].OutputValue" --output text)
+# mTLS domain (registerPCRs -> /algorithms) and its pin.
 VERIFIER_URL ?= https://gdpr-verifier.prdai.dev/algorithms
-VERIFIER_HOST ?= gdpr-verifier.prdai.dev
 VERIFIER_PUBKEY_SHA256 ?= 172602c618994c4bd5e408b3343f1c49ffa019595d7d19788f331a8f0e928316
+# Plain-TLS public domain (/attest, /refresh, /validate) baked into the EIF's run config - a different
+# domain and cert from the mTLS one above, so it gets its own pin.
+VERIFIER_HOST ?= gdpr-verifier-attest.prdai.dev
+VERIFIER_HOST_PUBKEY_SHA256 ?= bd29979723d431841740fa187b7beff639c47af00d7f1771ba212e9a6bd222a5
 
 .PHONY: build test run clean sce-unit-base eif-build-base gen-client-cert image ship remote-up remote-down logs deploy-storage destroy-storage upload
 
@@ -65,6 +69,7 @@ ship: image
 	echo "VERIFIER_URL=$(VERIFIER_URL)" >> /tmp/registry-service.env
 	echo "VERIFIER_HOST=$(VERIFIER_HOST)" >> /tmp/registry-service.env
 	echo "VERIFIER_PUBKEY_SHA256=$(VERIFIER_PUBKEY_SHA256)" >> /tmp/registry-service.env
+	echo "VERIFIER_HOST_PUBKEY_SHA256=$(VERIFIER_HOST_PUBKEY_SHA256)" >> /tmp/registry-service.env
 	$(SSH) "mkdir -p $(REMOTE_DIR)"
 	$(SCP) /tmp/registry-service.tar ../docker-compose.yml $(REMOTE):$(REMOTE_DIR)/
 	$(SCP) /tmp/registry-service.env $(REMOTE):$(REMOTE_DIR)/.env
