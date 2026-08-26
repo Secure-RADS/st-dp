@@ -48,7 +48,7 @@ function pii(age: number) {
   };
 }
 
-// --- Per-dataset generators. Each returns one record's `data` object. ---
+// Each generator returns one record's `data` object.
 
 function healthData() {
   const age = faker.number.int({ min: 18, max: 90 });
