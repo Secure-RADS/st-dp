@@ -42,11 +42,19 @@ func main() {
 		log.Printf("sce-unit: seeded kernel entropy from NSM")
 	}
 
+	cfg, err := loadRunConfig()
+	if err != nil {
+		log.Fatalf("sce-unit: load run config: %v", err)
+	}
+	runID := readRunID()
+	logEvent(cfg, runID, eventEnclaveStarted, nil)
+
 	// Attest and fetch the data before nsjail starts - the DC app can't run without its records, and starting
 	// the jail only to leave it blocked on a connection that never comes would hang the whole enclave.
-	payload, err := prepareDCPayload()
+	payload, err := prepareDCPayload(cfg, runID)
 	if err != nil {
 		log.Printf("sce-unit: %v", err)
+		logEvent(cfg, runID, eventRunFailed, map[string]any{"error": err.Error()})
 		failure, _ := json.Marshal(struct {
 			Error string `json:"error"`
 		}{Error: err.Error()})
@@ -75,6 +83,8 @@ func main() {
 	log.Printf("sce-unit: waiting for nsjail to exit")
 	waitErr := cmd.Wait()
 
+	logEvent(cfg, runID, eventDCAppCompleted, map[string]any{"outputBytes": len(output)})
+
 	if err != nil || len(output) == 0 {
 		// The enclave console is lost when the host terminates, so deliver the failure and the jailed app's own output - otherwise an empty relay looks like an app that just printed nothing.
 		log.Printf("sce-unit: relay failed or empty: err=%v bytes=%d waitErr=%v", err, len(output), waitErr)
@@ -92,21 +102,18 @@ func main() {
 	if err := sendOutput(output); err != nil {
 		log.Printf("sce-unit: send output to host failed: %v", err)
 	}
+	logEvent(cfg, runID, eventOutputSent, nil)
 }
 
 // prepareDCPayload attests, fetches this algorithm's records from pdm-service, and returns the single JSON
 // line handed to the DC app over its socket.
-func prepareDCPayload() ([]byte, error) {
-	cfg, err := loadRunConfig()
-	if err != nil {
-		return nil, fmt.Errorf("load run config: %w", err)
-	}
-
+func prepareDCPayload(cfg runConfig, runID string) ([]byte, error) {
 	tp, err := attest(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("attestation failed: %w", err)
 	}
 	log.Printf("sce-unit: attested successfully, access token expires %s", tp.AccessTokenExpiresAt.Format(time.RFC3339))
+	logEvent(cfg, runID, eventAttested, nil)
 	setTokens(tp)
 	go refreshLoop(cfg)
 
@@ -115,6 +122,7 @@ func prepareDCPayload() ([]byte, error) {
 		return nil, fmt.Errorf("fetch records: %w", err)
 	}
 	log.Printf("sce-unit: fetched %d records from pdm-service", len(records))
+	logEvent(cfg, runID, eventRecordsFetched, map[string]any{"count": len(records)})
 
 	payload, err := json.Marshal(struct {
 		AlgorithmId string            `json:"algorithmId"`

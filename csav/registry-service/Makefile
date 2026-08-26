@@ -27,6 +27,9 @@ VERIFIER_HOST_PUBKEY_SHA256 ?= bd29979723d431841740fa187b7beff639c47af00d7f1771b
 # pdm-service's plain-TLS domain (/records) also baked into the run config, pinned the same way.
 PDM_HOST ?= gdpr-pdm.prdai.dev
 PDM_HOST_PUBKEY_SHA256 ?= e095929a76034da7103afff4e5be9a7e194654848f855d3b4d121541fe89dfa5
+# log-service's plain-TLS domain (/events), baked in and pinned so the enclave can log its run timeline.
+LOG_HOST ?= gdpr-log.prdai.dev
+LOG_HOST_PUBKEY_SHA256 ?= eefc2c52ef2476ec593bea5580fd9a213e61e177ebac3cfa0f506f5a2563a486
 
 .PHONY: build test run clean sce-unit-base eif-build-base gen-client-cert image ship remote-up remote-down logs deploy-storage destroy-storage upload
 
@@ -75,6 +78,8 @@ ship: image
 	echo "VERIFIER_HOST_PUBKEY_SHA256=$(VERIFIER_HOST_PUBKEY_SHA256)" >> /tmp/registry-service.env
 	echo "PDM_HOST=$(PDM_HOST)" >> /tmp/registry-service.env
 	echo "PDM_HOST_PUBKEY_SHA256=$(PDM_HOST_PUBKEY_SHA256)" >> /tmp/registry-service.env
+	echo "LOG_HOST=$(LOG_HOST)" >> /tmp/registry-service.env
+	echo "LOG_HOST_PUBKEY_SHA256=$(LOG_HOST_PUBKEY_SHA256)" >> /tmp/registry-service.env
 	$(SSH) "mkdir -p $(REMOTE_DIR)"
 	$(SCP) /tmp/registry-service.tar ../docker-compose.yml $(REMOTE):$(REMOTE_DIR)/
 	$(SCP) /tmp/registry-service.env $(REMOTE):$(REMOTE_DIR)/.env

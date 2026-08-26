@@ -9,16 +9,19 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 var (
-	dynamoClient *dynamodb.Client
-	dynamoTable  string
-	ec2Client    *ec2.Client
-	awsRegion    string
-	callbackURL  string
-	verifierHost string
-	pdmHost      string
+	dynamoClient       *dynamodb.Client
+	dynamoTable        string
+	ec2Client          *ec2.Client
+	awsRegion          string
+	verifierHost       string
+	pdmHost            string
+	logHost            string
+	runResultsQueueURL string
+	runResultsTable    string
 
 	enclaveAmiId              string
 	enclaveInstanceType       string
@@ -35,9 +38,11 @@ func main() {
 	dynamoTable = os.Getenv("ALGORITHM_TABLE")
 	ec2Client = ec2.NewFromConfig(cfg)
 	awsRegion = os.Getenv("AWS_REGION")
-	callbackURL = os.Getenv("CALLBACK_URL")
 	verifierHost = os.Getenv("VERIFIER_HOST")
 	pdmHost = os.Getenv("PDM_HOST")
+	logHost = os.Getenv("LOG_HOST")
+	runResultsQueueURL = os.Getenv("RUN_RESULTS_QUEUE_URL")
+	runResultsTable = os.Getenv("RUN_RESULTS_TABLE")
 
 	enclaveAmiId = os.Getenv("ENCLAVE_AMI_ID")
 	enclaveInstanceType = os.Getenv("ENCLAVE_INSTANCE_TYPE")
@@ -50,6 +55,8 @@ func main() {
 		c.String(http.StatusOK, "hello from execution-service")
 	})
 
+	// Fire-and-forget: launch the enclave and return a runId immediately. The enclave host posts its result to
+	// SQS, a consumer Lambda writes it to the RunResults table, and the caller polls GET /run/:runId.
 	r.POST("/run", func(c *gin.Context) {
 		var req struct {
 			AlgorithmId string `json:"algorithmId" binding:"required"`
@@ -65,44 +72,38 @@ func main() {
 			return
 		}
 
-		instanceId, err := launchEnclaveInstance(c.Request.Context(), rec.S3Bucket, rec.S3Key)
+		runId := uuid.NewString()
+		logEvent(req.AlgorithmId, runId, eventRunRequested, nil)
+
+		instanceId, err := launchEnclaveInstance(c.Request.Context(), rec.S3Bucket, rec.S3Key, req.AlgorithmId, runId)
 		if err != nil {
+			logEvent(req.AlgorithmId, runId, eventLaunchFailed, map[string]any{"error": err.Error()})
 			c.String(http.StatusInternalServerError, "launch failed: %v", err)
 			return
 		}
+		logEvent(req.AlgorithmId, runId, eventEnclaveLaunched, map[string]any{"instanceId": instanceId})
 
-		ch := registerRun(instanceId)
-		defer unregisterRun(instanceId)
-
-		// Synchronous by design for now: the caller holds the request until the
-		// enclave has run and its output is back, so one curl shows the whole loop.
-		result, err := waitForResult(c.Request.Context(), instanceId, ch)
-		if err != nil {
-			c.String(http.StatusGatewayTimeout, "run %s on %s: %v", req.AlgorithmId, instanceId, err)
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{
+		c.JSON(http.StatusAccepted, gin.H{
+			"runId":       runId,
 			"algorithmId": req.AlgorithmId,
 			"instanceId":  instanceId,
-			"status":      result.Status,
-			"output":      result.Output,
-			"diag":        result.Diag,
+			"status":      "pending",
 		})
 	})
 
-	// Called by the enclave host (same VPC) right before it self-terminates.
-	r.POST("/result/:instanceId", func(c *gin.Context) {
-		var res runResult
-		if err := c.ShouldBindJSON(&res); err != nil {
-			c.String(http.StatusBadRequest, "invalid result: %v", err)
+	// Poll for a run's result. Absent from the table means the run hasn't reported back yet (or the runId is
+	// unknown - execution-service doesn't track launched runs once they're fire-and-forget).
+	r.GET("/run/:runId", func(c *gin.Context) {
+		res, found, err := getRunResult(c.Request.Context(), c.Param("runId"))
+		if err != nil {
+			c.String(http.StatusInternalServerError, "result lookup failed: %v", err)
 			return
 		}
-		if !deliverResult(c.Param("instanceId"), res) {
-			c.String(http.StatusNotFound, "no pending run for %s", c.Param("instanceId"))
+		if !found {
+			c.JSON(http.StatusOK, gin.H{"runId": c.Param("runId"), "status": "pending"})
 			return
 		}
-		c.Status(http.StatusNoContent)
+		c.JSON(http.StatusOK, res)
 	})
 
 	r.Run(":8080")

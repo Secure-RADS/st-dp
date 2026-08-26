@@ -17,6 +17,7 @@ import (
 const (
 	verifierProxyPort = 8001
 	pdmProxyPort      = 8002
+	logProxyPort      = 8003
 )
 
 const (
@@ -43,6 +44,10 @@ func (c runConfig) verifier() pinnedEndpoint {
 
 func (c runConfig) pdm() pinnedEndpoint {
 	return pinnedEndpoint{c.PdmHost, c.PdmPubKeySHA256, pdmProxyPort}
+}
+
+func (c runConfig) logSvc() pinnedEndpoint {
+	return pinnedEndpoint{c.LogHost, c.LogPubKeySHA256, logProxyPort}
 }
 
 func pinnedVsockHTTPClient(host, pinSHA256 string, proxyPort uint32) *http.Client {
