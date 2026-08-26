@@ -6,10 +6,7 @@ import { requiredEnv } from "./env.js";
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const tableName = requiredEnv("ATTESTATION_SESSION_TABLE");
 
-// Short-lived access token so a leaked one has a small blast radius; longer
-// refresh token so sce-unit doesn't have to re-attest (fetch a fresh
-// attestation doc, redo the whole verification round trip) for every call -
-// that's the whole point of this table existing.
+// Short-lived access token limits blast radius; longer refresh token avoids re-attesting on every call.
 const ACCESS_TOKEN_TTL_SECONDS = 5 * 60;
 const REFRESH_TOKEN_TTL_SECONDS = 60 * 60;
 
@@ -27,9 +24,7 @@ function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
-// Tokens are opaque, random, and stored hashed - the DB row is the actual
-// source of truth (revocable, inspectable), not a self-contained signed
-// blob trusted on its own.
+// Tokens are opaque and stored hashed - the DB row is the source of truth, not a self-contained signed blob.
 export async function issueTokenPair(algorithmId: string): Promise<TokenPair> {
   const sessionId = randomBytes(16).toString("hex");
   const accessToken = newToken("at");
@@ -85,9 +80,7 @@ async function findByIndex(indexName: string, keyName: string, tokenHash: string
   };
 }
 
-// What PDMS calls to check "is this access token currently valid" - the
-// point of this whole table is that PDMS/anyone else never has to redo
-// attestation verification themselves, just ask verifier-service.
+// What PDMS calls to check whether an access token is currently valid.
 export async function validateAccessToken(accessToken: string): Promise<Session | null> {
   const session = await findByIndex("AccessTokenIndex", "AccessTokenHash", hashToken(accessToken));
   if (!session || session.revoked) return null;
@@ -95,8 +88,6 @@ export async function validateAccessToken(accessToken: string): Promise<Session 
   return session;
 }
 
-// Exchanges a still-valid refresh token for a new access token, without
-// requiring a fresh attestation document.
 export async function refreshAccessToken(refreshToken: string): Promise<TokenPair | null> {
   const session = await findByIndex("RefreshTokenIndex", "RefreshTokenHash", hashToken(refreshToken));
   if (!session || session.revoked) return null;
