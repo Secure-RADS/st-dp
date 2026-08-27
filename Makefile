@@ -69,16 +69,34 @@ EHEALTH_ID   := e587067e-47dc-4835-8f87-5e66fc979adf
 DEMO_APPS := \
 	health-risk-python:$(HEALTH_ID) \
 	spend-analysis-go:$(FINANCE_ID) \
-	product-trends-bun:$(ECOMMERCE_ID) \
+	product-trends-node:$(ECOMMERCE_ID) \
 	audience-segments-rust:$(SOCIAL_ID) \
 	trial-eligibility-ruby:$(EHEALTH_ID)
 
-.PHONY: registry-logs demo-seed demo-build demo-build-all demo-run demo-run-all demo-all \
+.PHONY: registry-logs demo-ready demo-seed demo-build demo-build-all demo-run demo-run-all demo-all \
 	logs-csv logs-csv-algo logs-csv-all
 
 # Tail registry-service's compose logs on the csav host (build phase).
 registry-logs:
 	$(MAKE) -C csav/registry-service logs
+
+# Start the existing demo hosts when needed, then wait for their restarted Compose services.
+demo-ready:
+	@set -eu; \
+	csav_id=$$(aws cloudformation describe-stacks --stack-name csav --region $(REGION) --query "Stacks[0].Outputs[?OutputKey=='CsavInstanceId'].OutputValue" --output text); \
+	sce_id=$$(aws cloudformation describe-stacks --stack-name execution-service --region $(REGION) --query "Stacks[0].Outputs[?OutputKey=='ExecutionServiceInstanceId'].OutputValue" --output text); \
+	for spec in "CSAV:$$csav_id" "execution-service:$$sce_id"; do \
+		name=$${spec%%:*}; id=$${spec##*:}; \
+		state=$$(aws ec2 describe-instances --region $(REGION) --instance-ids $$id --query 'Reservations[0].Instances[0].State.Name' --output text); \
+		if [ "$$state" = stopping ]; then aws ec2 wait instance-stopped --region $(REGION) --instance-ids $$id; state=stopped; fi; \
+		if [ "$$state" = stopped ]; then echo "Starting $$name ($$id)"; aws ec2 start-instances --region $(REGION) --instance-ids $$id >/dev/null; \
+		elif [ "$$state" != running ] && [ "$$state" != pending ]; then echo "$$name ($$id) is $$state" >&2; exit 1; fi; \
+		aws ec2 wait instance-running --region $(REGION) --instance-ids $$id; \
+		ip=; while [ -z "$$ip" ] || [ "$$ip" = None ]; do ip=$$(aws ec2 describe-instances --region $(REGION) --instance-ids $$id --query 'Reservations[0].Instances[0].PublicIpAddress' --output text); [ -n "$$ip" ] && [ "$$ip" != None ] || sleep 2; done; \
+		until ssh -i $(KEY_PATH) -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new ec2-user@$$ip true 2>/dev/null; do sleep 5; done; \
+		until curl -sS --connect-timeout 5 -o /dev/null http://$$ip:8080/ 2>/dev/null; do sleep 5; done; \
+		echo "$$name ready at $$ip"; \
+	done
 
 # Seed all five context datasets into the PDM table, each under its fixed algorithmId. Records are
 # envelope-encrypted under each algorithm's per-algo KMS key, so the algorithm must be built first
@@ -94,8 +112,8 @@ demo-build:
 	@test -n "$(ALGORITHM_ID)" || { echo "ALGORITHM_ID is required"; exit 1; }
 	docker build --platform linux/arm64 -t $(APP):demo sample/$(APP)
 	docker save $(APP):demo -o /tmp/$(APP).tar
-	scp -i $(KEY_PATH) /tmp/$(APP).tar ec2-user@$(CSAV_IP):/tmp/$(APP).tar
-	ssh -i $(KEY_PATH) ec2-user@$(CSAV_IP) \
+	scp -i $(KEY_PATH) -o StrictHostKeyChecking=accept-new /tmp/$(APP).tar ec2-user@$(CSAV_IP):/tmp/$(APP).tar
+	ssh -i $(KEY_PATH) -o StrictHostKeyChecking=accept-new ec2-user@$(CSAV_IP) \
 		'curl -sS -F "image=@/tmp/$(APP).tar" -F "algorithmId=$(ALGORITHM_ID)" http://localhost:8080/upload; echo'
 
 # Build and register all five demo apps under their fixed ids.
@@ -117,7 +135,11 @@ demo-run:
 	for i in $$(seq 1 132); do \
 		res=$$(curl -sS http://$$ip:8080/run/$$runId); \
 		status=$$(echo "$$res" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("status",""))'); \
-		if [ "$$status" != "pending" ]; then echo "$$res"; exit 0; fi; \
+		if [ "$$status" != "pending" ]; then \
+			echo "$$res"; \
+			echo "$$res" | python3 -c 'import json,sys; r=json.load(sys.stdin); out=r.get("output", "").strip(); parsed=json.loads(out) if out else {}; ok=r.get("status")=="exit:0" and bool(out) and not (isinstance(parsed, dict) and parsed.get("error")); sys.exit(0 if ok else 1)'; \
+			exit $$?; \
+		fi; \
 		sleep 5; \
 	done; \
 	echo "timed out waiting for runId=$$runId"; exit 1
@@ -130,9 +152,13 @@ demo-run-all:
 		$(MAKE) demo-run ALGORITHM_ID=$$id || exit 1; \
 	done
 
-# Seed, build, and run the whole fleet end to end. Build comes first: the per-algo KMS key is provisioned
-# at build time, and seeding encrypts the records under it.
-demo-all: demo-build-all demo-seed demo-run-all
+# Start the existing hosts, then build, seed, and run the whole fleet. Build comes first because it
+# provisions the per-algorithm KMS keys used by seeding.
+demo-all:
+	$(MAKE) demo-ready
+	$(MAKE) demo-build-all
+	$(MAKE) demo-seed
+	$(MAKE) demo-run-all
 
 # Export one run's timeline to run-<RUN_ID>.csv. Needs both ids (the log table is keyed by algorithm).
 logs-csv:

@@ -13,13 +13,18 @@ import (
 
 const pdmRequestTimeout = 60 * time.Second
 
+type pdmRecord struct {
+	RecordId string          `json:"recordId"`
+	Data     json.RawMessage `json:"data"`
+}
+
 // fetchAllRecords pulls every personal-data record for this enclave's algorithm from the PDM service,
 // following pagination cursors until exhausted. The bearer token is all pdm-service needs - it derives the
 // algorithmId from the token's attestation session via verifier-service, never from us.
-func fetchAllRecords(cfg runConfig, accessToken string) ([]json.RawMessage, []byte, error) {
+func fetchAllRecords(cfg runConfig, accessToken string) ([]pdmRecord, []byte, error) {
 	client := cfg.pdm().client()
 
-	var records []json.RawMessage
+	var records []pdmRecord
 	var dataKey []byte
 	cursor := ""
 	for page := 1; ; page++ {
@@ -50,7 +55,7 @@ func fetchAllRecords(cfg runConfig, accessToken string) ([]json.RawMessage, []by
 		}
 
 		var body struct {
-			Records    []json.RawMessage `json:"records"`
+			Records    []pdmRecord `json:"records"`
 			DataKey    *string           `json:"dataKey"`
 			NextCursor *string           `json:"nextCursor"`
 		}

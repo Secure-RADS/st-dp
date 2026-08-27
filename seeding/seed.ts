@@ -9,8 +9,8 @@ import pMap from "p-map";
 const DATASETS_DIR = join(import.meta.dir, "datasets");
 const BATCH_SIZE = 25;
 const MAX_RETRIES = 8;
-// How many independent batches to write at once; throttling just surfaces as UnprocessedItems (retried below).
-const CONCURRENCY = 20;
+// Keep pressure low because every dataset writes to one partition key; throttled requests are retried below.
+const CONCURRENCY = 5;
 
 interface DatasetFile {
   algorithmId: string;
@@ -56,8 +56,13 @@ async function writeBatch(items: Record<string, unknown>[]): Promise<void> {
     if (attempt > 0) {
       await sleep(100 * 2 ** attempt);
     }
-    const out = await client.send(new BatchWriteCommand({ RequestItems: { [table as string]: requests } }));
-    requests = (out.UnprocessedItems?.[table as string] ?? []) as typeof requests;
+    try {
+      const out = await client.send(new BatchWriteCommand({ RequestItems: { [table as string]: requests } }));
+      requests = (out.UnprocessedItems?.[table as string] ?? []) as typeof requests;
+    } catch (error) {
+      if (error instanceof Error && error.name === "ThrottlingException") continue;
+      throw error;
+    }
   }
 }
 
@@ -78,7 +83,7 @@ for (const file of files) {
   const algo = await client.send(new GetCommand({ TableName: algorithmTable, Key: { AlgorithmId: ds.algorithmId } }));
   const kmsKeyArn = (algo.Item?.KmsKeyArn ?? "") as string;
   if (!kmsKeyArn) {
-    throw new Error(`${ds.name}: no KMS key for algorithm ${ds.algorithmId}; build it first (make demo-build)`);
+    throw new Error(`${ds.name}: no KMS key for algorithm ${ds.algorithmId}; build it first`);
   }
 
   const dk = await kms.send(new GenerateDataKeyCommand({ KeyId: kmsKeyArn, KeySpec: "AES_256" }));

@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -20,6 +21,7 @@ var (
 	dynamoClient       *dynamodb.Client
 	dynamoTable        string
 	kmsClient          *kms.Client
+	stsClient          *sts.Client
 	enclaveHostRoleArn string
 )
 
@@ -33,7 +35,9 @@ func main() {
 	dynamoClient = dynamodb.NewFromConfig(cfg)
 	dynamoTable = os.Getenv("DYNAMO_TABLE")
 	kmsClient = kms.NewFromConfig(cfg)
+	stsClient = sts.NewFromConfig(cfg)
 	enclaveHostRoleArn = os.Getenv("ENCLAVE_HOST_ROLE_ARN")
+	csavRoleArn = os.Getenv("CSAV_ROLE_ARN")
 
 	r := gin.Default()
 

@@ -16,6 +16,7 @@ var nsjailCfgTmpl string
 const (
 	nsjailRuntimeDir = "/opt/assets/nsjail-runtime"
 	sceUnitBin       = "/opt/assets/sce-unit"
+	caCertBundle     = "/opt/assets/ca-certificates.crt"
 )
 
 // runConfig is baked into /etc/sce/run-config.json (see sce-unit/attest.go) and is part of the measured PCRs, so changing verifierHost or the pinned pubkey means rebuilding and re-registering the EIF.
@@ -54,6 +55,13 @@ func composeFinalRootfs(bundleDir, execPath, pathEnv string, execArgs []string, 
 	}
 	if err := copyFile(sceUnitBin, filepath.Join(sceDir, "sce"), 0o755); err != nil {
 		return fmt.Errorf("copy sce-unit: %w", err)
+	}
+	certDir := filepath.Join(tmpFinal, "etc", "ssl", "certs")
+	if err := os.MkdirAll(certDir, 0o755); err != nil {
+		return err
+	}
+	if err := copyFile(caCertBundle, filepath.Join(certDir, "ca-certificates.crt"), 0o644); err != nil {
+		return fmt.Errorf("copy CA certificate bundle: %w", err)
 	}
 
 	cfgDir := filepath.Join(tmpFinal, "etc", "sce")

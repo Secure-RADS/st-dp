@@ -44,13 +44,16 @@ aws s3 cp "s3://{{.S3Bucket}}/{{.S3Key}}" /opt/eif/app.eif --region "{{.Region}}
 python3 - <<'PYEOF' &
 import socket
 s = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
+s.settimeout(600)
 s.bind((socket.VMADDR_CID_ANY, 5000))
 s.listen(1)
 conn, _ = s.accept()
+conn.settimeout(600)
 with open("/tmp/output.txt", "wb") as f:
     while chunk := conn.recv(65536):
         f.write(chunk)
 PYEOF
+OUTPUT_LISTENER_PID=$!
 
 # Serve this run's runId to the enclave on port 5001 - the enclave takes no user-data, so it has no other way
 # to learn the per-run id (the EIF only carries per-algorithm config).
@@ -120,15 +123,11 @@ for attempt in 1 2 3 4 5; do
 done
 
 if [ "$launched" = true ]; then
-  # Wait for the enclave to exit, requiring consecutive describe-enclaves misses so a transient hiccup right after launch doesn't terminate the instance mid-run.
-  misses=0
-  while true; do
-    if nitro-cli describe-enclaves 2>/dev/null | grep -q '"EnclaveID"'; then
-      misses=0
-    else
-      misses=$((misses + 1))
-      [ "$misses" -ge 3 ] && break
-    fi
-    sleep 5
-  done
+  # Result delivery, not enclave visibility, is the completion signal. describe-enclaves can transiently
+  # miss a running enclave and previously let the host publish an empty result before the relay completed.
+  wait "$OUTPUT_LISTENER_PID"
+else
+  kill "$OUTPUT_LISTENER_PID" 2>/dev/null || true
+  wait "$OUTPUT_LISTENER_PID" 2>/dev/null || true
+  exit 1
 fi

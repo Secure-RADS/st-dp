@@ -137,19 +137,19 @@ func prepareDCPayload(cfg runConfig, runID string) ([]byte, error) {
 	}
 	log.Printf("sce-unit: unwrapped data key via KMS (%d bytes)", len(dek))
 
-	plainRecords := make([]json.RawMessage, 0, len(records))
+	plainRecords := make([]pdmRecord, 0, len(records))
 	for _, rec := range records {
-		plain, derr := decryptRecord(dek, rec)
+		plain, derr := decryptRecord(dek, rec.Data)
 		if derr != nil {
 			return nil, fmt.Errorf("decrypt record: %w", derr)
 		}
-		plainRecords = append(plainRecords, plain)
+		plainRecords = append(plainRecords, pdmRecord{RecordId: rec.RecordId, Data: plain})
 	}
 	log.Printf("sce-unit: decrypted %d records", len(plainRecords))
 
 	payload, err := json.Marshal(struct {
 		AlgorithmId string            `json:"algorithmId"`
-		Records     []json.RawMessage `json:"records"`
+		Records     []pdmRecord `json:"records"`
 	}{AlgorithmId: cfg.AlgorithmId, Records: plainRecords})
 	if err != nil {
 		return nil, fmt.Errorf("marshal DC payload: %w", err)

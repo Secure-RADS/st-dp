@@ -1,42 +1,18 @@
 import * as net from "node:net";
 import * as fs from "node:fs";
 
-interface Item {
-  sku: string;
-  name: string;
-  category: string;
-  qty: number;
-  priceCents: number;
-}
-
-interface Order {
-  ts: string;
-  items: Item[];
-}
-
-interface UserData {
-  age: number;
-  country: string;
-  orders: Order[];
-}
-
-interface Request {
-  algorithmId: string;
-  records: { recordId: string; data: UserData }[];
-}
-
 const SOCKET_PATH = process.env.SCE_SOCKET_PATH ?? "/run/sce/dc.sock";
-const AGE_BANDS = ["18-29", "30-44", "45-59", "60+"] as const;
+const AGE_BANDS = ["18-29", "30-44", "45-59", "60+"];
 
-function ageBand(age: number): string {
+function ageBand(age) {
   if (age < 30) return "18-29";
   if (age < 45) return "30-44";
   if (age < 60) return "45-59";
   return "60+";
 }
 
-function analyze(request: Request) {
-  const byBand: Record<string, Map<string, number>> = {};
+function analyze(request) {
+  const byBand = {};
   for (const band of AGE_BANDS) byBand[band] = new Map();
   let totalRevenueCents = 0;
   let totalOrders = 0;
@@ -53,7 +29,7 @@ function analyze(request: Request) {
     }
   }
 
-  const topCategoriesByAgeBand: Record<string, { category: string; revenueCents: number }[]> = {};
+  const topCategoriesByAgeBand = {};
   for (const band of AGE_BANDS) {
     topCategoriesByAgeBand[band] = [...byBand[band].entries()]
       .sort((a, b) => b[1] - a[1])
@@ -71,17 +47,17 @@ function analyze(request: Request) {
 }
 
 function main() {
-  console.error("product-trends-bun starting");
+  console.error("product-trends-node starting");
   if (fs.existsSync(SOCKET_PATH)) fs.unlinkSync(SOCKET_PATH);
 
   const server = net.createServer((conn) => {
     console.error("sce-unit connected");
-    const chunks: Buffer[] = [];
-    conn.on("data", (chunk: Buffer) => {
+    const chunks = [];
+    conn.on("data", (chunk) => {
       chunks.push(chunk);
       if (!chunk.includes(0x0a)) return;
       const line = Buffer.concat(chunks).toString("utf8").split("\n", 1)[0];
-      const request: Request = JSON.parse(line);
+      const request = JSON.parse(line);
       console.error(`received ${request.records.length} records`);
       conn.end(JSON.stringify(analyze(request)) + "\n", () => {
         console.error("result sent");

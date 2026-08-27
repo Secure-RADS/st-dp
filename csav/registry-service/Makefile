@@ -11,8 +11,8 @@ INSTANCE_ID = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NA
 REMOTE_HOST = $(shell aws ec2 describe-instances --instance-ids $(INSTANCE_ID) --region $(REGION) \
 	--query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
 REMOTE = ec2-user@$(REMOTE_HOST)
-SSH := ssh -i $(KEY_PATH) $(REMOTE)
-SCP := scp -i $(KEY_PATH)
+SSH := ssh -i $(KEY_PATH) -o StrictHostKeyChecking=accept-new $(REMOTE)
+SCP := scp -i $(KEY_PATH) -o StrictHostKeyChecking=accept-new
 ARTIFACT_BUCKET = $(shell aws cloudformation describe-stacks --stack-name $(STORAGE_STACK_NAME) --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='ArtifactBucketName'].OutputValue" --output text)
 DYNAMO_TABLE = $(shell aws cloudformation describe-stacks --stack-name $(STORAGE_STACK_NAME) --region $(REGION) \
@@ -70,6 +70,7 @@ gen-client-cert:
 
 # The enclave host role ARN, baked into each per-algorithm KMS key policy by registry-service so that only
 # an enclave running the exact measured image can Decrypt. Resolved live (name carries a CFN suffix).
+CSAV_ROLE_ARN = $(shell aws iam list-roles --query "Roles[?contains(RoleName, 'CsavInstanceRole')].Arn | [0]" --output text)
 ENCLAVE_HOST_ROLE_ARN = $(shell aws iam list-roles --query "Roles[?contains(RoleName, 'EnclaveHostInstanceRole')].Arn | [0]" --output text)
 
 # Build the docker image locally (arm64, matches the t4g.nano host).
@@ -92,6 +93,7 @@ ship: image
 	echo "LOG_HOST=$(LOG_HOST)" >> /tmp/registry-service.env
 	echo "LOG_HOST_PUBKEY_SHA256=$(LOG_HOST_PUBKEY_SHA256)" >> /tmp/registry-service.env
 	echo "ENCLAVE_HOST_ROLE_ARN=$(ENCLAVE_HOST_ROLE_ARN)" >> /tmp/registry-service.env
+	echo "CSAV_ROLE_ARN=$(CSAV_ROLE_ARN)" >> /tmp/registry-service.env
 	$(SSH) "mkdir -p $(REMOTE_DIR)"
 	$(SCP) /tmp/registry-service.tar ../docker-compose.yml $(REMOTE):$(REMOTE_DIR)/
 	$(SCP) /tmp/registry-service.env $(REMOTE):$(REMOTE_DIR)/.env

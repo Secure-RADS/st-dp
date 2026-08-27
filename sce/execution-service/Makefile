@@ -10,8 +10,8 @@ INSTANCE_ID = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NA
 REMOTE_HOST = $(shell aws ec2 describe-instances --instance-ids $(INSTANCE_ID) --region $(REGION) \
 	--query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
 REMOTE = ec2-user@$(REMOTE_HOST)
-SSH := ssh -i $(KEY_PATH) $(REMOTE)
-SCP := scp -i $(KEY_PATH)
+SSH := ssh -i $(KEY_PATH) -o StrictHostKeyChecking=accept-new $(REMOTE)
+SCP := scp -i $(KEY_PATH) -o StrictHostKeyChecking=accept-new
 ALGORITHM_TABLE = $(shell aws cloudformation describe-stacks --stack-name registry-service-storage --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='AlgorithmTableName'].OutputValue" --output text)
 # Queue the enclave host sends results to, and the table this service reads for GET /run/<runId> - both from

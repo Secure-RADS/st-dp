@@ -120,7 +120,10 @@ func buildAndPush(ctx context.Context, algorithmId, tarPath string) (key, kmsKey
 	if enclaveHostRoleArn == "" {
 		return "", "", fmt.Errorf("ENCLAVE_HOST_ROLE_ARN not configured")
 	}
-	kmsKeyArn, err = provisionAlgorithmKmsKey(ctx, algorithmId, pcrs, enclaveHostRoleArn)
+	if csavRoleArn == "" {
+		return "", "", fmt.Errorf("CSAV_ROLE_ARN not configured")
+	}
+	kmsKeyArn, err = provisionAlgorithmKmsKey(ctx, algorithmId, pcrs, enclaveHostRoleArn, csavRoleArn)
 	if err != nil {
 		return "", "", fmt.Errorf("provision KMS key: %w", err)
 	}
