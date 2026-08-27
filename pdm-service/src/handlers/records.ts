@@ -55,10 +55,21 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     }),
   );
 
-  const records = (result.Items ?? []).map((item) => ({ recordId: item.RecordId, data: item.Data }));
+  // Record Data is now an encrypted blob (envelope-encrypted at ingest). The reserved "data-key" item holds
+  // the encrypted data key and is served once per response for the enclave to unwrap; it is not a record.
+  let dataKey: string | undefined;
+  const records = (result.Items ?? [])
+    .filter((item) => {
+      if (item.RecordId === "data-key") {
+        dataKey = item.DataKey as string;
+        return false;
+      }
+      return true;
+    })
+    .map((item) => ({ recordId: item.RecordId, data: item.Data }));
   const nextCursor = result.LastEvaluatedKey
     ? Buffer.from(JSON.stringify(result.LastEvaluatedKey)).toString("base64url")
     : null;
 
-  return jsonResponse(200, { algorithmId: validation.algorithmId, records, nextCursor });
+  return jsonResponse(200, { algorithmId: validation.algorithmId, records, dataKey, nextCursor });
 };

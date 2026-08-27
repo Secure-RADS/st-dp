@@ -6,6 +6,7 @@ export const RUN_EVENTS = [
   "build-started",
   "eif-built",
   "pcrs-registered",
+  "kms-key-provisioned",
   "build-completed",
   "build-failed",
   // Execution phase (execution-service).

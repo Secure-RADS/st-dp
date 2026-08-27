@@ -17,6 +17,13 @@ ARTIFACT_BUCKET = $(shell aws cloudformation describe-stacks --stack-name $(STOR
 	--query "Stacks[0].Outputs[?OutputKey=='ArtifactBucketName'].OutputValue" --output text)
 DYNAMO_TABLE = $(shell aws cloudformation describe-stacks --stack-name $(STORAGE_STACK_NAME) --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='AlgorithmTableName'].OutputValue" --output text)
+# KMS key that encrypts the artifact bucket. Created by the storage stack; encryption set on the bucket via encrypt-bucket.
+ARTIFACT_BUCKET_KMS_KEY_ARN = $(shell aws cloudformation describe-stacks --stack-name $(STORAGE_STACK_NAME) --region $(REGION) \
+	--query "Stacks[0].Outputs[?OutputKey=='ArtifactBucketKmsKeyArn'].OutputValue" --output text)
+# CSAV writes EIFs (kms:GenerateDataKey); the enclave host reads them (kms:Decrypt). The key policy
+# references these role ARNs, so they're resolved live (names carry a CFN-generated suffix).
+CSAV_ROLE_ARN = $(shell aws iam list-roles --query "Roles[?contains(RoleName, 'CsavInstanceRole')].Arn | [0]" --output text)
+ENCLAVE_HOST_ROLE_ARN = $(shell aws iam list-roles --query "Roles[?contains(RoleName, 'EnclaveHostInstanceRole')].Arn | [0]" --output text)
 # mTLS domain (registerPCRs -> /algorithms) and its pin.
 VERIFIER_URL ?= https://gdpr-verifier.prdai.dev/algorithms
 VERIFIER_PUBKEY_SHA256 ?= 172602c618994c4bd5e408b3343f1c49ffa019595d7d19788f331a8f0e928316
@@ -31,7 +38,7 @@ PDM_HOST_PUBKEY_SHA256 ?= e095929a76034da7103afff4e5be9a7e194654848f855d3b4d1215
 LOG_HOST ?= gdpr-log.prdai.dev
 LOG_HOST_PUBKEY_SHA256 ?= eefc2c52ef2476ec593bea5580fd9a213e61e177ebac3cfa0f506f5a2563a486
 
-.PHONY: build test run clean sce-unit-base eif-build-base gen-client-cert image ship remote-up remote-down logs deploy-storage destroy-storage upload
+.PHONY: build test run clean sce-unit-base eif-build-base gen-client-cert image ship remote-up remote-down logs deploy-storage encrypt-bucket destroy-storage upload
 
 build:
 	go build -o /tmp/registry-service .
@@ -61,6 +68,10 @@ gen-client-cert:
 		-keyout tls/client.key -out tls/client.crt \
 		-subj "/CN=registry-service"
 
+# The enclave host role ARN, baked into each per-algorithm KMS key policy by registry-service so that only
+# an enclave running the exact measured image can Decrypt. Resolved live (name carries a CFN suffix).
+ENCLAVE_HOST_ROLE_ARN = $(shell aws iam list-roles --query "Roles[?contains(RoleName, 'EnclaveHostInstanceRole')].Arn | [0]" --output text)
+
 # Build the docker image locally (arm64, matches the t4g.nano host).
 image: sce-unit-base eif-build-base
 	docker build --platform linux/arm64 -t $(IMAGE) .
@@ -80,6 +91,7 @@ ship: image
 	echo "PDM_HOST_PUBKEY_SHA256=$(PDM_HOST_PUBKEY_SHA256)" >> /tmp/registry-service.env
 	echo "LOG_HOST=$(LOG_HOST)" >> /tmp/registry-service.env
 	echo "LOG_HOST_PUBKEY_SHA256=$(LOG_HOST_PUBKEY_SHA256)" >> /tmp/registry-service.env
+	echo "ENCLAVE_HOST_ROLE_ARN=$(ENCLAVE_HOST_ROLE_ARN)" >> /tmp/registry-service.env
 	$(SSH) "mkdir -p $(REMOTE_DIR)"
 	$(SCP) /tmp/registry-service.tar ../docker-compose.yml $(REMOTE):$(REMOTE_DIR)/
 	$(SCP) /tmp/registry-service.env $(REMOTE):$(REMOTE_DIR)/.env
@@ -96,12 +108,25 @@ remote-down:
 logs:
 	$(SSH) "cd $(REMOTE_DIR) && sudo docker compose logs -f"
 
-# S3 bucket for uploaded OCI images. Independent of the csav EC2 stack.
+# S3 bucket + the KMS key for uploads, independent of the csav EC2 stack.
+# The customer-managed key is applied to the bucket by the encrypt-bucket step;
+# CF rejects KmsMasterKeyID in ServerSideEncryptionByDefault (early-validation guardrail).
 deploy-storage:
 	aws cloudformation deploy \
 		--template-file cloudformation.yaml \
 		--stack-name $(STORAGE_STACK_NAME) \
-		--region $(REGION)
+		--region $(REGION) \
+		--capabilities CAPABILITY_NAMED_IAM \
+		--parameter-overrides CsavInstanceRoleArn=$(CSAV_ROLE_ARN) EnclaveHostInstanceRoleArn=$(ENCLAVE_HOST_ROLE_ARN)
+	$(MAKE) encrypt-bucket
+
+# Set SSE-KMS with the customer-managed key on the artifact bucket. Done via the CLI (and only here)
+# because CF will not accept the KmsMasterKeyID property - see the note in cloudformation.yaml.
+encrypt-bucket:
+	aws s3api put-bucket-encryption \
+		--bucket $(ARTIFACT_BUCKET) \
+		--region $(REGION) \
+		--server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"aws:kms","KMSMasterKeyID":"$(ARTIFACT_BUCKET_KMS_KEY_ARN)"},"BucketKeyEnabled":true}]}'
 
 destroy-storage:
 	aws cloudformation delete-stack --stack-name $(STORAGE_STACK_NAME) --region $(REGION)

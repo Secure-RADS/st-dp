@@ -1,16 +1,58 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
-  Registry Service storage: S3 bucket for uploaded OCI images. Independent of
-  the CSAV EC2 instance stack.
+  Registry Service storage: S3 bucket for uploaded OCI images and the KMS key
+  that encrypts the EIF artifacts at rest. The roles that write (CSAV host) and
+  read (enclave host) the bucket are granted access through this key's policy,
+  so the ARNs are passed in as parameters - deploy these two stacks first, then
+  this one, or supply the ARNs and update.
+
+Parameters:
+  CsavInstanceRoleArn:
+    Type: String
+    Description: ARN of the CSAV host instance role (from the csav stack). It PUTs EIF artifacts and must get kms:GenerateDataKey on this key.
+
+  EnclaveHostInstanceRoleArn:
+    Type: String
+    Description: ARN of the enclave host instance role (from the execution-service stack). It GETs/downloads EIF artifacts and must get kms:Decrypt on this key.
 
 Resources:
+  ArtifactBucketKmsKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: KMS key for encrypting EIF artifacts at rest in the ArtifactBucket.
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: RootAccountKeyManagement
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: kms:*
+            Resource: "*"
+          # GenerateDataKey to create the data key on write, and Decrypt because S3 multipart
+          # upload part calls also require it under SSE-KMS.
+          - Sid: CsavHostCrypto
+            Effect: Allow
+            Principal:
+              AWS: !Ref CsavInstanceRoleArn
+            Action: [kms:GenerateDataKey, kms:Decrypt]
+            Resource: "*"
+          - Sid: EnclaveHostDecrypt
+            Effect: Allow
+            Principal:
+              AWS: !Ref EnclaveHostInstanceRoleArn
+            Action: kms:Decrypt
+            Resource: "*"
+
+  # Note: the bucket's SSE is NOT set here. CloudFormation's early-validation
+  # guardrail rejects KmsMasterKeyID in ServerSideEncryptionByDefault, so the
+  # customer-managed key is applied to the bucket by a post-deploy CLI step
+  # (make encrypt-bucket) instead. Keeping it out of the template also stops
+  # CF updates from resetting the encryption configured out-of-band.
   ArtifactBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketEncryption:
-        ServerSideEncryptionConfiguration:
-          - ServerSideEncryptionByDefault:
-              SSEAlgorithm: AES256
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
@@ -31,5 +73,7 @@ Resources:
 Outputs:
   ArtifactBucketName:
     Value: !Ref ArtifactBucket
+  ArtifactBucketKmsKeyArn:
+    Value: !GetAtt ArtifactBucketKmsKey.Arn
   AlgorithmTableName:
     Value: !Ref AlgorithmTable

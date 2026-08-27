@@ -27,6 +27,7 @@ type runConfig struct {
 	PdmPubKeySHA256      string `json:"pdmPubKeySHA256"`
 	LogHost              string `json:"logHost"`
 	LogPubKeySHA256      string `json:"logPubKeySHA256"`
+	Region               string `json:"region"`
 }
 
 // composeFinalRootfs replaces the bundle's rootfs with nsjail's runtime as the base, the DC's own rootfs nested under opt/dc-app/rootfs, the SCE Unit binary, and a generated nsjail.cfg.

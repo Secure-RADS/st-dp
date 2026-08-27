@@ -117,17 +117,40 @@ func prepareDCPayload(cfg runConfig, runID string) ([]byte, error) {
 	setTokens(tp)
 	go refreshLoop(cfg)
 
-	records, err := fetchAllRecords(cfg, tp.AccessToken)
+	creds, err := fetchAWSCreds()
+	if err != nil {
+		return nil, fmt.Errorf("fetch AWS creds: %w", err)
+	}
+
+	records, encDataKey, err := fetchAllRecords(cfg, tp.AccessToken)
 	if err != nil {
 		return nil, fmt.Errorf("fetch records: %w", err)
 	}
 	log.Printf("sce-unit: fetched %d records from pdm-service", len(records))
 	logEvent(cfg, runID, eventRecordsFetched, map[string]any{"count": len(records)})
 
+	// pdm-service only ever returns ciphertext; the data key that unwraps it is obtained from KMS under
+	// this enclave's attestation. Only the measured image can do this - see the per-algorithm key policy.
+	dek, err := decryptDataKey(cfg, creds, encDataKey)
+	if err != nil {
+		return nil, fmt.Errorf("decrypt data key: %w", err)
+	}
+	log.Printf("sce-unit: unwrapped data key via KMS (%d bytes)", len(dek))
+
+	plainRecords := make([]json.RawMessage, 0, len(records))
+	for _, rec := range records {
+		plain, derr := decryptRecord(dek, rec)
+		if derr != nil {
+			return nil, fmt.Errorf("decrypt record: %w", derr)
+		}
+		plainRecords = append(plainRecords, plain)
+	}
+	log.Printf("sce-unit: decrypted %d records", len(plainRecords))
+
 	payload, err := json.Marshal(struct {
 		AlgorithmId string            `json:"algorithmId"`
 		Records     []json.RawMessage `json:"records"`
-	}{AlgorithmId: cfg.AlgorithmId, Records: records})
+	}{AlgorithmId: cfg.AlgorithmId, Records: plainRecords})
 	if err != nil {
 		return nil, fmt.Errorf("marshal DC payload: %w", err)
 	}

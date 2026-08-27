@@ -30,6 +30,10 @@ Parameters:
     Type: String
     Description: Name of the registry-service AlgorithmId->S3 path table (from the registry-service-storage stack), for looking up EIF locations.
 
+  ArtifactBucketKmsKeyArn:
+    Type: String
+    Description: ARN of the KMS key for the artifact bucket (from the registry-service-storage stack). Required to download (and decrypt) EIF objects.
+
   RunResultsQueueArn:
     Type: String
     Description: ARN of the run-results SQS queue (from the result-consumer stack); enclave hosts send their result here.
@@ -154,6 +158,23 @@ Resources:
               - Effect: Allow
                 Action: s3:GetObject
                 Resource: !Sub "arn:aws:s3:::${ArtifactBucketName}/*"
+        - PolicyName: ArtifactBucketDecrypt
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: kms:Decrypt
+                Resource: !Ref ArtifactBucketKmsKeyArn
+        # The enclave unwraps each algorithm's envelope data key via KMS Decrypt. The per-algorithm keys are
+        # provisioned dynamically at build time, so IAM can't enumerate them - grant kms:Decrypt broadly and
+        # rely on each key's kms:RecipientAttestation policy (bound to the measured image) as the real gate.
+        - PolicyName: DecryptAlgorithmDataKeys
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: kms:Decrypt
+                Resource: "*"
         - PolicyName: SelfTerminate
           PolicyDocument:
             Version: "2012-10-17"
@@ -218,6 +239,9 @@ Outputs:
 
   EnclaveHostInstanceProfileArn:
     Value: !GetAtt EnclaveHostInstanceProfile.Arn
+
+  EnclaveHostInstanceRoleArn:
+    Value: !Ref EnclaveHostInstanceRole
 
   EnclaveHostAmiId:
     Value: !Ref LatestAmiId

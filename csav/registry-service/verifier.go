@@ -28,6 +28,7 @@ var (
 	pdmHostPubKeySHA256      = os.Getenv("PDM_HOST_PUBKEY_SHA256")
 	logHost                  = os.Getenv("LOG_HOST")
 	logHostPubKeySHA256      = os.Getenv("LOG_HOST_PUBKEY_SHA256")
+	region                   = os.Getenv("AWS_REGION")
 )
 
 type registerPCRsRequest struct {

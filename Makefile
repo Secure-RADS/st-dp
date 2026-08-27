@@ -55,6 +55,9 @@ CSAV_IP = $(call instance_ip,csav,CsavInstanceId)
 SCE_IP = $(call instance_ip,execution-service,ExecutionServiceInstanceId)
 PDM_TABLE = $(shell aws cloudformation describe-stacks --stack-name pdm-service-dev --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='PersonalDataTableName'].OutputValue" --output text)
+# registry-service stores each algorithm's per-algo KMS key ARN here; seeding reads it to encrypt the records.
+ALGORITHM_TABLE = $(shell aws cloudformation describe-stacks --stack-name registry-service-storage --region $(REGION) \
+	--query "Stacks[0].Outputs[?OutputKey=='AlgorithmTableName'].OutputValue" --output text)
 
 # Persistent demo fleet: each sample app is pinned to the fixed algorithmId its dataset is seeded under
 # (see seeding/config.ts). Re-running any target rebinds the same ids, so the demo is stable and repeatable.
@@ -77,9 +80,11 @@ DEMO_APPS := \
 registry-logs:
 	$(MAKE) -C csav/registry-service logs
 
-# Seed all five context datasets into the PDM table, each under its fixed algorithmId.
+# Seed all five context datasets into the PDM table, each under its fixed algorithmId. Records are
+# envelope-encrypted under each algorithm's per-algo KMS key, so the algorithm must be built first
+# (make demo-build), which provisions that key and stores its ARN in the AlgorithmTable.
 demo-seed:
-	cd seeding && bun install && bun run generate && PDM_TABLE=$(PDM_TABLE) AWS_REGION=$(REGION) bun run seed
+	cd seeding && bun install && bun run generate && PDM_TABLE=$(PDM_TABLE) ALGORITHM_TABLE=$(ALGORITHM_TABLE) AWS_REGION=$(REGION) bun run seed
 
 # Build phase (one app): make demo-build APP=<dir> ALGORITHM_ID=<id>.
 # Builds the arm64 image, ships it to the csav host, and registers it under ALGORITHM_ID.
@@ -125,8 +130,9 @@ demo-run-all:
 		$(MAKE) demo-run ALGORITHM_ID=$$id || exit 1; \
 	done
 
-# Seed, build, and run the whole fleet end to end.
-demo-all: demo-seed demo-build-all demo-run-all
+# Seed, build, and run the whole fleet end to end. Build comes first: the per-algo KMS key is provisioned
+# at build time, and seeding encrypts the records under it.
+demo-all: demo-build-all demo-seed demo-run-all
 
 # Export one run's timeline to run-<RUN_ID>.csv. Needs both ids (the log table is keyed by algorithm).
 logs-csv:
