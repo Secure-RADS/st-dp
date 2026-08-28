@@ -18,15 +18,10 @@ provider:
         - Effect: Allow
           Action: dynamodb:Query
           Resource: !GetAtt PersonalDataTable.Arn
-        - Effect: Allow
-          Action: ssm:GetParameter
-          Resource:
-            - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/pdm-service/verifier-client-cert"
-            - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/pdm-service/verifier-client-key"
   environment:
     PDM_TABLE: !Ref PersonalDataTable
-    VERIFIER_VALIDATE_URL: ${param:verifierValidateUrl, 'https://gdpr-verifier.prdai.dev/validate'}
-    VERIFIER_PUBKEY_SHA256: ${param:verifierPubkeySha256}
+    VERIFIER_JWKS_URL: ${param:verifierJwksUrl, 'https://gdpr-verifier-attest.prdai.dev/.well-known/jwks.json'}
+    VERIFIER_JWKS_PUBKEY_SHA256: ${param:verifierJwksPubkeySha256}
 
 functions:
   records:
