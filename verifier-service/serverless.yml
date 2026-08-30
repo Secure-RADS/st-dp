@@ -31,12 +31,14 @@ provider:
           Resource: !GetAtt AttestationSessionTable.Arn
         - Effect: Allow
           Action: dynamodb:Query
-          Resource:
-            - !Sub "${AttestationSessionTable.Arn}/index/AccessTokenIndex"
-            - !Sub "${AttestationSessionTable.Arn}/index/RefreshTokenIndex"
+          Resource: !Sub "${AttestationSessionTable.Arn}/index/RefreshTokenIndex"
+        - Effect: Allow
+          Action: ssm:GetParameter
+          Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/verifier-service/jwt-signing-key"
   environment:
     ALGORITHM_PCR_TABLE: !Ref AlgorithmPCRTable
     ATTESTATION_SESSION_TABLE: !Ref AttestationSessionTable
+    JWT_SIGNING_KEY_PARAM: /verifier-service/jwt-signing-key
 
 functions:
   registerAlgorithm:
@@ -53,13 +55,10 @@ functions:
   refresh:
     handler: src/handlers/refresh.handler
 
-  # validate is on both domains: this httpApi event (mTLS, for pdm-service) plus the PublicHttpApi route below.
-  validate:
-    handler: src/handlers/validate.handler
-    events:
-      - httpApi:
-          method: POST
-          path: /validate
+  # jwks is on the public domain only - it publishes the ES256 public key downstream services verify
+  # access JWTs against, locally, with no verifier round-trip (no /validate anymore).
+  jwks:
+    handler: src/handlers/jwks.handler
 
 resources:
   Resources:
@@ -74,8 +73,9 @@ resources:
           - AttributeName: AlgorithmId
             KeyType: HASH
 
-    # Holds issued access/refresh token state - the mechanism by which sce-unit doesn't have to re-attest on
-    # every call, and downstream services don't have to redo attestation verification itself (see validate.ts).
+    # Holds refresh-token state - the mechanism by which sce-unit doesn't have to re-attest on every call,
+    # and the row-level Revoked flag that cuts off a compromised session. Access tokens are stateless
+    # self-contained JWTs, so they no longer live here (see jwks.ts / tokens.ts).
     AttestationSessionTable:
       Type: AWS::DynamoDB::Table
       Properties:
@@ -83,20 +83,12 @@ resources:
         AttributeDefinitions:
           - AttributeName: SessionId
             AttributeType: S
-          - AttributeName: AccessTokenHash
-            AttributeType: S
           - AttributeName: RefreshTokenHash
             AttributeType: S
         KeySchema:
           - AttributeName: SessionId
             KeyType: HASH
         GlobalSecondaryIndexes:
-          - IndexName: AccessTokenIndex
-            KeySchema:
-              - AttributeName: AccessTokenHash
-                KeyType: HASH
-            Projection:
-              ProjectionType: ALL
           - IndexName: RefreshTokenIndex
             KeySchema:
               - AttributeName: RefreshTokenHash
@@ -131,8 +123,8 @@ resources:
         ApiId: !Ref HttpApi
         Stage: !Ref HttpApiStage
 
-    # Separate API from the mTLS one above - /attest, /refresh, /validate are plain server-auth TLS, pinned to
-    # this domain's leaf pubkey by callers instead (sce-unit has no client cert to present).
+    # Separate API from the mTLS one above - /attest, /refresh, /.well-known/jwks.json are plain server-auth
+    # TLS, pinned to this domain's leaf pubkey by callers instead (sce-unit has no client cert to present).
     PublicHttpApi:
       Type: AWS::ApiGatewayV2::Api
       Properties:
@@ -192,28 +184,28 @@ resources:
         Principal: apigateway.amazonaws.com
         SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicHttpApi}/*/*/refresh"
 
-    ValidateIntegration:
+    JwksIntegration:
       Type: AWS::ApiGatewayV2::Integration
       Properties:
         ApiId: !Ref PublicHttpApi
         IntegrationType: AWS_PROXY
-        IntegrationUri: !GetAtt ValidateLambdaFunction.Arn
+        IntegrationUri: !GetAtt JwksLambdaFunction.Arn
         PayloadFormatVersion: "2.0"
 
-    ValidateRoute:
+    JwksRoute:
       Type: AWS::ApiGatewayV2::Route
       Properties:
         ApiId: !Ref PublicHttpApi
-        RouteKey: POST /validate
-        Target: !Sub "integrations/${ValidateIntegration}"
+        RouteKey: "GET /.well-known/jwks.json"
+        Target: !Sub "integrations/${JwksIntegration}"
 
-    ValidateInvokePermission:
+    JwksInvokePermission:
       Type: AWS::Lambda::Permission
       Properties:
-        FunctionName: !Ref ValidateLambdaFunction
+        FunctionName: !Ref JwksLambdaFunction
         Action: lambda:InvokeFunction
         Principal: apigateway.amazonaws.com
-        SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicHttpApi}/*/*/validate"
+        SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicHttpApi}/*/*/*"
 
     PublicApiCustomDomain:
       Type: AWS::ApiGatewayV2::DomainName
