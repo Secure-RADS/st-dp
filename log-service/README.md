@@ -1,14 +1,27 @@
 # log-service
 
-Serverless Framework v4, TypeScript. A fire-and-forget run-timeline logger: SCE components POST timestamped events keyed by `(AlgorithmId, runId)` into DynamoDB, and operators export a run's or an algorithm's timeline as JSON or CSV for benchmarking.
+Serverless Framework v4, TypeScript. A fire-and-forget run-timeline logger: SCE components POST timestamped events keyed by `(AlgorithmId, runId)` into an SQS queue, a worker writes them to DynamoDB, and operators export a run's or an algorithm's timeline as JSON or CSV for benchmarking.
+
+Producers are unchanged: they still POST `{algorithmId, runId, event, timestamp, detail?}` to `POST /events` and get `202`. Retry and scale live behind that contract.
 
 ## Endpoints
 
-- `POST /events` - a producer (execution-service, the enclave host, sce-unit inside the enclave, result-consumer) posts one event `{algorithmId, runId, event, timestamp, detail?}`. The `timestamp` is client-provided - the time the event actually happened, not server receive time - and is stored alongside a server `receivedAt`. Returns `202`. Minimal by design; this is the hot path.
+- `POST /events` - a producer (execution-service, the enclave host, sce-unit inside the enclave, result-consumer) posts one event `{algorithmId, runId, event, timestamp, detail?}`. The `timestamp` is client-provided - the time the event actually happened, not server receive time - and is stored alongside a server `receivedAt` stamped at ingest. Validation happens here; valid events are enqueued and the handler returns `202` without waiting for DynamoDB.
 - `GET /logs/{algorithmId}` - exports one algorithm's timeline. `?runId=` narrows to a single run. Pages through all results, never truncated.
 - `GET /logs` - exports the whole table across all algorithms.
 
 Both export routes take `?format=csv` (`text/csv`) or default to JSON. CSV columns: `algorithmId,runId,event,timestamp,receivedAt,detail`, with `detail` as compact JSON per cell.
+
+## Queue
+
+`POST /events` `SendMessage`s onto a standard SQS queue. A worker Lambda consumes it:
+
+- `batchSize` 10, `ReportBatchItemFailures` so one bad record does not redo the rest of the batch
+- `reservedConcurrency` 5
+- visibility timeout 60s (worker timeout is 30s)
+- after 5 receives, SQS moves the message to a DLQ (14-day retention)
+
+SQS retries on the visibility interval, then parks on the DLQ. That is not exponential backoff; a poison message should not sit on the main queue.
 
 ## Key model
 

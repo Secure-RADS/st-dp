@@ -21,8 +21,19 @@ provider:
             - dynamodb:Query
             - dynamodb:Scan
           Resource: !GetAtt RunLogTable.Arn
+        - Effect: Allow
+          Action:
+            - sqs:SendMessage
+            - sqs:ReceiveMessage
+            - sqs:DeleteMessage
+            - sqs:GetQueueAttributes
+            - sqs:ChangeMessageVisibility
+          Resource:
+            - !GetAtt EventQueue.Arn
+            - !GetAtt EventDeadLetterQueue.Arn
   environment:
     RUN_LOG_TABLE: !Ref RunLogTable
+    EVENT_QUEUE_URL: !Ref EventQueue
 
 functions:
   events:
@@ -31,6 +42,15 @@ functions:
       - httpApi:
           method: POST
           path: /events
+  worker:
+    handler: src/handlers/worker.handler
+    timeout: 30
+    reservedConcurrency: 5
+    events:
+      - sqs:
+          arn: !GetAtt EventQueue.Arn
+          batchSize: 10
+          functionResponseType: ReportBatchItemFailures
   byAlgorithm:
     handler: src/handlers/byAlgorithm.handler
     events:
@@ -61,6 +81,20 @@ resources:
           - AttributeName: Sk
             KeyType: RANGE
 
+    # Visibility must exceed the worker timeout so in-flight batches are not redelivered mid-PutItem.
+    EventQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        VisibilityTimeout: 60
+        RedrivePolicy:
+          deadLetterTargetArn: !GetAtt EventDeadLetterQueue.Arn
+          maxReceiveCount: 5
+
+    EventDeadLetterQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        MessageRetentionPeriod: 1209600
+
     # Plain server-auth TLS only - producers are internal SCE components on a trusted network, and the
     # log is fire-and-forget benchmarking data, not a secret store, so no client cert is required.
     ApiCustomDomain:
@@ -80,5 +114,9 @@ resources:
   Outputs:
     RunLogTableName:
       Value: !Ref RunLogTable
+    EventQueueUrl:
+      Value: !Ref EventQueue
+    EventDeadLetterQueueUrl:
+      Value: !Ref EventDeadLetterQueue
     ApiRegionalDomainName:
       Value: !GetAtt ApiCustomDomain.RegionalDomainName
