@@ -25,7 +25,7 @@ Execution phase (SCE):
 - [`sce/`](sce/README.md) / [`sce/execution-service/`](sce/execution-service/README.md) - launches per-run enclaves, returns `runId`, serves `GET /run/{runId}`.
 - [`pdm-service/`](pdm-service/README.md) - the Personal Data Management Service; serves records to an attested enclave.
 - [`result-consumer/`](result-consumer/README.md) - SQS-triggered Lambda that persists enclave results to the `RunResults` table.
-- [`log-service/`](log-service/README.md) - fire-and-forget run-timeline logger with JSON/CSV export.
+- [`log-service/`](log-service/README.md) - fire-and-forget run-timeline logger (SQS + worker, JSON/CSV export).
 
 Demo assets:
 
