@@ -23,9 +23,7 @@ function decodeCursor(cursor: string): Record<string, unknown> | undefined {
   }
 }
 
-// Serves an attested enclave's personal-data records. The caller only proves who it is (bearer JWT from
-// verifier-service's /attest, verified locally) - which AlgorithmId it may read comes from the token's
-// sub claim, never from the request.
+// which AlgorithmId a caller may read comes from the locally verified token's sub claim, never the request.
 export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const authorization = event.headers.authorization;
   if (!authorization?.startsWith("Bearer ")) {
