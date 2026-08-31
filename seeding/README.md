@@ -2,14 +2,14 @@
 
 Seed-data platform for the PDM DynamoDB table. Standalone bun + TypeScript, not part of any service.
 
-`generate.ts` produces the JSON datasets in `datasets/` using `@faker-js/faker` with a fixed seed per dataset, so regeneration is byte-identical. `seed.ts` batch-writes every dataset record into the PDM table as `{AlgorithmId, RecordId, Data}` using local AWS credentials.
+`generate.ts` produces the JSON datasets in `datasets/` using `@faker-js/faker` with a fixed seed per dataset, so regeneration is byte-identical. `seed.ts` envelope-encrypts each record, batch-writes `{AlgorithmId, RecordId, Data}` into the PDM table, and puts the CMK-wrapped DEK in the data-key table.
 
 ## Usage
 
 ```
 bun install
 bun run generate
-PDM_TABLE=<table-name> bun run seed
+PDM_TABLE=<table> DATA_KEY_TABLE=<table> ALGORITHM_TABLE=<table> bun run seed
 ```
 
 Region comes from `AWS_REGION` (default `ap-south-1`).

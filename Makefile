@@ -55,6 +55,8 @@ CSAV_IP = $(call instance_ip,csav,CsavInstanceId)
 SCE_IP = $(call instance_ip,execution-service,ExecutionServiceInstanceId)
 PDM_TABLE = $(shell aws cloudformation describe-stacks --stack-name pdm-service-dev --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='PersonalDataTableName'].OutputValue" --output text)
+DATA_KEY_TABLE = $(shell aws cloudformation describe-stacks --stack-name pdm-service-dev --region $(REGION) \
+	--query "Stacks[0].Outputs[?OutputKey=='DataKeyTableName'].OutputValue" --output text)
 # registry-service stores each algorithm's per-algo KMS key ARN here; seeding reads it to encrypt the records.
 ALGORITHM_TABLE = $(shell aws cloudformation describe-stacks --stack-name registry-service-storage --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='AlgorithmTableName'].OutputValue" --output text)
@@ -102,7 +104,7 @@ demo-ready:
 # envelope-encrypted under each algorithm's per-algo KMS key, so the algorithm must be built first
 # (make demo-build), which provisions that key and stores its ARN in the AlgorithmTable.
 demo-seed:
-	cd seeding && bun install && bun run generate && PDM_TABLE=$(PDM_TABLE) ALGORITHM_TABLE=$(ALGORITHM_TABLE) AWS_REGION=$(REGION) bun run seed
+	cd seeding && bun install && bun run generate && PDM_TABLE=$(PDM_TABLE) DATA_KEY_TABLE=$(DATA_KEY_TABLE) ALGORITHM_TABLE=$(ALGORITHM_TABLE) AWS_REGION=$(REGION) bun run seed
 
 # Build phase (one app): make demo-build APP=<dir> ALGORITHM_ID=<id>.
 # Builds the arm64 image, ships it to the csav host, and registers it under ALGORITHM_ID.

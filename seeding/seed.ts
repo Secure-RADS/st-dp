@@ -1,9 +1,9 @@
+import { createCipheriv, randomBytes } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { createCipheriv, randomBytes } from "node:crypto";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { BatchWriteCommand, DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
-import { KMSClient, GenerateDataKeyCommand } from "@aws-sdk/client-kms";
+import { GenerateDataKeyCommand, KMSClient } from "@aws-sdk/client-kms";
+import { BatchWriteCommand, DynamoDBDocumentClient, GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
 import pMap from "p-map";
 
 const DATASETS_DIR = join(import.meta.dir, "datasets");
@@ -26,6 +26,11 @@ if (!table) {
 const algorithmTable = process.env.ALGORITHM_TABLE;
 if (!algorithmTable) {
   console.error("ALGORITHM_TABLE environment variable is not set");
+  process.exit(1);
+}
+const dataKeyTable = process.env.DATA_KEY_TABLE;
+if (!dataKeyTable) {
+  console.error("DATA_KEY_TABLE environment variable is not set");
   process.exit(1);
 }
 
@@ -93,6 +98,16 @@ for (const file of files) {
     throw new Error(`${ds.name}: GenerateDataKey returned no key`);
   }
 
+  await client.send(
+    new PutCommand({
+      TableName: dataKeyTable,
+      Item: {
+        AlgorithmId: ds.algorithmId,
+        DataKey: Buffer.from(encDek).toString("base64"),
+      },
+    }),
+  );
+
   const batches: Record<string, unknown>[][] = [];
   for (let i = 0; i < ds.records.length; i += BATCH_SIZE) {
     batches.push(
@@ -103,15 +118,6 @@ for (const file of files) {
       })),
     );
   }
-  // One envelope: the encrypted data key, stored once per algorithm under a reserved RecordId. pdm-service
-  // serves it back to the enclave (and excludes it from the records list).
-  batches.push([
-    {
-      AlgorithmId: ds.algorithmId,
-      RecordId: "data-key",
-      DataKey: Buffer.from(encDek).toString("base64"),
-    },
-  ]);
 
   let written = 0;
   let nextLog = 1000;
@@ -120,8 +126,8 @@ for (const file of files) {
     async (batch) => {
       await writeBatch(batch);
       written += batch.length;
-      if (written >= nextLog || written === ds.records.length + 1) {
-        console.log(`${ds.name}: ${written}/${ds.records.length + 1}`);
+      if (written >= nextLog || written === ds.records.length) {
+        console.log(`${ds.name}: ${written}/${ds.records.length}`);
         nextLog = written + 1000;
       }
     },
