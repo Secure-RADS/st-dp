@@ -85,8 +85,29 @@ registry-logs:
 # Start the existing demo hosts when needed, then wait for their restarted Compose services.
 demo-ready:
 	@set -eu; \
-	csav_id=$$(aws cloudformation describe-stacks --stack-name csav --region $(REGION) --query "Stacks[0].Outputs[?OutputKey=='CsavInstanceId'].OutputValue" --output text); \
-	sce_id=$$(aws cloudformation describe-stacks --stack-name execution-service --region $(REGION) --query "Stacks[0].Outputs[?OutputKey=='ExecutionServiceInstanceId'].OutputValue" --output text); \
+	get_instance_id() { \
+		aws cloudformation describe-stacks \
+			--stack-name "$$1" \
+			--region "$(REGION)" \
+			--query "Stacks[0].Outputs[?OutputKey=='$$2'].OutputValue" \
+			--output text; \
+	}; \
+	wait_for_ip() { \
+		local instance_id="$$1" ip=""; \
+		while [ -z "$$ip" ] || [ "$$ip" = None ]; do \
+			ip=$$(aws ec2 describe-instances --region "$(REGION)" --instance-ids "$$instance_id" --query 'Reservations[0].Instances[0].PublicIpAddress' --output text); \
+			[ -n "$$ip" ] && [ "$$ip" != None ] || sleep 2; \
+		done; \
+		echo "$$ip"; \
+	}; \
+	wait_for_service() { \
+		local name="$$1" ip="$$2"; \
+		until ssh -i "$(KEY_PATH)" -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new "ec2-user@$$ip" true 2>/dev/null; do sleep 5; done; \
+		until curl -sS --connect-timeout 5 -o /dev/null "http://$$ip:8080/" 2>/dev/null; do sleep 5; done; \
+		echo "$$name ready at $$ip"; \
+	}; \
+	csav_id=$$(get_instance_id csav CsavInstanceId); \
+	sce_id=$$(get_instance_id execution-service ExecutionServiceInstanceId); \
 	for spec in "CSAV:$$csav_id" "execution-service:$$sce_id"; do \
 		name=$${spec%%:*}; id=$${spec##*:}; \
 		state=$$(aws ec2 describe-instances --region $(REGION) --instance-ids $$id --query 'Reservations[0].Instances[0].State.Name' --output text); \
@@ -94,10 +115,8 @@ demo-ready:
 		if [ "$$state" = stopped ]; then echo "Starting $$name ($$id)"; aws ec2 start-instances --region $(REGION) --instance-ids $$id >/dev/null; \
 		elif [ "$$state" != running ] && [ "$$state" != pending ]; then echo "$$name ($$id) is $$state" >&2; exit 1; fi; \
 		aws ec2 wait instance-running --region $(REGION) --instance-ids $$id; \
-		ip=; while [ -z "$$ip" ] || [ "$$ip" = None ]; do ip=$$(aws ec2 describe-instances --region $(REGION) --instance-ids $$id --query 'Reservations[0].Instances[0].PublicIpAddress' --output text); [ -n "$$ip" ] && [ "$$ip" != None ] || sleep 2; done; \
-		until ssh -i $(KEY_PATH) -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new ec2-user@$$ip true 2>/dev/null; do sleep 5; done; \
-		until curl -sS --connect-timeout 5 -o /dev/null http://$$ip:8080/ 2>/dev/null; do sleep 5; done; \
-		echo "$$name ready at $$ip"; \
+		ip=$$(wait_for_ip "$$id"); \
+		wait_for_service "$$name" "$$ip"; \
 	done
 
 # Seed all five context datasets into the PDM table, each under its fixed algorithmId. Records are
