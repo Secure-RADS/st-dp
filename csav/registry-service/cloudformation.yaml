@@ -45,11 +45,6 @@ Resources:
             Action: kms:Decrypt
             Resource: "*"
 
-  # Note: the bucket's SSE is NOT set here. CloudFormation's early-validation
-  # guardrail rejects KmsMasterKeyID in ServerSideEncryptionByDefault, so the
-  # customer-managed key is applied to the bucket by a post-deploy CLI step
-  # (make encrypt-bucket) instead. Keeping it out of the template also stops
-  # CF updates from resetting the encryption configured out-of-band.
   ArtifactBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -58,6 +53,12 @@ Resources:
         BlockPublicPolicy: true
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - BucketKeyEnabled: true
+            ServerSideEncryptionByDefault:
+              SSEAlgorithm: aws:kms
+              KMSMasterKeyID: !GetAtt ArtifactBucketKmsKey.Arn
 
   AlgorithmTable:
     Type: AWS::DynamoDB::Table

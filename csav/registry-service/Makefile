@@ -38,7 +38,7 @@ PDM_HOST_PUBKEY_SHA256 ?= e095929a76034da7103afff4e5be9a7e194654848f855d3b4d1215
 LOG_HOST ?= gdpr-log.prdai.dev
 LOG_HOST_PUBKEY_SHA256 ?= eefc2c52ef2476ec593bea5580fd9a213e61e177ebac3cfa0f506f5a2563a486
 
-.PHONY: build test run clean sce-unit-base eif-build-base gen-client-cert image ship remote-up remote-down logs deploy-storage encrypt-bucket destroy-storage upload
+.PHONY: build test run clean sce-unit-base eif-build-base gen-client-cert image ship remote-up remote-down logs deploy-storage destroy-storage upload
 
 build:
 	go build -o /tmp/registry-service .
@@ -111,8 +111,6 @@ logs:
 	$(SSH) "cd $(REMOTE_DIR) && sudo docker compose logs -f"
 
 # S3 bucket + the KMS key for uploads, independent of the csav EC2 stack.
-# The customer-managed key is applied to the bucket by the encrypt-bucket step;
-# CF rejects KmsMasterKeyID in ServerSideEncryptionByDefault (early-validation guardrail).
 deploy-storage:
 	aws cloudformation deploy \
 		--template-file cloudformation.yaml \
@@ -120,15 +118,6 @@ deploy-storage:
 		--region $(REGION) \
 		--capabilities CAPABILITY_NAMED_IAM \
 		--parameter-overrides CsavInstanceRoleArn=$(CSAV_ROLE_ARN) EnclaveHostInstanceRoleArn=$(ENCLAVE_HOST_ROLE_ARN)
-	$(MAKE) encrypt-bucket
-
-# Set SSE-KMS with the customer-managed key on the artifact bucket. Done via the CLI (and only here)
-# because CF will not accept the KmsMasterKeyID property - see the note in cloudformation.yaml.
-encrypt-bucket:
-	aws s3api put-bucket-encryption \
-		--bucket $(ARTIFACT_BUCKET) \
-		--region $(REGION) \
-		--server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"aws:kms","KMSMasterKeyID":"$(ARTIFACT_BUCKET_KMS_KEY_ARN)"},"BucketKeyEnabled":true}]}'
 
 destroy-storage:
 	aws cloudformation delete-stack --stack-name $(STORAGE_STACK_NAME) --region $(REGION)
