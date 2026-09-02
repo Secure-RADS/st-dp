@@ -16,6 +16,7 @@ var nsjailCfgTmpl string
 const (
 	nsjailRuntimeDir = "/opt/assets/nsjail-runtime"
 	sceUnitBin       = "/opt/assets/sce-unit"
+	caCertBundle     = "/opt/assets/ca-certificates.crt"
 )
 
 // runConfig is baked into /etc/sce/run-config.json (see sce-unit/attest.go) and is part of the measured PCRs, so changing verifierHost or the pinned pubkey means rebuilding and re-registering the EIF.
@@ -27,6 +28,7 @@ type runConfig struct {
 	PdmPubKeySHA256      string `json:"pdmPubKeySHA256"`
 	LogHost              string `json:"logHost"`
 	LogPubKeySHA256      string `json:"logPubKeySHA256"`
+	Region               string `json:"region"`
 }
 
 // composeFinalRootfs replaces the bundle's rootfs with nsjail's runtime as the base, the DC's own rootfs nested under opt/dc-app/rootfs, the SCE Unit binary, and a generated nsjail.cfg.
@@ -53,6 +55,13 @@ func composeFinalRootfs(bundleDir, execPath, pathEnv string, execArgs []string, 
 	}
 	if err := copyFile(sceUnitBin, filepath.Join(sceDir, "sce"), 0o755); err != nil {
 		return fmt.Errorf("copy sce-unit: %w", err)
+	}
+	certDir := filepath.Join(tmpFinal, "etc", "ssl", "certs")
+	if err := os.MkdirAll(certDir, 0o755); err != nil {
+		return err
+	}
+	if err := copyFile(caCertBundle, filepath.Join(certDir, "ca-certificates.crt"), 0o644); err != nil {
+		return fmt.Errorf("copy CA certificate bundle: %w", err)
 	}
 
 	cfgDir := filepath.Join(tmpFinal, "etc", "sce")

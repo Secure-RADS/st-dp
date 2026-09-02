@@ -19,6 +19,7 @@ const (
 	eventBuildStarted   runEvent = "build-started"
 	eventEifBuilt       runEvent = "eif-built"
 	eventPcrsRegistered runEvent = "pcrs-registered"
+	eventKmsKeyProvisioned runEvent = "kms-key-provisioned"
 	eventBuildCompleted runEvent = "build-completed"
 	eventBuildFailed    runEvent = "build-failed"
 )

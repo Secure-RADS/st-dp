@@ -15,6 +15,7 @@ FROM alpine:3.20
 RUN apk add --no-cache skopeo umoci cpio
 COPY --from=nsjail / /opt/assets/nsjail-runtime/
 COPY --from=sceunit /sce-unit /opt/assets/sce-unit
+COPY --from=sceunit /etc/ssl/certs/ca-certificates.crt /opt/assets/ca-certificates.crt
 COPY --from=eifassets /opt/assets/eif /opt/assets/eif
 COPY tls/client.crt tls/client.key /opt/assets/tls/
 COPY --from=build /registry-service /registry-service

@@ -8,16 +8,21 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
 var (
-	s3Client       *s3.Client
-	artifactBucket string
-	dynamoClient   *dynamodb.Client
-	dynamoTable    string
+	s3Client           *s3.Client
+	artifactBucket     string
+	dynamoClient       *dynamodb.Client
+	dynamoTable        string
+	kmsClient          *kms.Client
+	stsClient          *sts.Client
+	enclaveHostRoleArn string
 )
 
 func main() {
@@ -29,6 +34,10 @@ func main() {
 	artifactBucket = os.Getenv("ARTIFACT_BUCKET")
 	dynamoClient = dynamodb.NewFromConfig(cfg)
 	dynamoTable = os.Getenv("DYNAMO_TABLE")
+	kmsClient = kms.NewFromConfig(cfg)
+	stsClient = sts.NewFromConfig(cfg)
+	enclaveHostRoleArn = os.Getenv("ENCLAVE_HOST_ROLE_ARN")
+	csavRoleArn = os.Getenv("CSAV_ROLE_ARN")
 
 	r := gin.Default()
 
@@ -74,13 +83,13 @@ func main() {
 		}
 		defer os.Remove(tmpPath)
 
-		builtKey, err := buildAndPush(c.Request.Context(), algorithmId, tmpPath)
+		builtKey, kmsKeyArn, err := buildAndPush(c.Request.Context(), algorithmId, tmpPath)
 		if err != nil {
 			c.String(http.StatusInternalServerError, "build failed: %v", err)
 			return
 		}
 
-		if err := putAlgorithm(c.Request.Context(), algorithmId, artifactBucket, builtKey); err != nil {
+		if err := putAlgorithm(c.Request.Context(), algorithmId, artifactBucket, builtKey, kmsKeyArn); err != nil {
 			c.String(http.StatusInternalServerError, "could not record algorithm: %v", err)
 			return
 		}

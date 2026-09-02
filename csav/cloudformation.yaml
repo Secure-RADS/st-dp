@@ -29,6 +29,10 @@ Parameters:
     Type: String
     Description: Name of the registry-service AlgorithmId->S3 path table (from the registry-service-storage stack), for the instance's DynamoDB write permission.
 
+  ArtifactBucketKmsKeyArn:
+    Type: String
+    Description: ARN of the KMS key for the artifact bucket (from the registry-service-storage stack). Required to PUT EIF objects with SSE-KMS.
+
   LatestAmiId:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
     Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64
@@ -70,6 +74,24 @@ Resources:
               - Effect: Allow
                 Action: s3:PutObject
                 Resource: !Sub "arn:aws:s3:::${ArtifactBucketName}/*"
+        # SSE-KMS on the artifact bucket: GenerateDataKey to create the data key,
+        # and Decrypt because S3 multipart upload part calls also require it.
+        - PolicyName: ArtifactBucketCrypto
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [kms:GenerateDataKey, kms:Decrypt]
+                Resource: !Ref ArtifactBucketKmsKeyArn
+        # The CSAV builds one PCR-bound KMS key per algorithm (registry-service provisions it after the EIF
+        # build, when the measurements are known). CreateKey is a management call with no key resource.
+        - PolicyName: KmsProvisionAlgorithmKeys
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [kms:CreateKey, kms:ListKeys, kms:DescribeKey]
+                Resource: "*"
         - PolicyName: AlgorithmTableWrite
           PolicyDocument:
             Version: "2012-10-17"
@@ -118,3 +140,6 @@ Outputs:
 
   CsavInstancePublicIp:
     Value: !GetAtt CsavInstance.PublicIp
+
+  CsavInstanceRoleArn:
+    Value: !GetAtt CsavInstanceRole.Arn

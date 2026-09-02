@@ -11,13 +11,15 @@ type algorithmRecord struct {
 	AlgorithmId string `dynamodbav:"AlgorithmId"`
 	S3Bucket    string `dynamodbav:"S3Bucket"`
 	S3Key       string `dynamodbav:"S3Key"`
+	KmsKeyArn   string `dynamodbav:"KmsKeyArn"`
 }
 
-func putAlgorithm(ctx context.Context, algorithmId, bucket, key string) error {
+func putAlgorithm(ctx context.Context, algorithmId, bucket, key, kmsKeyArn string) error {
 	item, err := attributevalue.MarshalMap(algorithmRecord{
 		AlgorithmId: algorithmId,
 		S3Bucket:    bucket,
 		S3Key:       key,
+		KmsKeyArn:   kmsKeyArn,
 	})
 	if err != nil {
 		return err

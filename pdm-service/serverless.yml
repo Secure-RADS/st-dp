@@ -18,8 +18,12 @@ provider:
         - Effect: Allow
           Action: dynamodb:Query
           Resource: !GetAtt PersonalDataTable.Arn
+        - Effect: Allow
+          Action: dynamodb:GetItem
+          Resource: !GetAtt DataKeyTable.Arn
   environment:
     PDM_TABLE: !Ref PersonalDataTable
+    DATA_KEY_TABLE: !Ref DataKeyTable
     VERIFIER_JWKS_URL: ${param:verifierJwksUrl, 'https://gdpr-verifier-attest.prdai.dev/.well-known/jwks.json'}
     VERIFIER_JWKS_PUBKEY_SHA256: ${param:verifierJwksPubkeySha256}
 
@@ -48,6 +52,17 @@ resources:
           - AttributeName: RecordId
             KeyType: RANGE
 
+    DataKeyTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: AlgorithmId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: AlgorithmId
+            KeyType: HASH
+
     # Plain server-auth TLS only - the enclave authenticates with the bearer access token it got from
     # verifier-service's /attest, not a client cert (which would be extractable from the EIF).
     ApiCustomDomain:
@@ -67,5 +82,7 @@ resources:
   Outputs:
     PersonalDataTableName:
       Value: !Ref PersonalDataTable
+    DataKeyTableName:
+      Value: !Ref DataKeyTable
     ApiRegionalDomainName:
       Value: !GetAtt ApiCustomDomain.RegionalDomainName
