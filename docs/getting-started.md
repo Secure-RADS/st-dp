@@ -35,7 +35,7 @@ chmod 700 .aws
 chmod 600 .aws/credentials .aws/config
 ```
 
-Replace the placeholder values in `.aws/credentials` and set the target region in `.aws/config`. `devbox shell` exports `AWS_SHARED_CREDENTIALS_FILE` and `AWS_CONFIG_FILE` so AWS CLI, Serverless Framework, and the Make targets use these local files.
+Replace the placeholder values in `.aws/credentials`. `devbox shell` exports `REGION`, `AWS_REGION`, and `AWS_DEFAULT_REGION` as `ap-southeast-2`, plus `AWS_SHARED_CREDENTIALS_FILE` and `AWS_CONFIG_FILE` so AWS CLI, Serverless Framework, and the Make targets use these local files.
 
 Verify the target account before deploying anything:
 
@@ -109,10 +109,9 @@ This file is ignored by Git and must not be shared through the repository.
 
 ## 4. Deploy in Sydney
 
-Set the shared region and certificate ARNs before deploying:
+Set the certificate ARNs before deploying. Devbox already exports `REGION=ap-southeast-2`:
 
 ```sh
-export REGION=ap-southeast-2
 export VERIFIER_CERT_ARN=<verifier-acm-certificate-arn>
 export VERIFIER_ATTEST_CERT_ARN=<verifier-attest-acm-certificate-arn>
 export PDM_CERT_ARN=<pdm-acm-certificate-arn>

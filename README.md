@@ -32,17 +32,30 @@ Demo assets:
 - [`sample/`](sample/README.md) - five reference Data Controller apps (one per context), each pinned to a fixed `algorithmId`.
 - [`seeding/`](seeding/README.md) - generates and seeds the five context datasets into the PDM table.
 
-## Demo
+## Working with an existing environment
 
-The demo is a persistent, repeatable fleet: five sample apps, each bound to the fixed `algorithmId` its dataset is seeded under (see `sample/README.md`). The root `Makefile` drives it; targets resolve AWS resources lazily, so only the target you run touches AWS.
+Use [Devbox](https://www.jetify.com/docs/devbox/) for all commands. It exports `REGION`, `AWS_REGION`, and `AWS_DEFAULT_REGION` as `ap-southeast-2`, and uses the ignored local AWS files described in [`docs/getting-started.md`](docs/getting-started.md).
 
-Prerequisites: the stacks are deployed (`make csav-deploy sce-deploy`, plus the serverless services), both EC2 hosts are up (`make csav-up sce-up`), and `.ssh/csav-key.pem` exists (`make csav-key`).
-
+```sh
+devbox shell
+make up       # start both EC2 hosts and wait for their services
+make status   # show both CloudFormation stacks
+make demo     # build, seed, and run all five samples
+make down     # stop both EC2 hosts when finished
 ```
-make demo-seed                       # generate + seed all five datasets into the PDM table
-make demo-build-all                  # build each sample app and register it under its fixed algorithmId
-make demo-run-all                    # fire + poll a run for every app
-make demo-all                        # all three in sequence
+
+`make demo` is a persistent, repeatable fleet: it registers each sample under its fixed `algorithmId`, seeds its data, and runs it. Building happens before seeding because registration creates the KMS key used to encrypt each dataset.
+
+Useful root targets:
+
+```sh
+make demo-ready                     # start and verify both hosts
+make demo-build-all                 # build and register all samples
+make demo-seed                      # generate and seed all datasets
+make demo-run-all                   # run all samples
+make logs                           # tail both host and all Lambda logs
+make registry-logs                  # tail the CSAV registry service
+make sce-logs                       # tail the execution service
 ```
 
 Single app (APP is a sample/ dir, ALGORITHM_ID its fixed id):
@@ -60,4 +73,4 @@ make logs-csv-algo ALGORITHM_ID=<id>                  # one algo -> algo-<id>.cs
 make logs-csv-all                                     # whole table -> logs-all.csv
 ```
 
-`make registry-logs` / `make sce-logs` tail the build and execution hosts. See each service's README for its own deploy and internals.
+For a new AWS account or a full deployment, follow [`docs/getting-started.md`](docs/getting-started.md). See each service README for service-specific deployment and internals.
