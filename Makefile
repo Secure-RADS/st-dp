@@ -17,7 +17,7 @@ demo:
 logs:
 	@set -u; \
 	pids=""; \
-	for target in registry-logs sce-logs; do $(MAKE) $$target & pids="$$pids $$!"; done; \
+	for target in registry-logs sce-logs; do make $$target & pids="$$pids $$!"; done; \
 	for group in $$(aws logs describe-log-groups --region "$(REGION)" --log-group-name-prefix /aws/lambda/ --query 'logGroups[].logGroupName' --output text); do \
 		case "$$group" in /aws/lambda/verifier-service-dev-*|/aws/lambda/pdm-service-dev-*|/aws/lambda/log-service-dev-*|/aws/lambda/result-consumer-dev-*) aws logs tail "$$group" --region "$(REGION)" --follow & pids="$$pids $$!";; esac; \
 	done; \
