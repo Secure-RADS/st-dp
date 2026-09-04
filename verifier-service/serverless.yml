@@ -12,7 +12,7 @@ build:
 provider:
   name: aws
   runtime: nodejs20.x
-  region: ${param:region, 'ap-south-1'}
+  region: ${param:region, 'ap-southeast-2'}
   httpApi:
     disableDefaultEndpoint: true # mTLS is only enforced on the custom domain below - the default execute-api endpoint bypasses it entirely.
   iam:
@@ -61,6 +61,12 @@ functions:
     handler: src/handlers/jwks.handler
 
 resources:
+  Conditions:
+    HasTruststoreVersion:
+      Fn::Not:
+        - Fn::Equals:
+            - "${param:truststoreVersionId, ''}"
+            - ""
   Resources:
     AlgorithmPCRTable:
       Type: AWS::DynamoDB::Table
@@ -108,16 +114,18 @@ resources:
     # execute-api endpoint is disabled above so this is the only way in.
     ApiCustomDomain:
       Type: AWS::ApiGatewayV2::DomainName
+      Condition: HasTruststoreVersion
       Properties:
         DomainName: ${param:domainName}
         DomainNameConfigurations:
           - CertificateArn: ${param:certificateArn}
         MutualTlsAuthentication:
           TruststoreUri: !Sub "s3://${TruststoreBucket}/${param:truststoreKey, 'truststore.pem'}"
-          TruststoreVersion: ${param:truststoreVersionId}
+          TruststoreVersion: ${param:truststoreVersionId, ''}
 
     ApiDomainMapping:
       Type: AWS::ApiGatewayV2::ApiMapping
+      Condition: HasTruststoreVersion
       Properties:
         DomainName: !Ref ApiCustomDomain
         ApiId: !Ref HttpApi
@@ -228,5 +236,8 @@ resources:
       Value: !Ref AttestationSessionTable
     TruststoreBucketName:
       Value: !Ref TruststoreBucket
+    ApiRegionalDomainName:
+      Condition: HasTruststoreVersion
+      Value: !GetAtt ApiCustomDomain.RegionalDomainName
     PublicApiRegionalDomainName:
       Value: !GetAtt PublicApiCustomDomain.RegionalDomainName

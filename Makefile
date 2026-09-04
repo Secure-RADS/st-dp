@@ -45,9 +45,9 @@ sce-logs:
 	$(MAKE) -C sce logs
 
 # Demo: end-to-end build + execution. Resolved lazily so only the demo targets hit AWS.
-REGION ?= ap-south-1
-KEY_PATH := $(HOME)/.ssh/csav-key.pem
-LOG_HOST ?= gdpr-log.prdai.dev
+REGION ?= ap-southeast-2
+KEY_PATH := $(CURDIR)/.ssh/csav-key.pem
+LOG_HOST ?= log.secure-rads.org
 instance_ip = $(shell aws ec2 describe-instances --region $(REGION) --instance-ids $(shell aws cloudformation describe-stacks \
 	--stack-name $(1) --region $(REGION) --query "Stacks[0].Outputs[?OutputKey=='$(2)'].OutputValue" --output text) \
 	--query 'Reservations[0].Instances[0].PublicIpAddress' --output text)

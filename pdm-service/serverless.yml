@@ -11,7 +11,7 @@ build:
 provider:
   name: aws
   runtime: nodejs20.x
-  region: ${param:region, 'ap-south-1'}
+  region: ${param:region, 'ap-southeast-2'}
   iam:
     role:
       statements:
@@ -24,7 +24,7 @@ provider:
   environment:
     PDM_TABLE: !Ref PersonalDataTable
     DATA_KEY_TABLE: !Ref DataKeyTable
-    VERIFIER_JWKS_URL: ${param:verifierJwksUrl, 'https://gdpr-verifier-attest.prdai.dev/.well-known/jwks.json'}
+    VERIFIER_JWKS_URL: ${param:verifierJwksUrl, 'https://verifier-attest.secure-rads.org/.well-known/jwks.json'}
     VERIFIER_JWKS_PUBKEY_SHA256: ${param:verifierJwksPubkeySha256}
 
 functions:

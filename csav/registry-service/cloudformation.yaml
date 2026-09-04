@@ -3,17 +3,26 @@ Description: >
   Registry Service storage: S3 bucket for uploaded OCI images and the KMS key
   that encrypts the EIF artifacts at rest. The roles that write (CSAV host) and
   read (enclave host) the bucket are granted access through this key's policy,
-  so the ARNs are passed in as parameters - deploy these two stacks first, then
-  this one, or supply the ARNs and update.
+  so the ARNs are added after the host stacks exist.
 
 Parameters:
   CsavInstanceRoleArn:
     Type: String
+    Default: ""
     Description: ARN of the CSAV host instance role (from the csav stack). It PUTs EIF artifacts and must get kms:GenerateDataKey on this key.
 
   EnclaveHostInstanceRoleArn:
     Type: String
+    Default: ""
     Description: ARN of the enclave host instance role (from the execution-service stack). It GETs/downloads EIF artifacts and must get kms:Decrypt on this key.
+
+Conditions:
+  HasCsavInstanceRole: !And
+    - !Not [!Equals [!Ref CsavInstanceRoleArn, ""]]
+    - !Not [!Equals [!Ref CsavInstanceRoleArn, "None"]]
+  HasEnclaveHostInstanceRole: !And
+    - !Not [!Equals [!Ref EnclaveHostInstanceRoleArn, ""]]
+    - !Not [!Equals [!Ref EnclaveHostInstanceRoleArn, "None"]]
 
 Resources:
   ArtifactBucketKmsKey:
@@ -30,20 +39,24 @@ Resources:
               AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
             Action: kms:*
             Resource: "*"
-          # GenerateDataKey to create the data key on write, and Decrypt because S3 multipart
-          # upload part calls also require it under SSE-KMS.
-          - Sid: CsavHostCrypto
-            Effect: Allow
-            Principal:
-              AWS: !Ref CsavInstanceRoleArn
-            Action: [kms:GenerateDataKey, kms:Decrypt]
-            Resource: "*"
-          - Sid: EnclaveHostDecrypt
-            Effect: Allow
-            Principal:
-              AWS: !Ref EnclaveHostInstanceRoleArn
-            Action: kms:Decrypt
-            Resource: "*"
+          - !If
+            - HasCsavInstanceRole
+            - Sid: CsavHostCrypto
+              Effect: Allow
+              Principal:
+                AWS: !Ref CsavInstanceRoleArn
+              Action: [kms:GenerateDataKey, kms:Decrypt]
+              Resource: "*"
+            - !Ref AWS::NoValue
+          - !If
+            - HasEnclaveHostInstanceRole
+            - Sid: EnclaveHostDecrypt
+              Effect: Allow
+              Principal:
+                AWS: !Ref EnclaveHostInstanceRoleArn
+              Action: kms:Decrypt
+              Resource: "*"
+            - !Ref AWS::NoValue
 
   ArtifactBucket:
     Type: AWS::S3::Bucket

@@ -1,0 +1,27 @@
+{
+  "packages": [
+    "awscli2",
+    "bun",
+    "curl",
+    "docker-client",
+    "docker-compose",
+    "gnumake",
+    "go",
+    "jq",
+    "openssh",
+    "openssl",
+    "python3"
+  ],
+  "shell": {
+    "init_hook": [
+      "if [ -f .env ]; then set -a; . ./.env; set +a; fi",
+      "export AWS_SHARED_CREDENTIALS_FILE=\"$PWD/.aws/credentials\"",
+      "export AWS_CONFIG_FILE=\"$PWD/.aws/config\""
+    ],
+    "scripts": {
+      "aws-check": [
+        "aws sts get-caller-identity"
+      ]
+    }
+  }
+}

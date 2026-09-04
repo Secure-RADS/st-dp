@@ -6,7 +6,7 @@ Description: >
 Parameters:
   InstanceType:
     Type: String
-    Default: t4g.small
+    Default: c6g.large
     Description: EC2 instance type for the execution-service instance. This instance only triggers runs - no enclave, no heavy compute.
 
   KeyName:
