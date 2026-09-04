@@ -2,7 +2,7 @@ STACK_NAME := execution-service
 KEY_NAME := csav-key
 KEY_PATH := $(abspath ../.ssh/$(KEY_NAME).pem)
 REGION ?= ap-southeast-2
-INSTANCE_TYPE ?= c6g.large
+INSTANCE_TYPE ?= t4g.small
 
 # Lazily resolved (only hits AWS when a target that uses it actually runs).
 INSTANCE_ID = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
