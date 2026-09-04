@@ -1,4 +1,28 @@
-.PHONY: csav-key csav-deploy csav-destroy csav-status csav-up csav-down csav-ssh
+.PHONY: up down status demo logs csav-key csav-deploy csav-destroy csav-status csav-up csav-down csav-ssh
+
+up:
+	$(MAKE) demo-ready
+
+down:
+	$(MAKE) csav-down
+	$(MAKE) sce-down
+
+status:
+	$(MAKE) csav-status
+	$(MAKE) sce-status
+
+demo:
+	$(MAKE) demo-all
+
+logs:
+	@set -u; \
+	pids=""; \
+	for target in registry-logs sce-logs; do make $$target & pids="$$pids $$!"; done; \
+	for group in $$(aws logs describe-log-groups --region "$(REGION)" --log-group-name-prefix /aws/lambda/ --query 'logGroups[].logGroupName' --output text); do \
+		case "$$group" in /aws/lambda/verifier-service-dev-*|/aws/lambda/pdm-service-dev-*|/aws/lambda/log-service-dev-*|/aws/lambda/result-consumer-dev-*) aws logs tail "$$group" --region "$(REGION)" --follow & pids="$$pids $$!";; esac; \
+	done; \
+	trap 'kill $$pids 2>/dev/null || true' EXIT INT TERM; \
+	for pid in $$pids; do wait "$$pid" || true; done
 
 csav-key:
 	$(MAKE) -C csav key
