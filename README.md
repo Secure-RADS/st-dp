@@ -36,7 +36,7 @@ Demo assets:
 
 The demo is a persistent, repeatable fleet: five sample apps, each bound to the fixed `algorithmId` its dataset is seeded under (see `sample/README.md`). The root `Makefile` drives it; targets resolve AWS resources lazily, so only the target you run touches AWS.
 
-Prerequisites: the stacks are deployed (`make csav-deploy sce-deploy`, plus the serverless services), both EC2 hosts are up (`make csav-up sce-up`), and `~/.ssh/csav-key.pem` exists (`make csav-key`).
+Prerequisites: the stacks are deployed (`make csav-deploy sce-deploy`, plus the serverless services), both EC2 hosts are up (`make csav-up sce-up`), and `.ssh/csav-key.pem` exists (`make csav-key`).
 
 ```
 make demo-seed                       # generate + seed all five datasets into the PDM table

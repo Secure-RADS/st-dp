@@ -12,7 +12,7 @@ bun run generate
 PDM_TABLE=<table> DATA_KEY_TABLE=<table> ALGORITHM_TABLE=<table> bun run seed
 ```
 
-Region comes from `AWS_REGION` (default `ap-south-1`).
+Region comes from `AWS_REGION` (default `ap-southeast-2`).
 
 ## Datasets
 

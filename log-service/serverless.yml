@@ -11,7 +11,7 @@ build:
 provider:
   name: aws
   runtime: nodejs20.x
-  region: ${param:region, 'ap-south-1'}
+  region: ${param:region, 'ap-southeast-2'}
   iam:
     role:
       statements:

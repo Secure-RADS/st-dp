@@ -1,7 +1,7 @@
 IMAGE := execution-service:latest
 STACK_NAME := execution-service
-REGION ?= ap-south-1
-KEY_PATH := $(HOME)/.ssh/csav-key.pem
+REGION ?= ap-southeast-2
+KEY_PATH := $(abspath ../../.ssh/csav-key.pem)
 REMOTE_DIR := /home/ec2-user/execution-service
 
 # Lazily resolved; public IP comes from a live describe-instances call since the CF stack's Outputs go stale on stop/start.
@@ -10,8 +10,8 @@ INSTANCE_ID = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NA
 REMOTE_HOST = $(shell aws ec2 describe-instances --instance-ids $(INSTANCE_ID) --region $(REGION) \
 	--query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
 REMOTE = ec2-user@$(REMOTE_HOST)
-SSH := ssh -i $(KEY_PATH) -o StrictHostKeyChecking=accept-new $(REMOTE)
-SCP := scp -i $(KEY_PATH) -o StrictHostKeyChecking=accept-new
+SSH = ssh -i $(KEY_PATH) -o StrictHostKeyChecking=accept-new $(REMOTE)
+SCP = scp -i $(KEY_PATH) -o StrictHostKeyChecking=accept-new
 ALGORITHM_TABLE = $(shell aws cloudformation describe-stacks --stack-name registry-service-storage --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='AlgorithmTableName'].OutputValue" --output text)
 # Queue the enclave host sends results to, and the table this service reads for GET /run/<runId> - both from
@@ -26,9 +26,9 @@ ENCLAVE_AMI_ID = $(shell aws cloudformation describe-stacks --stack-name $(STACK
 ENCLAVE_INSTANCE_TYPE ?= c6g.large
 # Only used to configure vsock-proxy's allowlist on the host - the pinned pubkey itself is baked into the EIF
 # by registry-service now (see csav/registry-service/rootfs.go), not passed in here.
-VERIFIER_HOST ?= gdpr-verifier-attest.prdai.dev
-PDM_HOST ?= gdpr-pdm.prdai.dev
-LOG_HOST ?= gdpr-log.prdai.dev
+VERIFIER_HOST ?= verifier-attest.secure-rads.org
+PDM_HOST ?= pdm.secure-rads.org
+LOG_HOST ?= log.secure-rads.org
 ENCLAVE_SECURITY_GROUP_ID = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='EnclaveHostSecurityGroupId'].OutputValue" --output text)
 ENCLAVE_INSTANCE_PROFILE_ARN = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
@@ -48,7 +48,7 @@ run:
 clean:
 	rm -f /tmp/execution-service
 
-# Build the docker image locally (arm64, matches the t4g.small host).
+# Build the docker image locally for the arm64 host.
 image:
 	docker build --platform linux/arm64 -t $(IMAGE) .
 

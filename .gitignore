@@ -6,3 +6,10 @@ sce/execution-service/execution-service
 sce-unit/sce-unit
 node_modules/
 .serverless/
+/.aws/*
+!/.aws/credentials.example
+!/.aws/config.example
+/.env
+!/.env.example
+/.ssh/*
+!/.ssh/README.md

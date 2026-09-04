@@ -33,7 +33,7 @@ Bun is used as the local dev/bundle tool only (`bun install`) - the Lambda itsel
 ## Prerequisites (manual, one-time, outside this repo's IaC)
 
 - Two domain names + ACM certificates already provisioned, one per custom domain - `serverless.yml` takes these as `domainName`/`certificateArn` (mTLS) and `publicDomainName`/`publicCertificateArn` (plain TLS) params, it does not create them.
-- The truststore PEM in `TruststoreBucket` bundles every mTLS client cert: registry-service's (`csav/registry-service/tls/client.crt`, from `make gen-client-cert` there) and pdm-service's (see pdm-service/README.md). Upload it to the `TruststoreBucket` this stack creates, before the mTLS custom domain's config can take effect. `TruststoreBucket` is versioned per AWS's guidance for safe truststore rollovers.
+- The truststore PEM in `TruststoreBucket` bundles every mTLS client cert: registry-service's (`csav/registry-service/tls/client.crt`, from `make gen-client-cert` there) and pdm-service's (see pdm-service/README.md). `TruststoreBucket` is versioned per AWS's guidance for safe truststore rollovers.
 - Once deployed, each custom domain's TLS leaf cert pubkey SHA-256 needs to be read back and pinned on the other side: the mTLS domain's into registry-service's `VERIFIER_PUBKEY_SHA256` (`csav/registry-service/verifier.go`), the public domain's into registry-service's `VERIFIER_HOST`/pubkey used to bake `sce-unit`'s run config (`csav/registry-service/rootfs.go`), into execution-service's `VERIFIER_HOST` (`sce/execution-service/Makefile`), and into pdm-service's `verifierJwksPubkeySha256` (pinned on JWKS fetches). Manual bootstrap step since both sides pin each other.
 - An ES256 (P-256) JWT signing key, stored as an SSM SecureString at `/verifier-service/jwt-signing-key`:
 
@@ -46,7 +46,16 @@ aws ssm put-parameter --name /verifier-service/jwt-signing-key --type SecureStri
 
 ## Deploy
 
+First deploy the functions, tables, and truststore bucket without `truststoreVersionId`. Then upload the truststore and deploy again with the returned version ID to create the mTLS custom domain.
+
 ```
 bun install
 bunx serverless deploy --param="domainName=..." --param="certificateArn=..." --param="publicDomainName=..." --param="publicCertificateArn=..."
+
+aws s3api put-object --bucket <truststore-bucket> --key truststore.pem \
+  --body ../csav/registry-service/tls/client.crt --query VersionId --output text
+
+bunx serverless deploy --param="domainName=..." --param="certificateArn=..." \
+  --param="publicDomainName=..." --param="publicCertificateArn=..." \
+  --param="truststoreVersionId=<version-id>"
 ```

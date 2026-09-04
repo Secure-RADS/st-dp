@@ -1,7 +1,7 @@
 STACK_NAME := csav
 KEY_NAME := csav-key
-KEY_PATH := $(HOME)/.ssh/$(KEY_NAME).pem
-REGION ?= ap-south-1
+KEY_PATH := $(abspath ../.ssh/$(KEY_NAME).pem)
+REGION ?= ap-southeast-2
 INSTANCE_TYPE ?= t4g.small
 
 # Lazily resolved (only hits AWS when a target that uses it actually runs).
@@ -10,7 +10,7 @@ INSTANCE_ID = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NA
 # Live lookup, not the CF stack's Outputs - those go stale on every stop/start (no Elastic IP attached).
 INSTANCE_IP = $(shell aws ec2 describe-instances --instance-ids $(INSTANCE_ID) --region $(REGION) \
 	--query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
-SSH := ssh -i $(KEY_PATH) ec2-user@$(INSTANCE_IP)
+SSH = ssh -i $(KEY_PATH) ec2-user@$(INSTANCE_IP)
 DEFAULT_VPC_ID = $(shell aws ec2 describe-vpcs --region $(REGION) --filters Name=is-default,Values=true \
 	--query 'Vpcs[0].VpcId' --output text)
 ARTIFACT_BUCKET = $(shell aws cloudformation describe-stacks --stack-name registry-service-storage --region $(REGION) \
@@ -36,6 +36,7 @@ clean:
 	@echo "not implemented yet"
 
 key:
+	mkdir -p $(dir $(KEY_PATH))
 	aws ec2 create-key-pair --key-name $(KEY_NAME) --region $(REGION) \
 		--query 'KeyMaterial' --output text > $(KEY_PATH)
 	chmod 400 $(KEY_PATH)

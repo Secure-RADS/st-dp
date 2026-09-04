@@ -34,7 +34,7 @@ if (!dataKeyTable) {
   process.exit(1);
 }
 
-const region = process.env.AWS_REGION ?? "ap-south-1";
+const region = process.env.AWS_REGION ?? "ap-southeast-2";
 const client = DynamoDBDocumentClient.from(new DynamoDBClient({ region }));
 const kms = new KMSClient({ region });
 

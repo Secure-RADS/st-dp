@@ -1,8 +1,8 @@
 IMAGE := registry-service:latest
 STACK_NAME := csav
 STORAGE_STACK_NAME := registry-service-storage
-REGION ?= ap-south-1
-KEY_PATH := $(HOME)/.ssh/csav-key.pem
+REGION ?= ap-southeast-2
+KEY_PATH := $(abspath ../../.ssh/csav-key.pem)
 REMOTE_DIR := /home/ec2-user/registry-service
 
 # Lazily resolved; public IP comes from a live describe-instances call since the CF stack's Outputs go stale on stop/start.
@@ -11,8 +11,8 @@ INSTANCE_ID = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NA
 REMOTE_HOST = $(shell aws ec2 describe-instances --instance-ids $(INSTANCE_ID) --region $(REGION) \
 	--query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
 REMOTE = ec2-user@$(REMOTE_HOST)
-SSH := ssh -i $(KEY_PATH) -o StrictHostKeyChecking=accept-new $(REMOTE)
-SCP := scp -i $(KEY_PATH) -o StrictHostKeyChecking=accept-new
+SSH = ssh -i $(KEY_PATH) -o StrictHostKeyChecking=accept-new $(REMOTE)
+SCP = scp -i $(KEY_PATH) -o StrictHostKeyChecking=accept-new
 ARTIFACT_BUCKET = $(shell aws cloudformation describe-stacks --stack-name $(STORAGE_STACK_NAME) --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='ArtifactBucketName'].OutputValue" --output text)
 DYNAMO_TABLE = $(shell aws cloudformation describe-stacks --stack-name $(STORAGE_STACK_NAME) --region $(REGION) \
@@ -24,19 +24,20 @@ ARTIFACT_BUCKET_KMS_KEY_ARN = $(shell aws cloudformation describe-stacks --stack
 # references these role ARNs, so they're resolved live (names carry a CFN-generated suffix).
 CSAV_ROLE_ARN = $(shell aws iam list-roles --query "Roles[?contains(RoleName, 'CsavInstanceRole')].Arn | [0]" --output text)
 ENCLAVE_HOST_ROLE_ARN = $(shell aws iam list-roles --query "Roles[?contains(RoleName, 'EnclaveHostInstanceRole')].Arn | [0]" --output text)
+ROLE_PARAMETERS = $(strip $(if $(filter None,$(CSAV_ROLE_ARN)),,CsavInstanceRoleArn=$(CSAV_ROLE_ARN)) $(if $(filter None,$(ENCLAVE_HOST_ROLE_ARN)),,EnclaveHostInstanceRoleArn=$(ENCLAVE_HOST_ROLE_ARN)))
 # mTLS domain (registerPCRs -> /algorithms) and its pin.
-VERIFIER_URL ?= https://gdpr-verifier.prdai.dev/algorithms
-VERIFIER_PUBKEY_SHA256 ?= 172602c618994c4bd5e408b3343f1c49ffa019595d7d19788f331a8f0e928316
+VERIFIER_URL ?= https://verifier.secure-rads.org/algorithms
+VERIFIER_PUBKEY_SHA256 ?= 8187b2c5e26ac5079046dc74398ba43a0366f93c67cec94e8f4c378f7d2d9370
 # Plain-TLS public domain (/attest, /refresh, /validate) baked into the EIF's run config - a different
 # domain and cert from the mTLS one above, so it gets its own pin.
-VERIFIER_HOST ?= gdpr-verifier-attest.prdai.dev
-VERIFIER_HOST_PUBKEY_SHA256 ?= bd29979723d431841740fa187b7beff639c47af00d7f1771ba212e9a6bd222a5
+VERIFIER_HOST ?= verifier-attest.secure-rads.org
+VERIFIER_HOST_PUBKEY_SHA256 ?= f447d6a73bc9309977d316032a51ea53ce3d0c0867a603ab823c0adb69fd08f0
 # pdm-service's plain-TLS domain (/records) also baked into the run config, pinned the same way.
-PDM_HOST ?= gdpr-pdm.prdai.dev
-PDM_HOST_PUBKEY_SHA256 ?= e095929a76034da7103afff4e5be9a7e194654848f855d3b4d121541fe89dfa5
+PDM_HOST ?= pdm.secure-rads.org
+PDM_HOST_PUBKEY_SHA256 ?= 130823e12ad0f4cc0a78a102806d5e41327cd5b6a5ae90538689a70c93873e56
 # log-service's plain-TLS domain (/events), baked in and pinned so the enclave can log its run timeline.
-LOG_HOST ?= gdpr-log.prdai.dev
-LOG_HOST_PUBKEY_SHA256 ?= eefc2c52ef2476ec593bea5580fd9a213e61e177ebac3cfa0f506f5a2563a486
+LOG_HOST ?= log.secure-rads.org
+LOG_HOST_PUBKEY_SHA256 ?= 4ad2a53407cce9fbf808cd44f56d5174439b3184192301dda48cbbda82a13ddd
 
 .PHONY: build test run clean sce-unit-base eif-build-base gen-client-cert image ship remote-up remote-down logs deploy-storage destroy-storage upload
 
@@ -116,8 +117,7 @@ deploy-storage:
 		--template-file cloudformation.yaml \
 		--stack-name $(STORAGE_STACK_NAME) \
 		--region $(REGION) \
-		--capabilities CAPABILITY_NAMED_IAM \
-		--parameter-overrides CsavInstanceRoleArn=$(CSAV_ROLE_ARN) EnclaveHostInstanceRoleArn=$(ENCLAVE_HOST_ROLE_ARN)
+		--capabilities CAPABILITY_NAMED_IAM $(if $(ROLE_PARAMETERS),--parameter-overrides $(ROLE_PARAMETERS))
 
 destroy-storage:
 	aws cloudformation delete-stack --stack-name $(STORAGE_STACK_NAME) --region $(REGION)
