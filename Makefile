@@ -5,7 +5,6 @@ up:
 
 down:
 	$(MAKE) csav-down
-	$(MAKE) sce-down
 
 status:
 	$(MAKE) csav-status
@@ -17,9 +16,9 @@ demo:
 logs:
 	@set -u; \
 	pids=""; \
-	for target in registry-logs sce-logs; do make $$target & pids="$$pids $$!"; done; \
+	for target in registry-logs; do make $$target & pids="$$pids $$!"; done; \
 	for group in $$(aws logs describe-log-groups --region "$(REGION)" --log-group-name-prefix /aws/lambda/ --query 'logGroups[].logGroupName' --output text); do \
-		case "$$group" in /aws/lambda/verifier-service-dev-*|/aws/lambda/pdm-service-dev-*|/aws/lambda/log-service-dev-*|/aws/lambda/result-consumer-dev-*) aws logs tail "$$group" --region "$(REGION)" --follow & pids="$$pids $$!";; esac; \
+		case "$$group" in /aws/lambda/execution-service-dev-*|/aws/lambda/verifier-service-dev-*|/aws/lambda/pdm-service-dev-*|/aws/lambda/log-service-dev-*|/aws/lambda/result-consumer-dev-*) aws logs tail "$$group" --region "$(REGION)" --follow & pids="$$pids $$!";; esac; \
 	done; \
 	trap 'kill $$pids 2>/dev/null || true' EXIT INT TERM; \
 	for pid in $$pids; do wait "$$pid" || true; done
@@ -45,7 +44,7 @@ csav-down:
 csav-ssh:
 	$(MAKE) -C csav ssh
 
-.PHONY: sce-deploy sce-destroy sce-status sce-up sce-down sce-ssh sce-logs
+.PHONY: sce-deploy sce-destroy sce-status sce-logs
 
 sce-deploy:
 	$(MAKE) -C sce deploy
@@ -55,15 +54,6 @@ sce-destroy:
 
 sce-status:
 	$(MAKE) -C sce status
-
-sce-up:
-	$(MAKE) -C sce up
-
-sce-down:
-	$(MAKE) -C sce down
-
-sce-ssh:
-	$(MAKE) -C sce ssh
 
 sce-logs:
 	$(MAKE) -C sce logs
@@ -76,7 +66,8 @@ instance_ip = $(shell aws ec2 describe-instances --region $(REGION) --instance-i
 	--stack-name $(1) --region $(REGION) --query "Stacks[0].Outputs[?OutputKey=='$(2)'].OutputValue" --output text) \
 	--query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
 CSAV_IP = $(call instance_ip,csav,CsavInstanceId)
-SCE_IP = $(call instance_ip,execution-service,ExecutionServiceInstanceId)
+EXECUTION_API_URL = $(shell aws cloudformation describe-stacks --stack-name execution-service-dev --region $(REGION) \
+	--query "Stacks[0].Outputs[?OutputKey=='ExecutionApiUrl'].OutputValue" --output text)
 PDM_TABLE = $(shell aws cloudformation describe-stacks --stack-name pdm-service-dev --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='PersonalDataTableName'].OutputValue" --output text)
 DATA_KEY_TABLE = $(shell aws cloudformation describe-stacks --stack-name pdm-service-dev --region $(REGION) \
@@ -106,7 +97,7 @@ DEMO_APPS := \
 registry-logs:
 	$(MAKE) -C csav/registry-service logs
 
-# Start the existing demo hosts when needed, then wait for their restarted Compose services.
+# Start the CSAV host when needed, then wait for its restarted Compose service. execution-service is Lambda.
 demo-ready:
 	@set -eu; \
 	get_instance_id() { \
@@ -131,8 +122,7 @@ demo-ready:
 		echo "$$name ready at $$ip"; \
 	}; \
 	csav_id=$$(get_instance_id csav CsavInstanceId); \
-	sce_id=$$(get_instance_id execution-service ExecutionServiceInstanceId); \
-	for spec in "CSAV:$$csav_id" "execution-service:$$sce_id"; do \
+	for spec in "CSAV:$$csav_id"; do \
 		name=$${spec%%:*}; id=$${spec##*:}; \
 		state=$$(aws ec2 describe-instances --region $(REGION) --instance-ids $$id --query 'Reservations[0].Instances[0].State.Name' --output text); \
 		if [ "$$state" = stopping ]; then aws ec2 wait instance-stopped --region $(REGION) --instance-ids $$id; state=stopped; fi; \
@@ -173,12 +163,12 @@ demo-build-all:
 # Fires /run (202 + runId), then polls GET /run/{runId} until the enclave reports back.
 demo-run:
 	@test -n "$(ALGORITHM_ID)" || { echo "ALGORITHM_ID is required"; exit 1; }
-	@ip=$(SCE_IP); \
-	runId=$$(curl -sS -X POST http://$$ip:8080/run -H 'Content-Type: application/json' \
+	@api=$(EXECUTION_API_URL); \
+	runId=$$(curl -sS -X POST "$$api/run" -H 'Content-Type: application/json' \
 		-d '{"algorithmId":"$(ALGORITHM_ID)"}' | python3 -c 'import sys,json; print(json.load(sys.stdin)["runId"])'); \
 	echo "runId=$$runId"; \
 	for i in $$(seq 1 132); do \
-		res=$$(curl -sS http://$$ip:8080/run/$$runId); \
+		res=$$(curl -sS "$$api/run/$$runId"); \
 		status=$$(echo "$$res" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("status",""))'); \
 		if [ "$$status" != "pending" ]; then \
 			echo "$$res"; \

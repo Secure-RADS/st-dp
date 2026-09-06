@@ -192,7 +192,7 @@ PDM_PIN=$(spki_pin pdm.secure-rads.org)
 LOG_PIN=$(spki_pin log.secure-rads.org)
 ```
 
-Deploy shared storage first, then the EC2 hosts, then update storage to grant both host roles KMS access:
+Deploy shared storage, then the CSAV host and serverless execution-service, then update storage to grant both host roles KMS access:
 
 ```sh
 make -C csav/registry-service deploy-storage REGION="$REGION"
@@ -202,7 +202,7 @@ make sce-deploy REGION="$REGION"
 make -C csav/registry-service deploy-storage REGION="$REGION"
 ```
 
-Ship the services with the new domains and their pinned keys:
+Ship registry-service with the new domains and their pinned keys:
 
 ```sh
 make -C csav/registry-service ship remote-up REGION="$REGION" \
@@ -212,9 +212,12 @@ make -C csav/registry-service ship remote-up REGION="$REGION" \
   VERIFIER_HOST_PUBKEY_SHA256="$VERIFIER_ATTEST_PIN" \
   PDM_HOST=pdm.secure-rads.org PDM_HOST_PUBKEY_SHA256="$PDM_PIN" \
   LOG_HOST=log.secure-rads.org LOG_HOST_PUBKEY_SHA256="$LOG_PIN"
-make -C sce/execution-service ship remote-up REGION="$REGION" \
-  VERIFIER_HOST=verifier-attest.secure-rads.org \
-  PDM_HOST=pdm.secure-rads.org LOG_HOST=log.secure-rads.org
+```
+
+The execution-service deployment creates a new enclave-host role. Rebuild and reseed every algorithm after deployment so its KMS key policy names that role. Once `make demo-run` succeeds through the Lambda API, remove the legacy persistent execution-service EC2 stack:
+
+```sh
+aws cloudformation delete-stack --stack-name execution-service --region "$REGION"
 ```
 
 ## Credential hygiene

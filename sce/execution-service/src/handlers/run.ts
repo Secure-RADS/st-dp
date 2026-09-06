@@ -1,0 +1,138 @@
+import { randomUUID } from "node:crypto";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { EC2Client, RunInstancesCommand, type RunInstancesCommandInput } from "@aws-sdk/client-ec2";
+import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
+import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
+import { requiredEnv } from "../lib/env.js";
+import { logEvent } from "../lib/events.js";
+import { userData } from "../lib/userdata.js";
+
+const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+const ec2 = new EC2Client({});
+const algorithmTable = requiredEnv("ALGORITHM_TABLE");
+const runResultsTable = requiredEnv("RUN_RESULTS_TABLE");
+const runResultsQueueUrl = requiredEnv("RUN_RESULTS_QUEUE_URL");
+const enclaveAmiId = requiredEnv("ENCLAVE_AMI_ID");
+const enclaveInstanceType = requiredEnv("ENCLAVE_INSTANCE_TYPE") as RunInstancesCommandInput["InstanceType"];
+const enclaveSecurityGroupId = requiredEnv("ENCLAVE_SECURITY_GROUP_ID");
+const enclaveInstanceProfileArn = requiredEnv("ENCLAVE_INSTANCE_PROFILE_ARN");
+const verifierHost = requiredEnv("VERIFIER_HOST");
+const pdmHost = requiredEnv("PDM_HOST");
+const logHost = requiredEnv("LOG_HOST");
+const region = requiredEnv("AWS_REGION");
+
+interface RunRequest {
+  algorithmId: string;
+}
+
+interface AlgorithmRecord {
+  S3Bucket?: string;
+  S3Key?: string;
+}
+
+interface RunResult {
+  AlgorithmId?: string;
+  Diag?: unknown;
+  InstanceId?: string;
+  Output?: string;
+  ReceivedAt?: string;
+  RunId?: string;
+  Status?: string;
+}
+
+function jsonResponse(statusCode: number, body: unknown) {
+  return { statusCode, headers: { "content-type": "application/json" }, body: JSON.stringify(body) };
+}
+
+function parseRunRequest(body: string | undefined): RunRequest | undefined {
+  try {
+    const parsed: unknown = JSON.parse(body ?? "");
+    if (typeof parsed !== "object" || parsed === null) return undefined;
+    const algorithmId = (parsed as Record<string, unknown>).algorithmId;
+    return typeof algorithmId === "string" && algorithmId.length > 0 ? { algorithmId } : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export const create: APIGatewayProxyHandlerV2 = async (event) => {
+  const request = parseRunRequest(event.body);
+  if (!request) return jsonResponse(400, { error: "invalid request" });
+
+  let runId: string | undefined;
+  try {
+    const algorithm = await ddb.send(
+      new GetCommand({ TableName: algorithmTable, Key: { AlgorithmId: request.algorithmId } }),
+    );
+    const record = algorithm.Item as AlgorithmRecord | undefined;
+    if (!record?.S3Bucket || !record.S3Key) return jsonResponse(404, { error: "algorithm not found" });
+
+    runId = randomUUID();
+    await logEvent(request.algorithmId, runId, "run-requested");
+    const launched = await ec2.send(
+      new RunInstancesCommand({
+        ImageId: enclaveAmiId,
+        InstanceType: enclaveInstanceType,
+        MinCount: 1,
+        MaxCount: 1,
+        SecurityGroupIds: [enclaveSecurityGroupId],
+        IamInstanceProfile: { Arn: enclaveInstanceProfileArn },
+        EnclaveOptions: { Enabled: true },
+        UserData: Buffer.from(
+          userData({
+            algorithmId: request.algorithmId,
+            logHost,
+            pdmHost,
+            region,
+            queueUrl: runResultsQueueUrl,
+            runId,
+            s3Bucket: record.S3Bucket,
+            s3Key: record.S3Key,
+            verifierHost,
+          }),
+        ).toString("base64"),
+        TagSpecifications: [
+          {
+            ResourceType: "instance",
+            Tags: [
+              { Key: "Name", Value: "execution-service-run" },
+              { Key: "ManagedBy", Value: "execution-service" },
+            ],
+          },
+        ],
+      }),
+    );
+    const instanceId = launched.Instances?.[0]?.InstanceId;
+    if (!instanceId) throw new Error("RunInstances returned no instance");
+
+    await logEvent(request.algorithmId, runId, "enclave-launched", { instanceId });
+    return jsonResponse(202, { runId, algorithmId: request.algorithmId, instanceId, status: "pending" });
+  } catch (error) {
+    if (runId) await logEvent(request.algorithmId, runId, "launch-failed", { error: String(error) });
+    console.error("launch failed", error);
+    return jsonResponse(500, { error: "launch failed" });
+  }
+};
+
+export const result: APIGatewayProxyHandlerV2 = async (event) => {
+  const runId = event.pathParameters?.runId;
+  if (!runId) return jsonResponse(400, { error: "runId is required" });
+
+  try {
+    const response = await ddb.send(new GetCommand({ TableName: runResultsTable, Key: { RunId: runId } }));
+    const item = response.Item as RunResult | undefined;
+    if (!item) return jsonResponse(200, { runId, status: "pending" });
+    return jsonResponse(200, {
+      runId: item.RunId,
+      instanceId: item.InstanceId,
+      algorithmId: item.AlgorithmId,
+      status: item.Status,
+      output: item.Output,
+      diag: item.Diag,
+      receivedAt: item.ReceivedAt,
+    });
+  } catch (error) {
+    console.error("result lookup failed", error);
+    return jsonResponse(500, { error: "result lookup failed" });
+  }
+};
