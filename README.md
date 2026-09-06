@@ -6,7 +6,7 @@ PoC of the Secure Computing Environment (SCE) on AWS Nitro Enclaves. A Data Cont
 
 **Build phase (CSAV).** A Data Controller uploads an OCI image and assigns it an `algorithmId`. registry-service unpacks the image (daemonless: skopeo + umoci), layers the SCE Unit and nsjail on top, and builds a single Nitro Enclave Image File (EIF). It registers the EIF's PCR measurements against that `algorithmId` with the Verifier Service (over mTLS) and stores the EIF in S3, recording `algorithmId -> S3 path` in DynamoDB.
 
-**Execution phase (SCE).** A caller POSTs an `algorithmId` to execution-service, which launches a per-run Nitro Enclave. Inside, the SCE Unit seeds enclave entropy from the NSM, attests to the Verifier Service, and - once attestation passes - fetches that algorithm's records from the PDM Service. It hands the records to the jailed Data Controller app over a unix socket, collects the result, and returns it. Results come back asynchronously: `/run` returns a `runId` immediately, the enclave host publishes the result to SQS, a consumer Lambda persists it, and the caller polls `GET /run/{runId}`.
+**Execution phase (SCE).** A caller POSTs an `algorithmId` to the API Gateway and Lambda execution-service control plane, which launches a per-run Nitro Enclave parent EC2 instance. Inside, the SCE Unit seeds enclave entropy from the NSM, attests to the Verifier Service, and - once attestation passes - fetches that algorithm's records from the PDM Service. It hands the records to the jailed Data Controller app over a unix socket, collects the result, and returns it. Results come back asynchronously: `/run` returns a `runId` immediately, the enclave host publishes the result to SQS, a consumer Lambda persists it, and the caller polls `GET /run/{runId}`.
 
 Throughout both phases every component posts timestamped events to the log-service, so a run's full timeline - build to execution - can be exported for benchmarking.
 
@@ -22,7 +22,7 @@ Build phase (CSAV):
 
 Execution phase (SCE):
 
-- [`sce/`](sce/README.md) / [`sce/execution-service/`](sce/execution-service/README.md) - launches per-run enclaves, returns `runId`, serves `GET /run/{runId}`.
+- [`sce/`](sce/README.md) / [`sce/execution-service/`](sce/execution-service/README.md) - Lambda control plane that launches per-run enclaves, returns `runId`, and serves `GET /run/{runId}`.
 - [`pdm-service/`](pdm-service/README.md) - the Personal Data Management Service; serves records to an attested enclave.
 - [`result-consumer/`](result-consumer/README.md) - SQS-triggered Lambda that persists enclave results to the `RunResults` table.
 - [`log-service/`](log-service/README.md) - fire-and-forget run-timeline logger (SQS + worker, JSON/CSV export).
@@ -38,10 +38,10 @@ Use [Devbox](https://www.jetify.com/docs/devbox/) for all commands. It exports `
 
 ```sh
 devbox shell
-make up       # start both EC2 hosts and wait for their services
-make status   # show both CloudFormation stacks
+make up       # start the CSAV EC2 host and wait for registry-service
+make status   # show the CSAV and execution-service stacks
 make demo     # build, seed, and run all five samples
-make down     # stop both EC2 hosts when finished
+make down     # stop the CSAV EC2 host when finished
 ```
 
 `make demo` is a persistent, repeatable fleet: it registers each sample under its fixed `algorithmId`, seeds its data, and runs it. Building happens before seeding because registration creates the KMS key used to encrypt each dataset.
@@ -49,13 +49,13 @@ make down     # stop both EC2 hosts when finished
 Useful root targets:
 
 ```sh
-make demo-ready                     # start and verify both hosts
+make demo-ready                     # start and verify the CSAV host
 make demo-build-all                 # build and register all samples
 make demo-seed                      # generate and seed all datasets
 make demo-run-all                   # run all samples
-make logs                           # tail both host and all Lambda logs
+make logs                           # tail the CSAV host and all Lambda logs
 make registry-logs                  # tail the CSAV registry service
-make sce-logs                       # tail the execution service
+make sce-logs                       # tail the execution-service Lambda
 ```
 
 Single app (APP is a sample/ dir, ALGORITHM_ID its fixed id):

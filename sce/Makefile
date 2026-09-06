@@ -1,16 +1,6 @@
-STACK_NAME := execution-service
-KEY_NAME := csav-key
-KEY_PATH := $(abspath ../.ssh/$(KEY_NAME).pem)
+STACK_NAME := execution-service-dev
 REGION ?= ap-southeast-2
-INSTANCE_TYPE ?= t4g.small
 
-# Lazily resolved (only hits AWS when a target that uses it actually runs).
-INSTANCE_ID = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
-	--query "Stacks[0].Outputs[?OutputKey=='ExecutionServiceInstanceId'].OutputValue" --output text)
-# Live lookup, not the CF stack's Outputs - those go stale on every stop/start (no Elastic IP attached).
-INSTANCE_IP = $(shell aws ec2 describe-instances --instance-ids $(INSTANCE_ID) --region $(REGION) \
-	--query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
-SSH = ssh -i $(KEY_PATH) ec2-user@$(INSTANCE_IP)
 DEFAULT_VPC_ID = $(shell aws ec2 describe-vpcs --region $(REGION) --filters Name=is-default,Values=true \
 	--query 'Vpcs[0].VpcId' --output text)
 ARTIFACT_BUCKET = $(shell aws cloudformation describe-stacks --stack-name registry-service-storage --region $(REGION) \
@@ -24,33 +14,32 @@ RUN_RESULTS_QUEUE_ARN = $(shell aws cloudformation describe-stacks --stack-name 
 	--query "Stacks[0].Outputs[?OutputKey=='RunResultsQueueArn'].OutputValue" --output text)
 RUN_RESULTS_TABLE = $(shell aws cloudformation describe-stacks --stack-name result-consumer-dev --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='RunResultsTableName'].OutputValue" --output text)
+RUN_RESULTS_QUEUE_URL = $(shell aws cloudformation describe-stacks --stack-name result-consumer-dev --region $(REGION) \
+	--query "Stacks[0].Outputs[?OutputKey=='RunResultsQueueUrl'].OutputValue" --output text)
+ENCLAVE_AMI_ID = $(shell aws ssm get-parameter --region $(REGION) \
+	--name /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64 --query 'Parameter.Value' --output text)
+API_URL = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
+	--query "Stacks[0].Outputs[?OutputKey=='ExecutionApiUrl'].OutputValue" --output text)
 
-.PHONY: deploy destroy up down status ssh logs
+.PHONY: deploy destroy status logs
 
 deploy:
-	aws cloudformation deploy \
-		--template-file execution-service/cloudformation.yaml \
-		--stack-name $(STACK_NAME) \
-		--region $(REGION) \
-		--capabilities CAPABILITY_IAM \
-		--parameter-overrides KeyName=$(KEY_NAME) VpcId=$(DEFAULT_VPC_ID) ArtifactBucketName=$(ARTIFACT_BUCKET) AlgorithmTableName=$(ALGORITHM_TABLE) ArtifactBucketKmsKeyArn=$(ARTIFACT_BUCKET_KMS_KEY_ARN) RunResultsQueueArn=$(RUN_RESULTS_QUEUE_ARN) RunResultsTableName=$(RUN_RESULTS_TABLE) InstanceType=$(INSTANCE_TYPE)
+	cd execution-service && bun install && bunx serverless deploy \
+		--param="region=$(REGION)" \
+		--param="vpcId=$(DEFAULT_VPC_ID)" \
+		--param="artifactBucket=$(ARTIFACT_BUCKET)" \
+		--param="artifactBucketKmsKeyArn=$(ARTIFACT_BUCKET_KMS_KEY_ARN)" \
+		--param="algorithmTable=$(ALGORITHM_TABLE)" \
+		--param="runResultsQueueArn=$(RUN_RESULTS_QUEUE_ARN)" \
+		--param="runResultsQueueUrl=$(RUN_RESULTS_QUEUE_URL)" \
+		--param="runResultsTable=$(RUN_RESULTS_TABLE)" \
+		--param="enclaveAmiId=$(ENCLAVE_AMI_ID)"
 
 destroy:
-	aws cloudformation delete-stack --stack-name $(STACK_NAME) --region $(REGION)
+	cd execution-service && bunx serverless remove --param="region=$(REGION)"
 
 status:
-	aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
-		--query 'Stacks[0].Outputs'
+	cd execution-service && bunx serverless info --param="region=$(REGION)"
 
-up:
-	aws ec2 start-instances --region $(REGION) --instance-ids $(INSTANCE_ID)
-
-down:
-	aws ec2 stop-instances --region $(REGION) --instance-ids $(INSTANCE_ID)
-
-ssh:
-	$(SSH)
-
-# Tail the execution-service container's logs on the instance.
 logs:
-	$(SSH) "cd execution-service && sudo docker compose logs -f"
+	aws logs tail /aws/lambda/execution-service-dev-run --region $(REGION) --follow
