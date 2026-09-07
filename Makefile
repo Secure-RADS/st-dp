@@ -24,39 +24,39 @@ logs:
 	for pid in $$pids; do wait "$$pid" || true; done
 
 csav-key:
-	$(MAKE) -C csav key
+	$(MAKE) -C secure-rads/csav key
 
 csav-deploy:
-	$(MAKE) -C csav deploy
+	$(MAKE) -C secure-rads/csav deploy
 
 csav-destroy:
-	$(MAKE) -C csav destroy
+	$(MAKE) -C secure-rads/csav destroy
 
 csav-status:
-	$(MAKE) -C csav status
+	$(MAKE) -C secure-rads/csav status
 
 csav-up:
-	$(MAKE) -C csav up
+	$(MAKE) -C secure-rads/csav up
 
 csav-down:
-	$(MAKE) -C csav down
+	$(MAKE) -C secure-rads/csav down
 
 csav-ssh:
-	$(MAKE) -C csav ssh
+	$(MAKE) -C secure-rads/csav ssh
 
 .PHONY: sce-deploy sce-destroy sce-status sce-logs
 
 sce-deploy:
-	$(MAKE) -C sce deploy
+	$(MAKE) -C secure-rads/sce deploy
 
 sce-destroy:
-	$(MAKE) -C sce destroy
+	$(MAKE) -C secure-rads/sce destroy
 
 sce-status:
-	$(MAKE) -C sce status
+	$(MAKE) -C secure-rads/sce status
 
 sce-logs:
-	$(MAKE) -C sce logs
+	$(MAKE) -C secure-rads/sce logs
 
 # Demo: end-to-end build + execution. Resolved lazily so only the demo targets hit AWS.
 REGION ?= ap-southeast-2
@@ -95,7 +95,7 @@ DEMO_APPS := \
 
 # Tail registry-service's compose logs on the csav host (build phase).
 registry-logs:
-	$(MAKE) -C csav/registry-service logs
+	$(MAKE) -C secure-rads/csav/registry-service logs
 
 # Start the CSAV host when needed, then wait for its restarted Compose service. execution-service is Lambda.
 demo-ready:

@@ -102,7 +102,7 @@ rm jwt-signing-key.pem
 Generate the registry-service mTLS client certificate locally:
 
 ```sh
-make -C csav/registry-service gen-client-cert
+make -C secure-rads/csav/registry-service gen-client-cert
 ```
 
 This file is ignored by Git and must not be shared through the repository.
@@ -121,14 +121,14 @@ export LOG_CERT_ARN=<log-acm-certificate-arn>
 Deploy the result consumer first because the execution-service stack needs its queue and table:
 
 ```sh
-(cd result-consumer && bun install && bunx serverless deploy --param="region=$REGION")
+(cd secure-rads/result-consumer && bun install && bunx serverless deploy --param="region=$REGION")
 ```
 
 Generate the mTLS client certificate, then deploy verifier-service once to create its truststore bucket:
 
 ```sh
-make -C csav/registry-service gen-client-cert
-(cd verifier-service && bun install && bunx serverless deploy \
+make -C secure-rads/csav/registry-service gen-client-cert
+(cd secure-rads/verifier-service && bun install && bunx serverless deploy \
   --param="region=$REGION" \
   --param="domainName=verifier.secure-rads.org" \
   --param="certificateArn=$VERIFIER_CERT_ARN" \
@@ -143,9 +143,9 @@ TRUSTSTORE_BUCKET=$(aws cloudformation describe-stacks --region "$REGION" \
   --stack-name verifier-service-dev \
   --query "Stacks[0].Outputs[?OutputKey=='TruststoreBucketName'].OutputValue" --output text)
 TRUSTSTORE_VERSION=$(aws s3api put-object --bucket "$TRUSTSTORE_BUCKET" \
-  --key truststore.pem --body csav/registry-service/tls/client.crt \
+  --key truststore.pem --body secure-rads/csav/registry-service/tls/client.crt \
   --query VersionId --output text)
-(cd verifier-service && bunx serverless deploy \
+(cd secure-rads/verifier-service && bunx serverless deploy \
   --param="region=$REGION" \
   --param="domainName=verifier.secure-rads.org" \
   --param="certificateArn=$VERIFIER_CERT_ARN" \
@@ -159,8 +159,8 @@ Create DNS-only Cloudflare CNAME records for `verifier.secure-rads.org` and `ver
 ```sh
 spki_pin() {
   openssl s_client -connect "$1:443" -servername "$1" \
-    -cert csav/registry-service/tls/client.crt \
-    -key csav/registry-service/tls/client.key </dev/null 2>/dev/null |
+    -cert secure-rads/csav/registry-service/tls/client.crt \
+    -key secure-rads/csav/registry-service/tls/client.key </dev/null 2>/dev/null |
     openssl x509 -pubkey -noout |
     openssl pkey -pubin -outform der |
     openssl dgst -sha256 -r | cut -d ' ' -f1
@@ -173,13 +173,13 @@ VERIFIER_ATTEST_PIN=$(spki_pin verifier-attest.secure-rads.org)
 Deploy PDM and log service, create their DNS-only Cloudflare CNAME records from their outputs, then collect their pins:
 
 ```sh
-(cd pdm-service && bun install && bunx serverless deploy \
+(cd secure-rads/pdm-service && bun install && bunx serverless deploy \
   --param="region=$REGION" \
   --param="domainName=pdm.secure-rads.org" \
   --param="certificateArn=$PDM_CERT_ARN" \
   --param="verifierJwksUrl=https://verifier-attest.secure-rads.org/.well-known/jwks.json" \
   --param="verifierJwksPubkeySha256=$VERIFIER_ATTEST_PIN")
-(cd log-service && bun install && bunx serverless deploy \
+(cd secure-rads/log-service && bun install && bunx serverless deploy \
   --param="region=$REGION" \
   --param="domainName=log.secure-rads.org" \
   --param="certificateArn=$LOG_CERT_ARN")
@@ -195,17 +195,17 @@ LOG_PIN=$(spki_pin log.secure-rads.org)
 Deploy shared storage, then the CSAV host and serverless execution-service, then update storage to grant both host roles KMS access:
 
 ```sh
-make -C csav/registry-service deploy-storage REGION="$REGION"
+make -C secure-rads/csav/registry-service deploy-storage REGION="$REGION"
 make csav-key REGION="$REGION"
 make csav-deploy REGION="$REGION"
 make sce-deploy REGION="$REGION"
-make -C csav/registry-service deploy-storage REGION="$REGION"
+make -C secure-rads/csav/registry-service deploy-storage REGION="$REGION"
 ```
 
 Ship registry-service with the new domains and their pinned keys:
 
 ```sh
-make -C csav/registry-service ship remote-up REGION="$REGION" \
+make -C secure-rads/csav/registry-service ship remote-up REGION="$REGION" \
   VERIFIER_URL=https://verifier.secure-rads.org/algorithms \
   VERIFIER_PUBKEY_SHA256="$VERIFIER_PIN" \
   VERIFIER_HOST=verifier-attest.secure-rads.org \

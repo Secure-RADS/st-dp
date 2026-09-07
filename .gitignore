@@ -1,9 +1,9 @@
 *.pem
-!verifier-service/certs/*.pem
-csav/registry-service/tls/
-csav/registry-service/registry-service
-sce/execution-service/execution-service
-sce-unit/sce-unit
+!secure-rads/verifier-service/certs/*.pem
+secure-rads/csav/registry-service/tls/
+secure-rads/csav/registry-service/registry-service
+secure-rads/sce/execution-service/execution-service
+secure-rads/sce-unit/sce-unit
 node_modules/
 .serverless/
 /.aws/*

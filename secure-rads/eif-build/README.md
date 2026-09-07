@@ -8,9 +8,9 @@ Build-time base image that supplies the pieces registry-service needs to turn a 
 - `Image`, `Image.config`, `cmdline` - the enclave kernel and its boot config.
 - `bootstrap.cpio` - the bootable init ramdisk (`/init`, `/nsm.ko`, `/dev`).
 
-Everything lands under `/opt/assets/eif`. registry-service's `Dockerfile` pulls this in as `FROM eif-build-base:latest` and reads the blobs from that path (see `csav/registry-service/eif.go`).
+Everything lands under `/opt/assets/eif`. registry-service's `Dockerfile` pulls this in as `FROM eif-build-base:latest` and reads the blobs from that path (see `secure-rads/csav/registry-service/eif.go`).
 
-The blob version is pinned to match the enclave host's Nitro CLI (`sce/execution-service`); a mismatch fails the enclave boot handshake with AWS's E36/E39 ready-signal errors.
+The blob version is pinned to match the enclave host's Nitro CLI (`secure-rads/sce/execution-service`); a mismatch fails the enclave boot handshake with AWS's E36/E39 ready-signal errors.
 
 ## Build
 
@@ -20,4 +20,4 @@ Built as a local base image, not pushed to a registry:
 docker build --platform linux/arm64 -t eif-build-base:latest eif-build
 ```
 
-`make -C csav/registry-service eif-build-base` does this, and `make -C csav/registry-service image` depends on it. Rebuild only when this directory changes.
+`make -C secure-rads/csav/registry-service eif-build-base` does this, and `make -C secure-rads/csav/registry-service image` depends on it. Rebuild only when this directory changes.

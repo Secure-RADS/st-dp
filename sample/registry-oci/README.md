@@ -30,5 +30,5 @@ endpoint:
 ```
 docker build -t registry-oci sample/registry-oci
 docker save registry-oci -o /tmp/registry-oci.tar
-make -C csav/registry-service upload FILE=/tmp/registry-oci.tar
+make -C secure-rads/csav/registry-service upload FILE=/tmp/registry-oci.tar
 ```

@@ -1,6 +1,6 @@
 STACK_NAME := csav
 KEY_NAME := csav-key
-KEY_PATH := $(abspath ../.ssh/$(KEY_NAME).pem)
+KEY_PATH := $(abspath ../../.ssh/$(KEY_NAME).pem)
 REGION ?= ap-southeast-2
 INSTANCE_TYPE ?= t4g.small
 
