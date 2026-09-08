@@ -2,7 +2,7 @@ IMAGE := registry-service:latest
 STACK_NAME := csav
 STORAGE_STACK_NAME := registry-service-storage
 REGION ?= ap-southeast-2
-KEY_PATH := $(abspath ../../.ssh/csav-key.pem)
+KEY_PATH := $(abspath ../../../.ssh/csav-key.pem)
 REMOTE_DIR := /home/ec2-user/registry-service
 
 # Lazily resolved; public IP comes from a live describe-instances call since the CF stack's Outputs go stale on stop/start.

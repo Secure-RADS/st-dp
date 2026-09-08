@@ -1,6 +1,6 @@
-# Secure Computing Environment
+# RADS Research Platform
 
-PoC of the Secure Computing Environment (SCE) on AWS Nitro Enclaves. A Data Controller's algorithm runs inside an attested enclave over a data subject's personal data, so the data is processed without the Data Controller ever seeing it. This repo covers the whole workflow end to end: a **build phase** that turns an algorithm image into an enclave artifact, and an **execution phase** that runs it against real records under remote attestation.
+RADS is the baseline system. Secure-RADS extends it with the security controls required for protected personal-data computation, including KMS-backed encryption and enclave attestation. The current Secure-RADS implementation is a PoC of the Secure Computing Environment (SCE) on AWS Nitro Enclaves. A Data Controller's algorithm runs inside an attested enclave over a data subject's personal data, so the data is processed without the Data Controller ever seeing it.
 
 ## The two phases
 
@@ -14,18 +14,18 @@ Throughout both phases every component posts timestamped events to the log-servi
 
 Build phase (CSAV):
 
-- [`csav/`](csav/README.md) - the CSAV EC2 host; runs registry-service.
-  - [`csav/registry-service/`](csav/registry-service/README.md) - image -> EIF build pipeline, S3/DynamoDB storage, attestation registration.
-- [`eif-build/`](eif-build/README.md) - base image supplying `eif_build` and the Nitro kernel/init blobs.
-- [`sce-unit/`](sce-unit/README.md) - the in-enclave entrypoint: entropy seeding, attestation, PDM fetch, nsjail, result relay.
-- [`verifier-service/`](verifier-service/README.md) - stores PCRs per `algorithmId`, verifies attestation documents at run time.
+- [`secure-rads/csav/`](secure-rads/csav/README.md) - the CSAV EC2 host; runs registry-service.
+  - [`secure-rads/csav/registry-service/`](secure-rads/csav/registry-service/README.md) - image -> EIF build pipeline, S3/DynamoDB storage, attestation registration.
+- [`secure-rads/eif-build/`](secure-rads/eif-build/README.md) - base image supplying `eif_build` and the Nitro kernel/init blobs.
+- [`secure-rads/sce-unit/`](secure-rads/sce-unit/README.md) - the in-enclave entrypoint: entropy seeding, attestation, PDM fetch, nsjail, result relay.
+- [`secure-rads/verifier-service/`](secure-rads/verifier-service/README.md) - stores PCRs per `algorithmId`, verifies attestation documents at run time.
 
 Execution phase (SCE):
 
-- [`sce/`](sce/README.md) / [`sce/execution-service/`](sce/execution-service/README.md) - Lambda control plane that launches per-run enclaves, returns `runId`, and serves `GET /run/{runId}`.
-- [`pdm-service/`](pdm-service/README.md) - the Personal Data Management Service; serves records to an attested enclave.
-- [`result-consumer/`](result-consumer/README.md) - SQS-triggered Lambda that persists enclave results to the `RunResults` table.
-- [`log-service/`](log-service/README.md) - fire-and-forget run-timeline logger (SQS + worker, JSON/CSV export).
+- [`secure-rads/sce/`](secure-rads/sce/README.md) / [`secure-rads/sce/execution-service/`](secure-rads/sce/execution-service/README.md) - Lambda control plane that launches per-run enclaves, returns `runId`, and serves `GET /run/{runId}`.
+- [`secure-rads/pdm-service/`](secure-rads/pdm-service/README.md) - the Personal Data Management Service; serves records to an attested enclave.
+- [`secure-rads/result-consumer/`](secure-rads/result-consumer/README.md) - SQS-triggered Lambda that persists enclave results to the `RunResults` table.
+- [`secure-rads/log-service/`](secure-rads/log-service/README.md) - fire-and-forget run-timeline logger (SQS + worker, JSON/CSV export).
 
 Demo assets:
 
