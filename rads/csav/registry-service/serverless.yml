@@ -1,0 +1,75 @@
+service: rads-registry-service
+
+# Bundled as CJS, not ESM, same as the secure-rads services - esbuild's ESM output can't interop with plain
+# top-level require() in some deps, and nothing here actually needs ESM at runtime.
+build:
+  esbuild:
+    format: cjs
+    outExtension:
+      ".js": ".cjs"
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: ${param:region, 'ap-southeast-2'}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action: s3:PutObject
+          Resource:
+            - !GetAtt ImagesBucket.Arn
+            - !Sub "${ImagesBucket.Arn}/*"
+        - Effect: Allow
+          Action: dynamodb:PutItem
+          Resource: !GetAtt AlgorithmsTable.Arn
+        - Effect: Allow
+          Action: sqs:SendMessage
+          Resource: ${param:logEventsQueueArn, ''}
+  environment:
+    ARTIFACT_BUCKET: !Ref ImagesBucket
+    DYNAMO_TABLE: !Ref AlgorithmsTable
+    # The rads-log-events queue lives in another stack - its URL/ARN are passed in at deploy time.
+    LOG_EVENTS_QUEUE_URL: ${param:logEventsQueueUrl, ''}
+  # multipart/form-data is binary to API Gateway, so it must be declared so the raw body is forwarded.
+  apiGateway:
+    binaryMediaTypes:
+      - "multipart/form-data"
+
+functions:
+  upload:
+    handler: src/handlers/upload.handler
+    events:
+      - http:
+          method: POST
+          path: /upload
+
+resources:
+  Resources:
+    ImagesBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: rads-images
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: true
+          BlockPublicPolicy: true
+          IgnorePublicAcls: true
+          RestrictPublicBuckets: true
+
+    AlgorithmsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        BillingMode: PAY_PER_REQUEST
+        TableName: rads-algorithms
+        AttributeDefinitions:
+          - AttributeName: AlgorithmId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: AlgorithmId
+            KeyType: HASH
+
+  Outputs:
+    ImagesBucketName:
+      Value: !Ref ImagesBucket
+    AlgorithmsTableName:
+      Value: !Ref AlgorithmsTable

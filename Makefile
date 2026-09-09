@@ -18,7 +18,7 @@ logs:
 	pids=""; \
 	for target in registry-logs; do make $$target & pids="$$pids $$!"; done; \
 	for group in $$(aws logs describe-log-groups --region "$(REGION)" --log-group-name-prefix /aws/lambda/ --query 'logGroups[].logGroupName' --output text); do \
-		case "$$group" in /aws/lambda/execution-service-dev-*|/aws/lambda/verifier-service-dev-*|/aws/lambda/pdm-service-dev-*|/aws/lambda/log-service-dev-*|/aws/lambda/result-consumer-dev-*) aws logs tail "$$group" --region "$(REGION)" --follow & pids="$$pids $$!";; esac; \
+		case "$$group" in /aws/lambda/secure-rads-execution-service-dev-*|/aws/lambda/secure-rads-verifier-service-dev-*|/aws/lambda/secure-rads-pdm-service-dev-*|/aws/lambda/secure-rads-log-service-dev-*|/aws/lambda/secure-rads-result-consumer-dev-*) aws logs tail "$$group" --region "$(REGION)" --follow & pids="$$pids $$!";; esac; \
 	done; \
 	trap 'kill $$pids 2>/dev/null || true' EXIT INT TERM; \
 	for pid in $$pids; do wait "$$pid" || true; done
@@ -65,15 +65,15 @@ LOG_HOST ?= log.secure-rads.org
 instance_ip = $(shell aws ec2 describe-instances --region $(REGION) --instance-ids $(shell aws cloudformation describe-stacks \
 	--stack-name $(1) --region $(REGION) --query "Stacks[0].Outputs[?OutputKey=='$(2)'].OutputValue" --output text) \
 	--query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
-CSAV_IP = $(call instance_ip,csav,CsavInstanceId)
-EXECUTION_API_URL = $(shell aws cloudformation describe-stacks --stack-name execution-service-dev --region $(REGION) \
+CSAV_IP = $(call instance_ip,secure-rads-csav,CsavInstanceId)
+EXECUTION_API_URL = $(shell aws cloudformation describe-stacks --stack-name secure-rads-execution-service-dev --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='ExecutionApiUrl'].OutputValue" --output text)
-PDM_TABLE = $(shell aws cloudformation describe-stacks --stack-name pdm-service-dev --region $(REGION) \
+PDM_TABLE = $(shell aws cloudformation describe-stacks --stack-name secure-rads-pdm-service-dev --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='PersonalDataTableName'].OutputValue" --output text)
-DATA_KEY_TABLE = $(shell aws cloudformation describe-stacks --stack-name pdm-service-dev --region $(REGION) \
+DATA_KEY_TABLE = $(shell aws cloudformation describe-stacks --stack-name secure-rads-pdm-service-dev --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='DataKeyTableName'].OutputValue" --output text)
 # registry-service stores each algorithm's per-algo KMS key ARN here; seeding reads it to encrypt the records.
-ALGORITHM_TABLE = $(shell aws cloudformation describe-stacks --stack-name registry-service-storage --region $(REGION) \
+ALGORITHM_TABLE = $(shell aws cloudformation describe-stacks --stack-name secure-rads-registry-service-storage --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='AlgorithmTableName'].OutputValue" --output text)
 
 # Persistent demo fleet: each sample app is pinned to the fixed algorithmId its dataset is seeded under
@@ -138,7 +138,7 @@ demo-ready:
 		until curl -sS --connect-timeout 5 -o /dev/null "http://$$ip:8080/" 2>/dev/null; do sleep 5; done; \
 		echo "$$name ready at $$ip"; \
 	}; \
-	csav_id=$$(get_instance_id csav CsavInstanceId); \
+	csav_id=$$(get_instance_id secure-rads-csav CsavInstanceId); \
 	for spec in "CSAV:$$csav_id"; do \
 		name=$${spec%%:*}; id=$${spec##*:}; \
 		state=$$(aws ec2 describe-instances --region $(REGION) --instance-ids $$id --query 'Reservations[0].Instances[0].State.Name' --output text); \
@@ -160,9 +160,9 @@ demo-seed:
 # Builds the arm64 image, ships it to the csav host, and registers it under ALGORITHM_ID.
 # Prints {algorithmId, bucket, key}; watch `make registry-logs` alongside.
 demo-build:
-	@test -n "$(APP)" || { echo "APP is required (a sample/ dir)"; exit 1; }
+	@test -n "$(APP)" || { echo "APP is required (a secure-rads/samples dir)"; exit 1; }
 	@test -n "$(ALGORITHM_ID)" || { echo "ALGORITHM_ID is required"; exit 1; }
-	docker build --platform linux/arm64 -t $(APP):demo sample/$(APP)
+	docker build --platform linux/arm64 -t $(APP):demo secure-rads/samples/$(APP)
 	docker save $(APP):demo -o /tmp/$(APP).tar
 	scp -i $(KEY_PATH) -o StrictHostKeyChecking=accept-new /tmp/$(APP).tar ec2-user@$(CSAV_IP):/tmp/$(APP).tar
 	ssh -i $(KEY_PATH) -o StrictHostKeyChecking=accept-new ec2-user@$(CSAV_IP) \

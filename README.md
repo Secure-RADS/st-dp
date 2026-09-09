@@ -2,6 +2,12 @@
 
 RADS is the baseline system. Secure-RADS extends it with the security controls required for protected personal-data computation, including KMS-backed encryption and enclave attestation. The current Secure-RADS implementation is a PoC of the Secure Computing Environment (SCE) on AWS Nitro Enclaves. A Data Controller's algorithm runs inside an attested enclave over a data subject's personal data, so the data is processed without the Data Controller ever seeing it.
 
+## rads (baseline)
+
+[`rads/`](rads/) is the fully-trusted baseline sibling: no KMS, no Nitro enclave, no verifier. A data controller's docker image tarball is uploaded to the registry-service (`rads/csav/registry-service`), stored raw in S3, and recorded as `algorithmId -> S3 path` in DynamoDB. At run time the execution-service (`rads/sce/execution-service`) launches a plain EC2 executor that docker-loads the image and runs it; the app fetches its records directly from the open PDM and prints a JSON result to stdout, which is delivered asynchronously to the result-consumer. The same log-service records the run timeline.
+
+Every rads AWS resource is prefixed `rads-`; every secure-rads resource is prefixed `secure-rads-`, so both systems deploy and run side by side in one account/region.
+
 ## The two phases
 
 **Build phase (CSAV).** A Data Controller uploads an OCI image and assigns it an `algorithmId`. registry-service unpacks the image (daemonless: skopeo + umoci), layers the SCE Unit and nsjail on top, and builds a single Nitro Enclave Image File (EIF). It registers the EIF's PCR measurements against that `algorithmId` with the Verifier Service (over mTLS) and stores the EIF in S3, recording `algorithmId -> S3 path` in DynamoDB.
@@ -29,7 +35,7 @@ Execution phase (SCE):
 
 Demo assets:
 
-- [`sample/`](sample/README.md) - five reference Data Controller apps (one per context), each pinned to a fixed `algorithmId`.
+- [`secure-rads/samples/`](secure-rads/samples/README.md) - five reference Data Controller apps (one per context), each pinned to a fixed `algorithmId`.
 - [`seeding/`](seeding/README.md) - generates and seeds the five context datasets into the PDM table.
 
 ## Working with an existing environment
@@ -58,7 +64,7 @@ make registry-logs                  # tail the CSAV registry service
 make sce-logs                       # tail the execution-service Lambda
 ```
 
-Single app (APP is a sample/ dir, ALGORITHM_ID its fixed id):
+Single app (APP is a secure-rads/samples/ dir, ALGORITHM_ID its fixed id):
 
 ```
 make demo-build APP=health-risk-python ALGORITHM_ID=662fa378-dc53-425d-9225-a187b11ea7dc

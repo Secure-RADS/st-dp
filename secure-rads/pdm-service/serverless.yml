@@ -1,4 +1,4 @@
-service: pdm-service
+service: secure-rads-pdm-service
 
 # Bundled as CJS, not ESM, same as verifier-service - esbuild's ESM output can't interop with plain
 # top-level require() in some deps, and nothing here actually needs ESM at runtime.

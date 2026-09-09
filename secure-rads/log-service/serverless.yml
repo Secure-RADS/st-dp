@@ -1,4 +1,4 @@
-service: log-service
+service: secure-rads-log-service
 
 # Bundled as CJS, not ESM, same as pdm-service - esbuild's ESM output can't interop with plain
 # top-level require() in some deps, and nothing here actually needs ESM at runtime.

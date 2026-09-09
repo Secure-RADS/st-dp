@@ -1,0 +1,139 @@
+service: rads-execution-service
+
+build:
+  esbuild:
+    format: cjs
+    outExtension:
+      ".js": ".cjs"
+
+package:
+  patterns:
+    - userdata.sh.tmpl
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: ${param:region, 'ap-southeast-2'}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action: dynamodb:GetItem
+          Resource:
+            - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${param:algorithmTable}"
+            - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${param:runResultsTable}"
+        - Effect: Allow
+          Action: ec2:RunInstances
+          Resource:
+            - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*"
+            - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:volume/*"
+            - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:network-interface/*"
+            - !Sub "arn:aws:ec2:${AWS::Region}::image/*"
+            - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:security-group/*"
+            - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:subnet/*"
+        - Effect: Allow
+          Action: ec2:CreateTags
+          Resource: !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*"
+          Condition:
+            StringEquals:
+              "ec2:CreateAction": RunInstances
+        - Effect: Allow
+          Action: iam:PassRole
+          Resource: !GetAtt ExecutorInstanceRole.Arn
+        - Effect: Allow
+          Action: sqs:SendMessage
+          Resource: ${param:logEventsQueueArn}
+  environment:
+    ALGORITHM_TABLE: ${param:algorithmTable}
+    RUN_RESULTS_TABLE: ${param:runResultsTable}
+    RUN_RESULTS_QUEUE_URL: ${param:runResultsQueueUrl}
+    LOG_EVENTS_QUEUE_URL: ${param:logEventsQueueUrl}
+    PDM_URL: ${param:pdmUrl}
+    EXECUTOR_AMI_ID: ${param:amiId}
+    EXECUTOR_INSTANCE_TYPE: ${param:instanceType, 'c6g.large'}
+    EXECUTOR_SECURITY_GROUP_ID: !Ref ExecutorSecurityGroup
+    EXECUTOR_INSTANCE_PROFILE_ARN: !GetAtt ExecutorInstanceProfile.Arn
+
+functions:
+  run:
+    handler: src/handlers/run.create
+    events:
+      - httpApi:
+          method: POST
+          path: /run
+  result:
+    handler: src/handlers/run.result
+    events:
+      - httpApi:
+          method: GET
+          path: /run/{runId}
+
+resources:
+  Resources:
+    ExecutorSecurityGroup:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: Security group for per-run plain Docker executor instances.
+        VpcId: ${param:vpcId}
+        SecurityGroupEgress:
+          - IpProtocol: "-1"
+            CidrIp: 0.0.0.0/0
+
+    ExecutorInstanceRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: ec2.amazonaws.com
+              Action: sts:AssumeRole
+        Policies:
+          - PolicyName: ImageBucketRead
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action: s3:GetObject
+                  Resource: !Sub "arn:aws:s3:::${param:imagesBucket}/*"
+          - PolicyName: SendRunResult
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action: sqs:SendMessage
+                  Resource: ${param:runResultsQueueArn}
+          - PolicyName: SendLogEvent
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action: sqs:SendMessage
+                  Resource: ${param:logEventsQueueArn}
+          - PolicyName: SelfTerminate
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action: ec2:TerminateInstances
+                  Resource: !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*"
+                  Condition:
+                    StringEquals:
+                      "ec2:ResourceTag/ManagedBy": rads-execution-service
+
+    ExecutorInstanceProfile:
+      Type: AWS::IAM::InstanceProfile
+      Properties:
+        Roles:
+          - !Ref ExecutorInstanceRole
+
+  Outputs:
+    ExecutionApiUrl:
+      Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com"
+    ExecutorSecurityGroupId:
+      Value: !Ref ExecutorSecurityGroup
+    ExecutorInstanceProfileArn:
+      Value: !GetAtt ExecutorInstanceProfile.Arn
+    ExecutorInstanceRoleArn:
+      Value: !GetAtt ExecutorInstanceRole.Arn

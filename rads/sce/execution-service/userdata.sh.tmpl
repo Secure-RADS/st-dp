@@ -1,0 +1,58 @@
+#!/bin/bash
+set -uo pipefail
+exec > >(tee /var/log/rads-execution-service-run.log) 2>&1
+
+# Per-run plain Docker executor: install the toolchain, load the algorithm image from S3, run it against the
+# PDM, then report the outcome. Values are baked in at launch by the control plane; {{....}} are template slots.
+RUN_ID="{{.RunId}}"
+ALGORITHM_ID="{{.AlgorithmId}}"
+S3_BUCKET="{{.S3Bucket}}"
+S3_KEY="{{.S3Key}}"
+REGION="{{.Region}}"
+PDM_URL="{{.PdmUrl}}"
+RUN_RESULTS_QUEUE="{{.RunResultsQueueUrl}}"
+LOG_EVENTS_QUEUE="{{.LogEventsQueueUrl}}"
+
+# Always publish the run outcome to the result queue, log the terminal lifecycle event, and clean up the
+# per-run instance so it does not linger. The result carries the runId execution-service assigned at launch.
+finish() {
+  STATUS=$?
+  TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+  INSTANCE_ID=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-id)
+  python3 - "$STATUS" "$INSTANCE_ID" > /tmp/result.json <<'PYEOF'
+import json, sys
+def read(path):
+    try:
+        return open(path, "rb").read().decode("utf-8", "replace")
+    except FileNotFoundError:
+        return ""
+out = read("/tmp/output.txt")
+# When the app produced no output, surface the docker load log so an empty result is diagnosable instead of silent.
+diag = {"dockerLoad": read("/tmp/docker-load.log")} if not out else {}
+print(json.dumps({"runId": "{{.RunId}}", "algorithmId": "{{.AlgorithmId}}", "instanceId": sys.argv[2], "status": "exit:" + sys.argv[1], "output": out, "diag": diag}))
+PYEOF
+  python3 - "$STATUS" "$INSTANCE_ID" > /tmp/log-event.json <<'PYEOF'
+import json, sys, datetime
+print(json.dumps({"algorithmId": "{{.AlgorithmId}}", "runId": "{{.RunId}}", "event": "executor-finished", "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(), "detail": {"status": "exit:" + sys.argv[1], "instanceId": sys.argv[2]}}))
+PYEOF
+  aws sqs send-message --queue-url "$RUN_RESULTS_QUEUE" --message-body file:///tmp/result.json --region "$REGION" || true
+  aws sqs send-message --queue-url "$LOG_EVENTS_QUEUE" --message-body file:///tmp/log-event.json --region "$REGION" || true
+  aws ec2 terminate-instances --instance-ids "$INSTANCE_ID" --region "$REGION" || true
+}
+trap finish EXIT
+
+# Docker on Amazon Linux 2023; awscli is used for the S3 pull and the SQS publishes below.
+dnf install -y docker awscli >/dev/null
+systemctl enable --now docker
+for attempt in 1 2 3 4 5 6; do docker info >/dev/null 2>&1 && break; sleep 5; done
+
+aws s3 cp "s3://$S3_BUCKET/$S3_KEY" /tmp/app.tar --region "$REGION"
+docker load < /tmp/app.tar > /tmp/docker-load.log
+IMAGE=$(tail -n 1 /tmp/docker-load.log | sed -n 's/^Loaded image: //p')
+if [ -z "$IMAGE" ]; then
+  echo "could not determine loaded image" >&2
+  exit 1
+fi
+
+# Capture container stdout as the run output; stderr goes to the run log for diagnosis.
+docker run --rm -e PDM_URL="$PDM_URL" -e ALGORITHM_ID="$ALGORITHM_ID" "$IMAGE" > /tmp/output.txt

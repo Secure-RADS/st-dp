@@ -1,0 +1,107 @@
+service: rads-log-service
+
+# Bundled as CJS, not ESM, same as pdm-service - esbuild's ESM output can't interop with plain
+# top-level require() in some deps, and nothing here actually needs ESM at runtime.
+build:
+  esbuild:
+    format: cjs
+    outExtension:
+      ".js": ".cjs"
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: ${param:region, 'ap-southeast-2'}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:PutItem
+            - dynamodb:Query
+            - dynamodb:Scan
+          Resource: !GetAtt RunLogTable.Arn
+        - Effect: Allow
+          Action:
+            - sqs:SendMessage
+            - sqs:ReceiveMessage
+            - sqs:DeleteMessage
+            - sqs:GetQueueAttributes
+            - sqs:ChangeMessageVisibility
+          Resource:
+            - !GetAtt EventQueue.Arn
+            - !GetAtt EventDeadLetterQueue.Arn
+  environment:
+    RUN_LOG_TABLE: !Ref RunLogTable
+    EVENT_QUEUE_URL: !Ref EventQueue
+
+functions:
+  events:
+    handler: src/handlers/events.handler
+    events:
+      - httpApi:
+          method: POST
+          path: /events
+  worker:
+    handler: src/handlers/worker.handler
+    timeout: 30
+    reservedConcurrency: 5
+    events:
+      - sqs:
+          arn: !GetAtt EventQueue.Arn
+          batchSize: 10
+          functionResponseType: ReportBatchItemFailures
+  byAlgorithm:
+    handler: src/handlers/byAlgorithm.handler
+    events:
+      - httpApi:
+          method: GET
+          path: /logs/{algorithmId}
+  all:
+    handler: src/handlers/all.handler
+    events:
+      - httpApi:
+          method: GET
+          path: /logs
+
+resources:
+  Resources:
+    RunLogTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: rads-log-events
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: AlgorithmId
+            AttributeType: S
+          - AttributeName: Sk
+            AttributeType: S
+        KeySchema:
+          - AttributeName: AlgorithmId
+            KeyType: HASH
+          - AttributeName: Sk
+            KeyType: RANGE
+
+    # Visibility must exceed the worker timeout so in-flight batches are not redelivered mid-PutItem.
+    EventQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: rads-log-events
+        VisibilityTimeout: 60
+        RedrivePolicy:
+          deadLetterTargetArn: !GetAtt EventDeadLetterQueue.Arn
+          maxReceiveCount: 5
+
+    EventDeadLetterQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: rads-log-events-dlq
+        MessageRetentionPeriod: 1209600
+
+  Outputs:
+    RunLogTableName:
+      Value: !Ref RunLogTable
+    EventQueueUrl:
+      Value: !Ref EventQueue
+    EventDeadLetterQueueUrl:
+      Value: !Ref EventDeadLetterQueue

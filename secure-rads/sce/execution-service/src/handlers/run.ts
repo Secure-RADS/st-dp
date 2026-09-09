@@ -95,8 +95,8 @@ export const create: APIGatewayProxyHandlerV2 = async (event) => {
           {
             ResourceType: "instance",
             Tags: [
-              { Key: "Name", Value: "execution-service-run" },
-              { Key: "ManagedBy", Value: "execution-service" },
+              { Key: "Name", Value: "secure-rads-execution-service-run" },
+              { Key: "ManagedBy", Value: "secure-rads-execution-service" },
             ],
           },
         ],
