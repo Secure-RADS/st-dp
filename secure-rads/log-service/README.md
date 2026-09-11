@@ -27,7 +27,7 @@ SQS retries on the visibility interval, then parks on the DLQ. That is not expon
 
 Items are keyed by partition `AlgorithmId` and sort key `Sk = <runId>#<timestamp>#<uuid>`. ISO-8601 timestamps sort lexically, so a run's events come back in chronological order; the UUID keeps concurrent same-timestamp events distinct.
 
-Bun is used as the local dev/bundle tool only (`bun install`) - the Lambda itself runs on the standard `nodejs20.x` runtime, no custom Bun runtime layer.
+Bun is used as the local dev/bundle tool only (`bun install`) - the Lambda itself runs on the standard `nodejs24.x` runtime, no custom Bun runtime layer.
 
 ## Prerequisites (manual, one-time, outside this repo's IaC)
 

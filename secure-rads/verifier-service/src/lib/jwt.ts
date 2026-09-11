@@ -8,14 +8,13 @@ const signingKeyParam = requiredEnv("JWT_SIGNING_KEY_PARAM");
 
 export const JWT_ISSUER = "verifier-service";
 export const JWT_AUDIENCE = "pdm-service";
+const JWT_ALGORITHM = "ML-DSA-87";
 
 export interface PublicJwk {
   kty: string;
-  crv: string;
-  x: string;
-  y: string;
+  pub: string;
   kid: string;
-  alg: "ES256";
+  alg: typeof JWT_ALGORITHM;
   use: "sig";
 }
 
@@ -37,10 +36,10 @@ function getSigningKey(): Promise<SigningKey> {
         throw new Error(`missing SSM parameter: ${signingKeyParam}`);
       }
       const pem = result.Parameter.Value;
-      const key = await importPKCS8(pem, "ES256");
-      const jwk = { ...(await exportJWK(createPublicKey(pem))) } as { kty: string; crv: string; x: string; y: string };
+      const key = await importPKCS8(pem, JWT_ALGORITHM);
+      const jwk = { ...(await exportJWK(createPublicKey(pem))) } as { kty: string; pub: string };
       const kid = await calculateJwkThumbprint(jwk, "sha256");
-      return { key, kid, publicJwk: { ...jwk, kid, alg: "ES256", use: "sig" } };
+      return { key, kid, publicJwk: { ...jwk, kid, alg: JWT_ALGORITHM, use: "sig" } };
     })();
   }
   return signingKey;
@@ -62,7 +61,7 @@ export interface AccessTokenClaims {
 export async function signAccessToken(claims: AccessTokenClaims): Promise<string> {
   const { key, kid } = await getSigningKey();
   return new SignJWT({ jti: claims.jti })
-    .setProtectedHeader({ alg: "ES256", kid })
+    .setProtectedHeader({ alg: JWT_ALGORITHM, kid })
     .setIssuer(claims.iss)
     .setSubject(claims.sub)
     .setAudience(claims.aud)

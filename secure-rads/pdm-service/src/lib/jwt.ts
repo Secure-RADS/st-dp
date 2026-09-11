@@ -5,7 +5,7 @@ import { createLocalJWKSet, jwtVerify } from "jose";
 import { requiredEnv } from "./env.js";
 
 interface JsonWebKeySet {
-  keys: { kty: string; crv: string; x: string; y: string; kid: string; alg: string; use: string }[];
+  keys: { kty: string; pub: string; kid: string; alg: string; use: string }[];
 }
 
 export interface JwtValidation {
@@ -17,6 +17,7 @@ const pinnedPubkeySha256 = requiredEnv("VERIFIER_JWKS_PUBKEY_SHA256").toLowerCas
 
 const JWT_ISSUER = "verifier-service";
 const JWT_AUDIENCE = "pdm-service";
+const JWT_ALGORITHM = "ML-DSA-87";
 
 // SPKI pinning on top of CA verification: a MITM that could get a cert for this hostname would otherwise
 // swap in its own JWKS and mint tokens PDM verifies locally.
@@ -59,7 +60,7 @@ function fetchJwks(): Promise<JsonWebKeySet> {
 
 function verifyWithJwks(token: string, jwks: JsonWebKeySet) {
   return jwtVerify(token, createLocalJWKSet(jwks), {
-    algorithms: ["ES256"],
+    algorithms: [JWT_ALGORITHM],
     issuer: JWT_ISSUER,
     audience: JWT_AUDIENCE,
   });
@@ -69,7 +70,7 @@ function subToResult(payload: { sub?: unknown }): JwtValidation | null {
   return typeof payload.sub === "string" && payload.sub.length > 0 ? { algorithmId: payload.sub } : null;
 }
 
-// jose verifies the ES256 signature, iss, aud, and exp in one call; algorithmId comes only from the
+// jose verifies the ML-DSA-87 signature, iss, aud, and exp in one call; algorithmId comes only from the
 // verified token's sub - never the request.
 export async function verifyAccessToken(token: string): Promise<JwtValidation | null> {
   try {
