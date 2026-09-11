@@ -90,8 +90,7 @@ Before deployment, prepare the selected region with:
 Create the verifier signing key before deploying the verifier service:
 
 ```sh
-openssl ecparam -name prime256v1 -genkey -noout |
-  openssl pkcs8 -topk8 -nocrypt -out jwt-signing-key.pem
+openssl genpkey -algorithm ML-DSA-65 -out jwt-signing-key.pem
 aws ssm put-parameter \
   --name /verifier-service/jwt-signing-key \
   --type SecureString \

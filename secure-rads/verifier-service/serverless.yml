@@ -11,7 +11,7 @@ build:
 
 provider:
   name: aws
-  runtime: nodejs20.x
+  runtime: nodejs24.x
   region: ${param:region, 'ap-southeast-2'}
   httpApi:
     disableDefaultEndpoint: true # mTLS is only enforced on the custom domain below - the default execute-api endpoint bypasses it entirely.
@@ -55,7 +55,7 @@ functions:
   refresh:
     handler: src/handlers/refresh.handler
 
-  # jwks is on the public domain only - it publishes the ES256 public key downstream services verify
+  # jwks is on the public domain only - it publishes the ML-DSA-65 public key downstream services verify
   # access JWTs against, locally, with no verifier round-trip (no /validate anymore).
   jwks:
     handler: src/handlers/jwks.handler

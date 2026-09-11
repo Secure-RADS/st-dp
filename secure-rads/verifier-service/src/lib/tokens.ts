@@ -7,7 +7,7 @@ import { JWT_AUDIENCE, JWT_ISSUER, signAccessToken } from "./jwt.js";
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const tableName = requiredEnv("ATTESTATION_SESSION_TABLE");
 
-// Access tokens are self-contained ES256 JWTs that downstream services verify locally against the public
+// Access tokens are self-contained ML-DSA-65 JWTs that downstream services verify locally against the public
 // JWKS endpoint - no /validate round-trip. They are short-lived so a revoked session stops working within
 // minutes. Refresh tokens stay opaque and stored hashed: the DB row is what makes revocation possible.
 const ACCESS_TOKEN_TTL_SECONDS = 5 * 60;
