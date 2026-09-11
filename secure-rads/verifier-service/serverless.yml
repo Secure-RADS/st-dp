@@ -55,7 +55,7 @@ functions:
   refresh:
     handler: src/handlers/refresh.handler
 
-  # jwks is on the public domain only - it publishes the ML-DSA-65 public key downstream services verify
+  # jwks is on the public domain only - it publishes the ML-DSA-87 public key downstream services verify
   # access JWTs against, locally, with no verifier round-trip (no /validate anymore).
   jwks:
     handler: src/handlers/jwks.handler

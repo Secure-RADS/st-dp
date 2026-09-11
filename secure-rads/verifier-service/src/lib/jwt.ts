@@ -8,7 +8,7 @@ const signingKeyParam = requiredEnv("JWT_SIGNING_KEY_PARAM");
 
 export const JWT_ISSUER = "verifier-service";
 export const JWT_AUDIENCE = "pdm-service";
-const JWT_ALGORITHM = "ML-DSA-65";
+const JWT_ALGORITHM = "ML-DSA-87";
 
 export interface PublicJwk {
   kty: string;

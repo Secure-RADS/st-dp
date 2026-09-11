@@ -1,7 +1,7 @@
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { getPublicJwk } from "../lib/jwt.js";
 
-// Public JWKS for the ML-DSA-65 access tokens issued by /attest and /refresh - downstream services (PDM)
+// Public JWKS for the ML-DSA-87 access tokens issued by /attest and /refresh - downstream services (PDM)
 // fetch this and verify tokens locally. The key is public by definition, so this needs no auth; served on
 // the public domain.
 export const handler: APIGatewayProxyHandlerV2 = async () => {
