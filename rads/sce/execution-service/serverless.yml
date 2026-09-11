@@ -70,6 +70,20 @@ functions:
 
 resources:
   Resources:
+    ApiCustomDomain:
+      Type: AWS::ApiGatewayV2::DomainName
+      Properties:
+        DomainName: ${param:domainName}
+        DomainNameConfigurations:
+          - CertificateArn: ${param:certificateArn}
+
+    ApiDomainMapping:
+      Type: AWS::ApiGatewayV2::ApiMapping
+      Properties:
+        DomainName: !Ref ApiCustomDomain
+        ApiId: !Ref HttpApi
+        Stage: !Ref HttpApiStage
+
     ExecutorSecurityGroup:
       Type: AWS::EC2::SecurityGroup
       Properties:
@@ -131,6 +145,8 @@ resources:
   Outputs:
     ExecutionApiUrl:
       Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com"
+    ApiRegionalDomainName:
+      Value: !GetAtt ApiCustomDomain.RegionalDomainName
     ExecutorSecurityGroupId:
       Value: !Ref ExecutorSecurityGroup
     ExecutorInstanceProfileArn:

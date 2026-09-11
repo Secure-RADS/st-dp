@@ -66,6 +66,20 @@ functions:
 
 resources:
   Resources:
+    ApiCustomDomain:
+      Type: AWS::ApiGatewayV2::DomainName
+      Properties:
+        DomainName: ${param:domainName}
+        DomainNameConfigurations:
+          - CertificateArn: ${param:certificateArn}
+
+    ApiDomainMapping:
+      Type: AWS::ApiGatewayV2::ApiMapping
+      Properties:
+        DomainName: !Ref ApiCustomDomain
+        ApiId: !Ref HttpApi
+        Stage: !Ref HttpApiStage
+
     RunLogTable:
       Type: AWS::DynamoDB::Table
       Properties:
@@ -105,3 +119,5 @@ resources:
       Value: !Ref EventQueue
     EventDeadLetterQueueUrl:
       Value: !Ref EventDeadLetterQueue
+    ApiRegionalDomainName:
+      Value: !GetAtt ApiCustomDomain.RegionalDomainName

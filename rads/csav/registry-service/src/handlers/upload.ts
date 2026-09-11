@@ -1,15 +1,10 @@
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
-import type { APIGatewayProxyHandler } from "aws-lambda";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { requiredEnv } from "../lib/env.js";
-import { parseMultipart } from "../lib/multipart.js";
-import { emitAlgorithmRegistered } from "../lib/log.js";
 
 const s3 = new S3Client({});
-const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const bucket = requiredEnv("ARTIFACT_BUCKET");
-const table = requiredEnv("DYNAMO_TABLE");
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -21,35 +16,31 @@ function response(statusCode: number, body: unknown) {
   };
 }
 
-// Fully-trusted registry upload: a Data Controller submits a docker image tarball which is stored raw in S3 as
-// {algorithmId}/image.tar and recorded as AlgorithmId -> (bucket, key) in DynamoDB. No EIF build, KMS, or
-// enclave attestation here - this sibling just retains the tar for later use.
-export const handler: APIGatewayProxyHandler = async (event) => {
-  if (event.body === null || event.body === undefined) {
-    return response(400, { error: "missing multipart body" });
+// Fully-trusted registry upload start: the Data Controller requests a presigned PUT URL for their docker
+// image tarball at {algorithmId}/image.tar. The tarball is uploaded straight to S3, bypassing the API
+// Gateway/Lambda payload limit (10MB/6MB) that would reject real images. The client then calls /register
+// to record the mapping. No EIF build, KMS, or enclave attestation here.
+export const handler: APIGatewayProxyHandlerV2 = async (event) => {
+  let algorithmId: string;
+  try {
+    const parsed: unknown = JSON.parse(event.body ?? "");
+    algorithmId =
+      typeof parsed === "object" && parsed !== null
+        ? String((parsed as Record<string, unknown>).algorithmId ?? "")
+        : "";
+  } catch {
+    return response(400, { error: "expected JSON body with algorithmId" });
   }
-  const contentType = event.headers["content-type"] ?? event.headers["Content-Type"];
-  if (!contentType || !contentType.includes("multipart/form-data")) {
-    return response(415, { error: "expected multipart/form-data" });
-  }
-  const raw = event.isBase64Encoded ? Buffer.from(event.body, "base64") : Buffer.from(event.body, "utf8");
-
-  const { fields, file } = await parseMultipart(raw, contentType);
-  const algorithmId = fields.algorithmId?.trim() ?? "";
   if (!UUID_RE.test(algorithmId)) {
-    return response(400, { error: "missing or invalid 'algorithmId' form field (must be a UUID)" });
-  }
-  if (!file || file.length === 0) {
-    return response(400, { error: "missing 'image' file field" });
+    return response(400, { error: "missing or invalid 'algorithmId' (must be a UUID)" });
   }
 
   const key = `${algorithmId}/image.tar`;
-  await s3.send(
-    new PutObjectCommand({ Bucket: bucket, Key: key, Body: file, ContentType: "application/x-tar" }),
+  const uploadUrl = await getSignedUrl(
+    s3,
+    new PutObjectCommand({ Bucket: bucket, Key: key, ContentType: "application/x-tar" }),
+    { expiresIn: 900 },
   );
-  await ddb.send(new PutCommand({ TableName: table, Item: { AlgorithmId: algorithmId, Bucket: bucket, Key: key } }));
 
-  await emitAlgorithmRegistered(algorithmId, bucket, key);
-
-  return response(200, { algorithmId, bucket, key });
+  return response(200, { algorithmId, bucket, key, uploadUrl });
 };

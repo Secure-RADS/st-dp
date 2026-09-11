@@ -16,7 +16,9 @@ provider:
     role:
       statements:
         - Effect: Allow
-          Action: s3:PutObject
+          Action:
+            - s3:PutObject
+            - s3:GetObject
           Resource:
             - !GetAtt ImagesBucket.Arn
             - !Sub "${ImagesBucket.Arn}/*"
@@ -31,21 +33,37 @@ provider:
     DYNAMO_TABLE: !Ref AlgorithmsTable
     # The rads-log-events queue lives in another stack - its URL/ARN are passed in at deploy time.
     LOG_EVENTS_QUEUE_URL: ${param:logEventsQueueUrl, ''}
-  # multipart/form-data is binary to API Gateway, so it must be declared so the raw body is forwarded.
-  apiGateway:
-    binaryMediaTypes:
-      - "multipart/form-data"
 
 functions:
   upload:
     handler: src/handlers/upload.handler
     events:
-      - http:
+      - httpApi:
           method: POST
           path: /upload
+  register:
+    handler: src/handlers/register.handler
+    events:
+      - httpApi:
+          method: POST
+          path: /register
 
 resources:
   Resources:
+    ApiCustomDomain:
+      Type: AWS::ApiGatewayV2::DomainName
+      Properties:
+        DomainName: ${param:domainName}
+        DomainNameConfigurations:
+          - CertificateArn: ${param:certificateArn}
+
+    ApiDomainMapping:
+      Type: AWS::ApiGatewayV2::ApiMapping
+      Properties:
+        DomainName: !Ref ApiCustomDomain
+        ApiId: !Ref HttpApi
+        Stage: !Ref HttpApiStage
+
     ImagesBucket:
       Type: AWS::S3::Bucket
       Properties:
@@ -73,3 +91,5 @@ resources:
       Value: !Ref ImagesBucket
     AlgorithmsTableName:
       Value: !Ref AlgorithmsTable
+    ApiRegionalDomainName:
+      Value: !GetAtt ApiCustomDomain.RegionalDomainName

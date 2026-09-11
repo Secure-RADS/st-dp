@@ -1,4 +1,4 @@
-.PHONY: up down status demo logs csav-key csav-deploy csav-destroy csav-status csav-up csav-down csav-ssh
+.PHONY: up down status demo rads logs csav-key csav-deploy csav-destroy csav-status csav-up csav-down csav-ssh
 
 up:
 	$(MAKE) demo-ready
@@ -9,16 +9,20 @@ down:
 status:
 	$(MAKE) csav-status
 	$(MAKE) sce-status
+	$(MAKE) rads-status
 
 demo:
 	$(MAKE) demo-all
+
+rads:
+	$(MAKE) rads-all
 
 logs:
 	@set -u; \
 	pids=""; \
 	for target in registry-logs; do make $$target & pids="$$pids $$!"; done; \
 	for group in $$(aws logs describe-log-groups --region "$(REGION)" --log-group-name-prefix /aws/lambda/ --query 'logGroups[].logGroupName' --output text); do \
-		case "$$group" in /aws/lambda/secure-rads-execution-service-dev-*|/aws/lambda/secure-rads-verifier-service-dev-*|/aws/lambda/secure-rads-pdm-service-dev-*|/aws/lambda/secure-rads-log-service-dev-*|/aws/lambda/secure-rads-result-consumer-dev-*) aws logs tail "$$group" --region "$(REGION)" --follow & pids="$$pids $$!";; esac; \
+		case "$$group" in /aws/lambda/secure-rads-execution-service-dev-*|/aws/lambda/secure-rads-verifier-service-dev-*|/aws/lambda/secure-rads-pdm-service-dev-*|/aws/lambda/secure-rads-log-service-dev-*|/aws/lambda/secure-rads-result-consumer-dev-*|/aws/lambda/rads-registry-service-dev-*|/aws/lambda/rads-pdm-service-dev-*|/aws/lambda/rads-log-service-dev-*|/aws/lambda/rads-result-consumer-dev-*|/aws/lambda/rads-execution-service-dev-*) aws logs tail "$$group" --region "$(REGION)" --follow & pids="$$pids $$!";; esac; \
 	done; \
 	trap 'kill $$pids 2>/dev/null || true' EXIT INT TERM; \
 	for pid in $$pids; do wait "$$pid" || true; done
@@ -91,6 +95,7 @@ DEMO_APPS := \
 	trial-eligibility-ruby:$(EHEALTH_ID)
 
 .PHONY: registry-logs demo-ready demo-seed demo-build demo-build-all demo-run demo-run-all demo-all \
+	rads-build rads-build-all rads-seed rads-run rads-run-all rads-all rads-status \
 	logs-csv logs-csv-algo logs-csv-all portal-install portal-dev portal-infra portal-deploy portal-status
 
 # Transparency portal (Vite SPA): data-subject lookup + service-authority dashboard.
@@ -211,6 +216,86 @@ demo-all:
 	$(MAKE) demo-build-all
 	$(MAKE) demo-seed
 	$(MAKE) demo-run-all
+
+# --- rads: fully-trusted baseline demo. No enclave, no KMS, no verifier. Both registry and execution
+# are serverless Lambdas (no CSAV host to start), upload is presigned-S3, and the PDM holds plaintext.
+
+# rads registry and execution are HTTP APIs; the PDM table holds plaintext records.
+RADS_REGISTRY_URL = $(shell aws cloudformation describe-stacks --stack-name rads-registry-service-dev --region $(REGION) \
+	--query "Stacks[0].Outputs[?OutputKey=='HttpApiUrl'].OutputValue" --output text)
+RADS_EXECUTION_API_URL = $(shell aws cloudformation describe-stacks --stack-name rads-execution-service-dev --region $(REGION) \
+	--query "Stacks[0].Outputs[?OutputKey=='HttpApiUrl'].OutputValue" --output text)
+RADS_PDM_TABLE = $(shell aws cloudformation describe-stacks --stack-name rads-pdm-service-dev --region $(REGION) \
+	--query "Stacks[0].Outputs[?OutputKey=='PersonalDataTableName'].OutputValue" --output text)
+
+# Build phase (one app): make rads-build APP=<dir> ALGORITHM_ID=<id>.
+# Builds the arm64 image, requests a presigned S3 PUT URL from /upload, uploads the tarball straight
+# to S3, then /register records AlgorithmId -> (bucket, key). Prints the resulting mapping.
+rads-build:
+	@test -n "$(APP)" || { echo "APP is required (a rads/samples dir)"; exit 1; }
+	@test -n "$(ALGORITHM_ID)" || { echo "ALGORITHM_ID is required"; exit 1; }
+	docker build --platform linux/arm64 -t $(APP):demo rads/samples/$(APP)
+	docker save $(APP):demo -o /tmp/$(APP).tar
+	@reg=$(RADS_REGISTRY_URL); \
+	url=$$(curl -sS -X POST "$$reg/upload" -H 'Content-Type: application/json' \
+		-d '{"algorithmId":"$(ALGORITHM_ID)"}' | python3 -c 'import sys,json; print(json.load(sys.stdin)["uploadUrl"])'); \
+	echo "PUTing $(APP).tar to $$url"; \
+	curl -sS -X PUT -H 'Content-Type: application/x-tar' --upload-file /tmp/$(APP).tar "$$url" >/dev/null; \
+	curl -sS -X POST "$$reg/register" -H 'Content-Type: application/json' \
+		-d '{"algorithmId":"$(ALGORITHM_ID)"}'; echo
+
+# Build and register all five demo apps under their fixed ids.
+rads-build-all:
+	@for pair in $(DEMO_APPS); do \
+		app=$${pair%%:*}; id=$${pair##*:}; \
+		echo "=== build $$app ($$id) ==="; \
+		$(MAKE) rads-build APP=$$app ALGORITHM_ID=$$id || exit 1; \
+	done
+
+# Seed all five context datasets into the rads PDM table as plaintext, each under its fixed algorithmId.
+rads-seed:
+	cd seeding && bun install && bun run generate && RADS_PDM_TABLE=$(RADS_PDM_TABLE) AWS_REGION=$(REGION) bun run seed-rads
+
+# Execution phase (one run): make rads-run ALGORITHM_ID=<id>.
+# Fires /run (202 + runId), then polls GET /run/{runId} until the runner reports back.
+rads-run:
+	@test -n "$(ALGORITHM_ID)" || { echo "ALGORITHM_ID is required"; exit 1; }
+	@api=$(RADS_EXECUTION_API_URL); \
+	runId=$$(curl -sS -X POST "$$api/run" -H 'Content-Type: application/json' \
+		-d '{"algorithmId":"$(ALGORITHM_ID)"}' | python3 -c 'import sys,json; print(json.load(sys.stdin)["runId"])'); \
+	echo "runId=$$runId"; \
+	for i in $$(seq 1 132); do \
+		res=$$(curl -sS "$$api/run/$$runId"); \
+		status=$$(echo "$$res" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("status",""))'); \
+		if [ "$$status" != "pending" ]; then \
+			echo "$$res"; \
+			echo "$$res" | python3 -c 'import json,sys; r=json.load(sys.stdin); out=r.get("output", "").strip(); parsed=json.loads(out) if out else {}; ok=r.get("status")=="exit:0" and bool(out) and not (isinstance(parsed, dict) and parsed.get("error")); sys.exit(0 if ok else 1)'; \
+			exit $$?; \
+		fi; \
+		sleep 5; \
+	done; \
+	echo "timed out waiting for runId=$$runId"; exit 1
+
+# Fire and poll every demo app in turn (sequential - each spins up its own runner).
+rads-run-all:
+	@for pair in $(DEMO_APPS); do \
+		app=$${pair%%:*}; id=$${pair##*:}; \
+		echo "=== run $$app ($$id) ==="; \
+		$(MAKE) rads-run ALGORITHM_ID=$$id || exit 1; \
+	done
+
+# The whole rads fleet: build, seed, run. No host to start - registry and execution are Lambdas.
+rads-all:
+	$(MAKE) rads-build-all
+	$(MAKE) rads-seed
+	$(MAKE) rads-run-all
+
+# Show the rads serverless stack outputs (API URLs and resource names).
+rads-status:
+	@for stack in rads-registry-service-dev rads-pdm-service-dev rads-log-service-dev rads-result-consumer-dev rads-execution-service-dev; do \
+		echo "=== $$stack ==="; \
+		aws cloudformation describe-stacks --stack-name $$stack --region $(REGION) --query 'Stacks[0].Outputs' --output table; \
+	done
 
 # Export one run's timeline to run-<RUN_ID>.csv. Needs both ids (the log table is keyed by algorithm).
 logs-csv:

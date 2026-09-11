@@ -31,6 +31,20 @@ functions:
 
 resources:
   Resources:
+    ApiCustomDomain:
+      Type: AWS::ApiGatewayV2::DomainName
+      Properties:
+        DomainName: ${param:domainName}
+        DomainNameConfigurations:
+          - CertificateArn: ${param:certificateArn}
+
+    ApiDomainMapping:
+      Type: AWS::ApiGatewayV2::ApiMapping
+      Properties:
+        DomainName: !Ref ApiCustomDomain
+        ApiId: !Ref HttpApi
+        Stage: !Ref HttpApiStage
+
     PersonalDataTable:
       Type: AWS::DynamoDB::Table
       Properties:
@@ -50,3 +64,5 @@ resources:
   Outputs:
     PersonalDataTableName:
       Value: !Ref PersonalDataTable
+    ApiRegionalDomainName:
+      Value: !GetAtt ApiCustomDomain.RegionalDomainName

@@ -14,13 +14,19 @@ follow the PDM's cursor pagination to fetch every record before aggregating.
 | App | Language | Aggregation |
 | --- | --- | --- |
 | `record-summary-python` | Python (stdlib) | record count, page count, average `age` |
+| `health-risk-python` | Python (stdlib) | resting HR / steps / sleep means, risk-flagged share, activity levels |
+| `spend-analysis-go` | Go (stdlib) | spend by category, avg monthly spend, anomaly users |
+| `product-trends-node` | Node 20 (`fetch`) | revenue and orders, top categories by age band |
+| `audience-segments-rust` | Rust (ureq) | interest segments, engagement tiers, avg connections |
+| `trial-eligibility-ruby` | Ruby (stdlib) | trial-eligible share, exclusion breakdown |
 
 ## The rads sample model
 
 1. **Upload (build phase).** The registry-service stores the DC's docker image tarball raw in
    S3 as `{algorithmId}/image.tar` and records `algorithmId -> (bucket, key)` in DynamoDB (see
-   `rads/csav/registry-service`). Upload is a multipart POST to `/upload` with `algorithmId`
-   (UUID) and `image` fields; no EIF build, KMS, or attestation happens here.
+   `rads/csav/registry-service`). `POST /upload` with a JSON `algorithmId` (UUID) returns a
+   presigned S3 PUT URL; the client uploads the tarball directly, then `POST /register` with
+   the same `algorithmId` records the mapping. No EIF build, KMS, or attestation happens here.
 2. **Run (execution phase).** An EC2 runner loads the stored image and runs it with two env
    vars - `PDM_URL` (the base origin of the PDM service) and `ALGORITHM_ID` (the records to
    fetch). The app GETs `PDM_URL/records?algorithmId=<id>` (open, no auth), follows the
@@ -51,4 +57,5 @@ docker run --rm -e PDM_URL=https://<api-gateway-host> \
                  record-summary-python
 ```
 
-Only the final JSON object is written to stdout; progress logs go to stderr.
+Each app follows the same pattern - only the image name and the `ALGORITHM_ID` (the dataset it
+aggregates) differ. Only the final JSON object is written to stdout; progress logs go to stderr.
