@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { faker } from "@faker-js/faker";
@@ -20,6 +21,19 @@ function tsWithinDays(n: number): string {
 
 function recordId(i: number): string {
   return `user-${String(i).padStart(6, "0")}`;
+}
+
+// Deterministic UUIDv5 over the shared record index, so the same data subject appears in every dataset that
+// has at least i records. Keyed by index, not per-algorithm PII (dataset-local), and reproducible.
+const SUBJECT_NAMESPACE = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
+
+function dataSubjectId(i: number): string {
+  const ns = Buffer.from(SUBJECT_NAMESPACE.replace(/-/g, ""), "hex");
+  const bytes = createHash("sha1").update(ns).update(`secure-rads:data-subject:${i}`).digest().subarray(0, 16);
+  bytes[6] = (bytes[6] & 0x0f) | 0x50;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = bytes.toString("hex");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 // A birthday that makes someone exactly `age` on TODAY. Computed against the fixed reference date (not
@@ -224,7 +238,7 @@ for (const { name, algorithmId, count, seed } of DATASETS) {
   faker.seed(seed);
   const records = [];
   for (let i = 1; i <= count; i++) {
-    records.push({ recordId: recordId(i), data: gen(i, count) });
+    records.push({ recordId: recordId(i), dataSubjectId: dataSubjectId(i), data: gen(i, count) });
   }
   const body = records.map((r) => JSON.stringify(r)).join(",\n");
   const json = `{"algorithmId": ${JSON.stringify(algorithmId)}, "name": ${JSON.stringify(name)}, "records": [\n${body}\n]}\n`;

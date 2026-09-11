@@ -122,7 +122,7 @@ func prepareDCPayload(cfg runConfig, runID string) ([]byte, error) {
 		return nil, fmt.Errorf("fetch AWS creds: %w", err)
 	}
 
-	records, encDataKey, err := fetchAllRecords(cfg, tp.AccessToken)
+	records, encDataKey, err := fetchAllRecords(cfg, tp.AccessToken, runID)
 	if err != nil {
 		return nil, fmt.Errorf("fetch records: %w", err)
 	}

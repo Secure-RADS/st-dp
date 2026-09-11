@@ -12,15 +12,20 @@ provider:
   name: aws
   runtime: nodejs24.x
   region: ${param:region, 'ap-southeast-2'}
+  httpApi:
+    cors: true
   iam:
     role:
       statements:
         - Effect: Allow
           Action:
             - dynamodb:PutItem
+            - dynamodb:BatchWriteItem
             - dynamodb:Query
             - dynamodb:Scan
-          Resource: !GetAtt RunLogTable.Arn
+          Resource:
+            - !GetAtt RunLogTable.Arn
+            - !GetAtt SubjectAccessTable.Arn
         - Effect: Allow
           Action:
             - sqs:SendMessage
@@ -33,6 +38,7 @@ provider:
             - !GetAtt EventDeadLetterQueue.Arn
   environment:
     RUN_LOG_TABLE: !Ref RunLogTable
+    SUBJECT_ACCESS_TABLE: !Ref SubjectAccessTable
     EVENT_QUEUE_URL: !Ref EventQueue
 
 functions:
@@ -63,6 +69,18 @@ functions:
       - httpApi:
           method: GET
           path: /logs
+  subjectAccessIngest:
+    handler: src/handlers/subjectAccessIngest.handler
+    events:
+      - httpApi:
+          method: POST
+          path: /subject-access
+  subjectAccessQuery:
+    handler: src/handlers/subjectAccessQuery.handler
+    events:
+      - httpApi:
+          method: GET
+          path: /subject-access
 
 resources:
   Resources:
@@ -95,6 +113,22 @@ resources:
       Properties:
         MessageRetentionPeriod: 1209600
 
+    # Separate from the run log: partition key is the data subject so a DSAR lookup is a key query, not a scan.
+    SubjectAccessTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: DataSubjectId
+            AttributeType: S
+          - AttributeName: Sk
+            AttributeType: S
+        KeySchema:
+          - AttributeName: DataSubjectId
+            KeyType: HASH
+          - AttributeName: Sk
+            KeyType: RANGE
+
     # Plain server-auth TLS only - producers are internal SCE components on a trusted network, and the
     # log is fire-and-forget benchmarking data, not a secret store, so no client cert is required.
     ApiCustomDomain:
@@ -118,5 +152,7 @@ resources:
       Value: !Ref EventQueue
     EventDeadLetterQueueUrl:
       Value: !Ref EventDeadLetterQueue
+    SubjectAccessTableName:
+      Value: !Ref SubjectAccessTable
     ApiRegionalDomainName:
       Value: !GetAtt ApiCustomDomain.RegionalDomainName

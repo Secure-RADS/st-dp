@@ -13,3 +13,6 @@ node_modules/
 !/.env.example
 /.ssh/*
 !/.ssh/README.md
+
+# OpenCode local state
+.opencode/
