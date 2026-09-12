@@ -1,7 +1,7 @@
-import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { faker } from "@faker-js/faker";
+import { v5 as uuidv5 } from "uuid";
 import { DATASETS } from "./config";
 
 const OUT_DIR = join(import.meta.dir, "datasets");
@@ -28,12 +28,7 @@ function recordId(i: number): string {
 const SUBJECT_NAMESPACE = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
 
 function dataSubjectId(i: number): string {
-  const ns = Buffer.from(SUBJECT_NAMESPACE.replace(/-/g, ""), "hex");
-  const bytes = createHash("sha1").update(ns).update(`secure-rads:data-subject:${i}`).digest().subarray(0, 16);
-  bytes[6] = (bytes[6] & 0x0f) | 0x50;
-  bytes[8] = (bytes[8] & 0x3f) | 0x80;
-  const hex = bytes.toString("hex");
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  return uuidv5(`secure-rads:data-subject:${i}`, SUBJECT_NAMESPACE);
 }
 
 // A birthday that makes someone exactly `age` on TODAY. Computed against the fixed reference date (not
