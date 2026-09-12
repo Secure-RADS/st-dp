@@ -7,9 +7,12 @@ run it, and returns immediately. Results come back asynchronously through the sh
 
 `POST /run` is fire-and-forget: it assigns a `runId`, looks up `{Bucket, Key}` for the `AlgorithmId` in the
 `rads-algorithms` DynamoDB table (PK `AlgorithmId`), launches a per-run EC2 executor, and returns
-`202 {runId, algorithmId, instanceId, status: "pending"}`. The executor installs AWS CLI + Docker, `aws s3 cp`
-the image tar into place, `docker load`s it, and `docker run`s the image with `PDM_URL` and `ALGORITHM_ID`
-set, capturing the container's stdout as the output. On exit it publishes
+`202 {runId, algorithmId, instanceId, status: "pending"}`. The executor installs AWS CLI + Docker, downloads
+every PDM record for the algorithm to `/opt/rads/run/records.json`, `aws s3 cp`s the image tar into place,
+`docker load`s it, then `docker run`s the image with that directory bind-mounted at `/data` and
+`RECORDS_PATH=/data/records.json` / `RESULT_PATH=/data/result.json` set. The app reads the records file and
+writes its result file; the executor ships that file as the output, falling back to the container's stdout
+for diagnostics. On exit it publishes
 `{runId, instanceId, algorithmId, status, output, diag?}` to the `rads-run-results` queue (a consumer Lambda
 persists it to the `rads-run-results` table, PK `RunId`) and terminates itself.
 
@@ -49,11 +52,14 @@ The EC2 userdata is rendered by the Lambda at launch from the values below, so a
 Lambda environment (via the Serverless params above). Values drawn from the launch request / DB record at run
 time are noted as such.
 
-- `PDM_URL` - the PDM endpoint the algorithm calls (baked into the container as `PDM_URL`).
+- `PDM_URL` - the PDM endpoint the executor downloads records from before the app runs (not passed to the container).
 - `RUN_RESULTS_QUEUE_URL` - the `rads-run-results` queue the executor publishes its result to.
 - `LOG_EVENTS_QUEUE_URL` - the `rads-log-events` queue the executor publishes `executor-finished` to.
 - `REGION` - from the instance/AWS_REGION; not operator-set.
 - `AlgorithmId`, `RunId`, `S3Bucket`, `S3Key` - from the launch request and `rads-algorithms` record.
+
+The executor's data path is fixed: it writes `/opt/rads/run/records.json` and mounts `/opt/rads/run` at
+`/data`, so the app contract is `RECORDS_PATH` (read) and `RESULT_PATH` (write).
 
 Control-plane env used to launch the executor (from the same params): `EXECUTOR_AMI_ID`, `EXECUTOR_INSTANCE_TYPE`,
 `EXECUTOR_SECURITY_GROUP_ID` (from stack), `EXECUTOR_INSTANCE_PROFILE_ARN` (from stack), plus `ALGORITHM_TABLE`

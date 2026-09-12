@@ -3,11 +3,8 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"math"
-	"net/http"
-	"net/url"
 	"os"
 	"sort"
 )
@@ -30,10 +27,9 @@ type Record struct {
 	Data     Data   `json:"data"`
 }
 
-type Page struct {
+type RecordsFile struct {
 	AlgorithmID string   `json:"algorithmId"`
 	Records     []Record `json:"records"`
-	NextCursor  *string  `json:"nextCursor"`
 }
 
 type Anomaly struct {
@@ -111,66 +107,44 @@ func analyze(algorithmID string, records []Record) Result {
 	}
 }
 
-func fetchAll(client *http.Client, pdmURL, algorithmID string) ([]Record, error) {
-	var records []Record
-	cursor := ""
-	for {
-		u, err := url.Parse(pdmURL)
-		if err != nil {
-			return nil, fmt.Errorf("parse PDM_URL: %w", err)
-		}
-		u.Path = "/records"
-		q := u.Query()
-		q.Set("algorithmId", algorithmID)
-		if cursor != "" {
-			q.Set("cursor", cursor)
-		}
-		u.RawQuery = q.Encode()
-
-		resp, err := client.Get(u.String())
-		if err != nil {
-			return nil, fmt.Errorf("GET %s: %w", u.String(), err)
-		}
-		body, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		if err != nil {
-			return nil, err
-		}
-		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("PDM returned HTTP %d for %s", resp.StatusCode, u.String())
-		}
-
-		var page Page
-		if err := json.Unmarshal(body, &page); err != nil {
-			return nil, fmt.Errorf("parse page: %w", err)
-		}
-		records = append(records, page.Records...)
-		log.Printf("page: fetched %d records, cumulative %d", len(page.Records), len(records))
-		if page.NextCursor == nil || *page.NextCursor == "" {
-			break
-		}
-		cursor = *page.NextCursor
+func loadRecords(path string) (string, []Record, error) {
+	body, err := os.ReadFile(path)
+	if err != nil {
+		return "", nil, fmt.Errorf("read %s: %w", path, err)
 	}
-	return records, nil
+	var file RecordsFile
+	if err := json.Unmarshal(body, &file); err != nil {
+		return "", nil, fmt.Errorf("parse %s: %w", path, err)
+	}
+	return file.AlgorithmID, file.Records, nil
+}
+
+func writeResult(result Result) error {
+	out, err := json.Marshal(result)
+	if err != nil {
+		return fmt.Errorf("marshal result: %w", err)
+	}
+	if path := os.Getenv("RESULT_PATH"); path != "" {
+		return os.WriteFile(path, out, 0o644)
+	}
+	fmt.Println(string(out))
+	return nil
 }
 
 func main() {
 	log.SetOutput(os.Stderr)
-	pdmURL := os.Getenv("PDM_URL")
-	algorithmID := os.Getenv("ALGORITHM_ID")
-	if pdmURL == "" || algorithmID == "" {
-		log.Fatal("PDM_URL and ALGORITHM_ID are required")
+	recordsPath := os.Getenv("RECORDS_PATH")
+	if recordsPath == "" {
+		log.Fatal("RECORDS_PATH is required")
 	}
 
-	records, err := fetchAll(&http.Client{}, pdmURL, algorithmID)
+	algorithmID, records, err := loadRecords(recordsPath)
 	if err != nil {
-		log.Fatalf("fetch: %v", err)
+		log.Fatalf("load: %v", err)
 	}
-	log.Printf("received %d records", len(records))
+	log.Printf("loaded %d records from %s", len(records), recordsPath)
 
-	out, err := json.Marshal(analyze(algorithmID, records))
-	if err != nil {
-		log.Fatalf("marshal: %v", err)
+	if err := writeResult(analyze(algorithmID, records)); err != nil {
+		log.Fatalf("write result: %v", err)
 	}
-	fmt.Println(string(out))
 }

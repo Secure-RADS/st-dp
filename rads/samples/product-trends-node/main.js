@@ -1,3 +1,5 @@
+const fs = require("node:fs");
+
 const AGE_BANDS = ["18-29", "30-44", "45-59", "60+"];
 
 function ageBand(age) {
@@ -42,41 +44,26 @@ function analyze(algorithmId, records) {
   };
 }
 
-function recordsUrl(base, algorithmId, cursor) {
-  const params = new URLSearchParams({ algorithmId });
-  if (cursor) params.set("cursor", cursor);
-  return `${base.replace(/\/$/, "")}/records?${params}`;
+function loadRecords(path) {
+  const body = JSON.parse(fs.readFileSync(path, "utf8"));
+  return { algorithmId: body.algorithmId, records: body.records };
 }
 
-async function fetchAll(base, algorithmId) {
-  const records = [];
-  let cursor = "";
-  let page = 0;
-  for (;;) {
-    page++;
-    const res = await fetch(recordsUrl(base, algorithmId, cursor));
-    if (!res.ok) throw new Error(`PDM returned HTTP ${res.status} for ${recordsUrl(base, algorithmId, cursor)}`);
-    const body = await res.json();
-    records.push(...body.records);
-    console.error(`page ${page}: fetched ${body.records.length} records, cumulative ${records.length}`);
-    if (!body.nextCursor) break;
-    cursor = body.nextCursor;
+function writeResult(result) {
+  const payload = JSON.stringify(result);
+  if (process.env.RESULT_PATH) {
+    fs.writeFileSync(process.env.RESULT_PATH, payload);
+  } else {
+    console.log(payload);
   }
-  return records;
 }
 
-async function main() {
-  const base = process.env.PDM_URL;
-  const algorithmId = process.env.ALGORITHM_ID;
-  if (!base || !algorithmId) {
-    throw new Error("missing required env var; run with PDM_URL and ALGORITHM_ID set");
-  }
-  const records = await fetchAll(base, algorithmId);
-  console.error(`received ${records.length} records`);
-  console.log(JSON.stringify(analyze(algorithmId, records)));
+function main() {
+  const recordsPath = process.env.RECORDS_PATH;
+  if (!recordsPath) throw new Error("RECORDS_PATH is required");
+  const { algorithmId, records } = loadRecords(recordsPath);
+  console.error(`loaded ${records.length} records from ${recordsPath}`);
+  writeResult(analyze(algorithmId, records));
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+main();

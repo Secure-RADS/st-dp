@@ -1,15 +1,12 @@
 import json
 import os
 import sys
-import urllib.error
-import urllib.parse
-import urllib.request
 
 
 def required_env(name):
     value = os.environ.get(name)
     if not value:
-        raise ValueError(f"missing required env var {name}; run with PDM_URL and ALGORITHM_ID set")
+        raise ValueError(f"missing required env var {name}; run with RECORDS_PATH set")
     return value
 
 
@@ -17,20 +14,22 @@ def log(message):
     print(message, file=sys.stderr, flush=True)
 
 
-def records_url(base, algorithm_id, cursor):
-    params = {"algorithmId": algorithm_id}
-    if cursor:
-        params["cursor"] = cursor
-    return f"{base.rstrip('/')}/records?{urllib.parse.urlencode(params)}"
+def load_records(path):
+    with open(path, "r", encoding="utf-8") as handle:
+        body = json.load(handle)
+    records = body["records"] if isinstance(body, dict) else body
+    algorithm_id = body.get("algorithmId") if isinstance(body, dict) else None
+    return algorithm_id, records
 
 
-def fetch_page(url):
-    try:
-        with urllib.request.urlopen(url) as response:
-            body = json.load(response)
-    except urllib.error.HTTPError as err:
-        raise ValueError(f"PDM returned HTTP {err.code} for {url}") from err
-    return body.get("records", []), body.get("nextCursor")
+def write_result(result):
+    payload = json.dumps(result)
+    path = os.environ.get("RESULT_PATH")
+    if path:
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(payload)
+    else:
+        print(payload)
 
 
 def activity_level(mean_steps):
@@ -74,21 +73,10 @@ def analyze(algorithm_id, records):
 
 
 def main():
-    base = required_env("PDM_URL")
-    algorithm_id = required_env("ALGORITHM_ID")
-
-    records = []
-    cursor = None
-    page = 0
-    while True:
-        page += 1
-        batch, cursor = fetch_page(records_url(base, algorithm_id, cursor))
-        records.extend(batch)
-        log(f"page {page}: fetched {len(batch)} records, cumulative {len(records)}")
-        if not cursor:
-            break
-
-    print(json.dumps(analyze(algorithm_id, records)))
+    records_path = required_env("RECORDS_PATH")
+    algorithm_id, records = load_records(records_path)
+    log(f"loaded {len(records)} records from {records_path}")
+    write_result(analyze(algorithm_id, records))
 
 
 if __name__ == "__main__":

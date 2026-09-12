@@ -1,34 +1,24 @@
 require "json"
-require "net/http"
-require "uri"
 
 def log(msg)
   warn(msg)
 end
 
-def fetch_page(base, algorithm_id, cursor)
-  params = { "algorithmId" => algorithm_id }
-  params["cursor"] = cursor if cursor
-  uri = URI.parse("#{base.sub(%r{/$}, "")}/records")
-  uri.query = URI.encode_www_form(params)
-  res = Net::HTTP.get_response(uri)
-  raise "PDM returned HTTP #{res.code} for #{uri}" unless res.is_a?(Net::HTTPSuccess)
-  JSON.parse(res.body)
+def load_records(path)
+  body = JSON.parse(File.read(path))
+  records = body.is_a?(Hash) ? body["records"] : body
+  algorithm_id = body.is_a?(Hash) ? body["algorithmId"] : nil
+  [algorithm_id, records]
 end
 
-def fetch_all(base, algorithm_id)
-  records = []
-  cursor = nil
-  page = 0
-  loop do
-    page += 1
-    body = fetch_page(base, algorithm_id, cursor)
-    records.concat(body["records"])
-    log("page #{page}: fetched #{body["records"].length} records, cumulative #{records.length}")
-    cursor = body["nextCursor"]
-    break if cursor.nil? || cursor.empty?
+def write_result(result)
+  payload = JSON.generate(result)
+  path = ENV["RESULT_PATH"]
+  if path
+    File.write(path, payload)
+  else
+    puts payload
   end
-  records
 end
 
 def analyze(algorithm_id, records)
@@ -62,8 +52,7 @@ def analyze(algorithm_id, records)
   }
 end
 
-base = ENV.fetch("PDM_URL")
-algorithm_id = ENV.fetch("ALGORITHM_ID")
-records = fetch_all(base, algorithm_id)
-log("received #{records.length} records")
-puts JSON.generate(analyze(algorithm_id, records))
+records_path = ENV.fetch("RECORDS_PATH")
+algorithm_id, records = load_records(records_path)
+log("loaded #{records.length} records from #{records_path}")
+write_result(analyze(algorithm_id, records))

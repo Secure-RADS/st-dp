@@ -30,10 +30,9 @@ struct Record {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct Page {
+struct RecordsFile {
     algorithm_id: String,
     records: Vec<Record>,
-    next_cursor: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -105,41 +104,32 @@ fn analyze(algorithm_id: &str, records: &[Record]) -> Output {
     }
 }
 
-fn fetch_all(pdm_url: &str, algorithm_id: &str) -> Result<Vec<Record>, String> {
-    let mut records: Vec<Record> = Vec::new();
-    let mut cursor: Option<String> = None;
-    let mut page = 0usize;
-    loop {
-        page += 1;
-        let base = pdm_url.trim_end_matches('/');
-        let url = match &cursor {
-            Some(c) => format!("{base}/records?algorithmId={algorithm_id}&cursor={c}"),
-            None => format!("{base}/records?algorithmId={algorithm_id}"),
-        };
-        let body = ureq::get(&url)
-            .call()
-            .map_err(|e| format!("GET {url} failed: {e}"))?
-            .into_string()
-            .map_err(|e| format!("read {url} failed: {e}"))?;
-        let p: Page = serde_json::from_str(&body).map_err(|e| format!("parse {url} failed: {e}"))?;
-        let batch_len = p.records.len();
-        records.extend(p.records);
-        eprintln!("page {page}: fetched {batch_len} records, cumulative {}", records.len());
-        match p.next_cursor {
-            Some(c) if !c.is_empty() => cursor = Some(c),
-            _ => break,
+fn load_records(path: &str) -> Result<(String, Vec<Record>), String> {
+    let body = std::fs::read_to_string(path).map_err(|e| format!("read {path} failed: {e}"))?;
+    let file: RecordsFile =
+        serde_json::from_str(&body).map_err(|e| format!("parse {path} failed: {e}"))?;
+    Ok((file.algorithm_id, file.records))
+}
+
+fn write_result(result: &Output) -> Result<(), String> {
+    let out =
+        serde_json::to_string(result).map_err(|e| format!("serialize result failed: {e}"))?;
+    match std::env::var("RESULT_PATH") {
+        Ok(path) if !path.is_empty() => {
+            std::fs::write(&path, out).map_err(|e| format!("write {path} failed: {e}"))
+        }
+        _ => {
+            println!("{out}");
+            Ok(())
         }
     }
-    Ok(records)
 }
 
 fn main() {
-    let pdm_url = std::env::var("PDM_URL").expect("PDM_URL is required");
-    let algorithm_id = std::env::var("ALGORITHM_ID").expect("ALGORITHM_ID is required");
+    let records_path = std::env::var("RECORDS_PATH").expect("RECORDS_PATH is required");
 
-    let records = fetch_all(&pdm_url, &algorithm_id).expect("fetch records");
-    eprintln!("received {} records", records.len());
+    let (algorithm_id, records) = load_records(&records_path).expect("load records");
+    eprintln!("loaded {} records from {records_path}", records.len());
 
-    let out = serde_json::to_string(&analyze(&algorithm_id, &records)).expect("serialize");
-    println!("{out}");
+    write_result(&analyze(&algorithm_id, &records)).expect("write result");
 }
