@@ -2,6 +2,7 @@ import { DownloadIcon, ExternalLinkIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { exportJsonUrl, exportUrl, type RunEvent } from "@/lib/api";
+import { shortId } from "@/lib/format";
 
 export function ExportTab({ events }: { events: RunEvent[] }) {
   const algorithms = [...new Set(events.map((event) => event.algorithmId))].sort();
@@ -36,10 +37,11 @@ export function ExportTab({ events }: { events: RunEvent[] }) {
               key={id}
               variant="outline"
               className="font-mono text-xs"
+              title={id}
               render={<a href={exportUrl(id)} target="_blank" rel="noreferrer" />}
             >
               <DownloadIcon data-icon="inline-start" />
-              {id}
+              {shortId(id)}
             </Button>
           ))}
         </CardContent>

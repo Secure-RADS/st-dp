@@ -21,7 +21,7 @@ export function AuthorityPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="font-heading text-2xl font-medium">Service authority</h1>
           <p className="text-sm text-muted-foreground">Full visibility across builds, runs, and subject access.</p>
@@ -49,12 +49,12 @@ export function AuthorityPage() {
 
       {data ? (
         <Tabs defaultValue="overview">
-          <TabsList>
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="runs">Runs</TabsTrigger>
-            <TabsTrigger value="access">Access events</TabsTrigger>
-            <TabsTrigger value="subject">Subject lookup</TabsTrigger>
-            <TabsTrigger value="export">Export</TabsTrigger>
+          <TabsList className="!h-auto w-full flex-wrap justify-start">
+            <TabsTrigger className="!h-auto" value="overview">Overview</TabsTrigger>
+            <TabsTrigger className="!h-auto" value="runs">Runs</TabsTrigger>
+            <TabsTrigger className="!h-auto" value="access">Access events</TabsTrigger>
+            <TabsTrigger className="!h-auto" value="subject">Subject lookup</TabsTrigger>
+            <TabsTrigger className="!h-auto" value="export">Export</TabsTrigger>
           </TabsList>
           <TabsContent value="overview" className="pt-2">
             <OverviewTab events={data.events} access={data.access} />

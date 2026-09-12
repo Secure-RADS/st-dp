@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { RunEvent, SubjectAccess } from "@/lib/api";
-import { formatDateTime, isFailureEvent } from "@/lib/format";
+import { formatDateTime, isFailureEvent, shortId } from "@/lib/format";
 
 interface OverviewTabProps {
   events: RunEvent[];
@@ -27,7 +27,7 @@ export function OverviewTab({ events, access }: OverviewTabProps) {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         {stats.map((stat) => (
           <Card key={stat.label} size="sm">
             <CardHeader>
@@ -62,8 +62,8 @@ export function OverviewTab({ events, access }: OverviewTabProps) {
               <TableBody>
                 {failures.slice(0, 10).map((failure, index) => (
                   <TableRow key={`${failure.runId}-${failure.timestamp}-${index}`}>
-                    <TableCell className="font-mono text-xs">{failure.algorithmId}</TableCell>
-                    <TableCell className="font-mono text-xs">{failure.runId}</TableCell>
+                    <TableCell className="font-mono text-xs" title={failure.algorithmId}>{shortId(failure.algorithmId)}</TableCell>
+                    <TableCell className="font-mono text-xs" title={failure.runId}>{shortId(failure.runId)}</TableCell>
                     <TableCell>
                       <Badge variant="destructive">{failure.event}</Badge>
                     </TableCell>

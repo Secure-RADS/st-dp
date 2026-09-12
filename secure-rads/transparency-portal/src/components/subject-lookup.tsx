@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getSubjectAccess, type SubjectAccessResponse } from "@/lib/api";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, shortId } from "@/lib/format";
 
 export function SubjectLookup() {
   const [dataSubjectId, setDataSubjectId] = useState("");
@@ -92,8 +92,8 @@ export function SubjectLookup() {
               <TableBody>
                 {accesses.map((access, index) => (
                   <TableRow key={`${access.runId}-${access.timestamp}-${index}`}>
-                    <TableCell className="font-mono text-xs">{access.algorithmId}</TableCell>
-                    <TableCell className="font-mono text-xs">{access.runId}</TableCell>
+                    <TableCell className="font-mono text-xs" title={access.algorithmId}>{shortId(access.algorithmId)}</TableCell>
+                    <TableCell className="font-mono text-xs" title={access.runId}>{shortId(access.runId)}</TableCell>
                     <TableCell>{formatDateTime(access.timestamp)}</TableCell>
                   </TableRow>
                 ))}

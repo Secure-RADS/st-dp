@@ -11,12 +11,12 @@ const LINKS = [
 export function SiteHeader() {
   return (
     <header className="border-b">
-      <div className="mx-auto flex h-14 max-w-6xl items-center gap-6 px-4">
+      <div className="mx-auto flex min-h-14 max-w-6xl flex-wrap items-center gap-x-6 gap-y-1 px-4 py-2">
         <Link to="/" className="flex items-center gap-2 font-heading font-medium">
           <ShieldCheckIcon className="size-5" />
           Secure RADS transparency
         </Link>
-        <nav className="flex items-center gap-1 text-sm">
+        <nav className="flex flex-wrap items-center gap-1 text-sm">
           {LINKS.map((link) => (
             <NavLink
               key={link.to}

@@ -41,15 +41,16 @@ export function RunsTab({ events }: { events: RunEvent[] }) {
               All algorithms
             </Button>
             {algorithms.map((id) => (
-              <Button
-                key={id}
-                variant={algorithm === id ? "default" : "outline"}
-                size="sm"
-                className="font-mono text-xs"
-                onClick={() => setAlgorithm(id)}
-              >
-                {id}
-              </Button>
+                <Button
+                  key={id}
+                  variant={algorithm === id ? "default" : "outline"}
+                  size="sm"
+                  className="font-mono text-xs"
+                  title={id}
+                  onClick={() => setAlgorithm(id)}
+                >
+                  {shortId(id)}
+                </Button>
             ))}
           </div>
           <div className="relative max-w-sm">
@@ -75,19 +76,19 @@ export function RunsTab({ events }: { events: RunEvent[] }) {
               <TableHead>Run</TableHead>
               <TableHead>Event</TableHead>
               <TableHead>Timestamp</TableHead>
-              <TableHead>Detail</TableHead>
+              <TableHead className="hidden lg:table-cell">Detail</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filtered.slice(0, MAX_ROWS).map((event, index) => (
               <TableRow key={`${event.runId}-${event.timestamp}-${index}`}>
-                <TableCell className="font-mono text-xs">{shortId(event.algorithmId)}</TableCell>
-                <TableCell className="font-mono text-xs">{shortId(event.runId)}</TableCell>
+                <TableCell className="font-mono text-xs" title={event.algorithmId}>{shortId(event.algorithmId)}</TableCell>
+                <TableCell className="font-mono text-xs" title={event.runId}>{shortId(event.runId)}</TableCell>
                 <TableCell>
                   <Badge variant={isFailureEvent(event.event) ? "destructive" : "secondary"}>{event.event}</Badge>
                 </TableCell>
                 <TableCell>{formatDateTime(event.timestamp)}</TableCell>
-                <TableCell className="max-w-xs truncate text-xs text-muted-foreground">
+                <TableCell className="hidden max-w-xs truncate text-xs text-muted-foreground lg:table-cell">
                   {event.detail == null ? "" : JSON.stringify(event.detail)}
                 </TableCell>
               </TableRow>
