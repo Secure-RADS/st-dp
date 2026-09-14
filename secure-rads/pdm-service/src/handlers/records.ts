@@ -86,7 +86,9 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const dataSubjectIds = (result.Items ?? [])
     .map((item) => item.DataSubjectId)
     .filter((id): id is string => typeof id === "string" && id.length > 0);
-  await logSubjectAccess(validation.algorithmId, event.headers["x-run-id"] ?? "unknown", dataSubjectIds);
+  // Fire-and-forget DSAR trail: which data subjects this page actually read. Best-effort and un-awaited so a
+  // log-service hiccup cannot block or slow down the enclave getting its records.
+  void logSubjectAccess(validation.algorithmId, event.headers["x-run-id"] ?? "unknown", dataSubjectIds);
 
   const records = (result.Items ?? []).map((item) => ({ recordId: item.RecordId, data: item.Data }));
   const nextCursor = result.LastEvaluatedKey
