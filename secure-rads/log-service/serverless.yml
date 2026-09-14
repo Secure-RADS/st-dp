@@ -75,8 +75,14 @@ functions:
       - httpApi:
           method: POST
           path: /subject-access
-  subjectAccessQuery:
-    handler: src/handlers/subjectAccessQuery.handler
+  subjectAccessBySubject:
+    handler: src/handlers/subjectAccessBySubject.handler
+    events:
+      - httpApi:
+          method: GET
+          path: /subject-access/{dataSubjectId}
+  subjectAccessAll:
+    handler: src/handlers/subjectAccessAll.handler
     events:
       - httpApi:
           method: GET

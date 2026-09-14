@@ -14,7 +14,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
 
   let response: Response;
   try {
-    response = await fetch(`${logServiceUrl}/subject-access?dataSubjectId=${encodeURIComponent(dataSubjectId)}`);
+    response = await fetch(`${logServiceUrl}/subject-access/${encodeURIComponent(dataSubjectId)}`);
   } catch (error) {
     console.error("log-service lookup failed", error);
     return jsonResponse(502, { error: "log-service lookup failed" });
