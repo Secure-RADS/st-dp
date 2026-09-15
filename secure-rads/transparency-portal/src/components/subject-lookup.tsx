@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { SearchIcon, TriangleAlertIcon } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -8,30 +9,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { getSubjectAccess, type SubjectAccessResponse } from "@/lib/api";
+import { getSubjectAccess } from "@/lib/api";
 import { formatDateTime, shortId } from "@/lib/format";
 
 export function SubjectLookup() {
   const [dataSubjectId, setDataSubjectId] = useState("");
-  const [result, setResult] = useState<SubjectAccessResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const lookup = useMutation({ mutationFn: (id: string) => getSubjectAccess(id) });
 
-  async function lookup() {
+  function submit() {
     const id = dataSubjectId.trim();
-    if (!id) return;
-    setLoading(true);
-    setError(null);
-    try {
-      setResult(await getSubjectAccess(id));
-    } catch (err) {
-      setResult(null);
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
+    if (id) lookup.mutate(id);
   }
 
+  const result = lookup.data ?? null;
+  const loading = lookup.isPending;
+  const error = lookup.error?.message ?? null;
   const accesses = [...(result?.accesses ?? [])].sort((a, b) => b.timestamp.localeCompare(a.timestamp));
 
   return (
@@ -52,11 +44,11 @@ export function SubjectLookup() {
               value={dataSubjectId}
               onChange={(event) => setDataSubjectId(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === "Enter") void lookup();
+                if (event.key === "Enter") submit();
               }}
             />
           </div>
-          <Button disabled={loading || dataSubjectId.trim().length === 0} onClick={() => void lookup()}>
+          <Button disabled={loading || dataSubjectId.trim().length === 0} onClick={submit}>
             <SearchIcon data-icon="inline-start" />
             Look up
           </Button>

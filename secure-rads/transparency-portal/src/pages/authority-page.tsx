@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { RefreshCwIcon, TriangleAlertIcon } from "lucide-react";
 import { AccessTab } from "@/components/authority/access-tab";
 import { ExportTab } from "@/components/authority/export-tab";
@@ -10,14 +10,15 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getAllSubjectAccess, getRunEvents } from "@/lib/api";
-import { useResource } from "@/lib/use-resource";
 
 export function AuthorityPage() {
-  const load = useCallback(async () => {
-    const [events, accessResponse] = await Promise.all([getRunEvents(), getAllSubjectAccess()]);
-    return { events, access: accessResponse.accesses };
-  }, []);
-  const { data, error, loading, reload } = useResource(load);
+  const { data, error, isPending, isFetching, refetch } = useQuery({
+    queryKey: ["authority"],
+    queryFn: async () => {
+      const [events, accessResponse] = await Promise.all([getRunEvents(), getAllSubjectAccess()]);
+      return { events, access: accessResponse.accesses };
+    },
+  });
 
   return (
     <div className="flex flex-col gap-6">
@@ -26,13 +27,13 @@ export function AuthorityPage() {
           <h1 className="font-heading text-2xl font-medium">Service authority</h1>
           <p className="text-sm text-muted-foreground">Full visibility across builds, runs, and subject access.</p>
         </div>
-        <Button variant="outline" onClick={reload} disabled={loading}>
+        <Button variant="outline" onClick={() => void refetch()} disabled={isFetching}>
           <RefreshCwIcon data-icon="inline-start" />
           Refresh
         </Button>
       </div>
 
-      {loading ? (
+      {isPending ? (
         <div className="flex flex-col gap-2">
           <Skeleton className="h-24 w-full" />
           <Skeleton className="h-64 w-full" />
@@ -43,7 +44,7 @@ export function AuthorityPage() {
         <Alert variant="destructive">
           <TriangleAlertIcon />
           <AlertTitle>Could not load telemetry</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>{error.message}</AlertDescription>
         </Alert>
       ) : null}
 
