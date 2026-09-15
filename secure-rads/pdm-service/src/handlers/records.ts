@@ -15,8 +15,9 @@ function jsonResponse(statusCode: number, body: unknown) {
   return { statusCode, headers: { "content-type": "application/json" }, body: JSON.stringify(body) };
 }
 
-// Fire-and-forget DSAR trail: which data subjects a run actually read. Best-effort so a log-service
-// hiccup cannot block the enclave from getting its records.
+// DSAR trail: which data subjects a run actually read. Errors are swallowed so a log-service failure
+// can't fail the records response, but the call is awaited so the request is actually sent before the
+// handler returns - an un-awaited fetch can be frozen, and dropped, when Lambda freezes the environment.
 async function logSubjectAccess(algorithmId: string, runId: string, dataSubjectIds: string[]): Promise<void> {
   if (dataSubjectIds.length === 0) return;
   try {
@@ -86,9 +87,9 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const dataSubjectIds = (result.Items ?? [])
     .map((item) => item.DataSubjectId)
     .filter((id): id is string => typeof id === "string" && id.length > 0);
-  // Fire-and-forget DSAR trail: which data subjects this page actually read. Best-effort and un-awaited so a
-  // log-service hiccup cannot block or slow down the enclave getting its records.
-  void logSubjectAccess(validation.algorithmId, event.headers["x-run-id"] ?? "unknown", dataSubjectIds);
+  // DSAR trail: which data subjects this page actually read. Awaited so the request is not lost to a Lambda
+  // freeze (bounded by the function timeout); failures are swallowed inside logSubjectAccess.
+  await logSubjectAccess(validation.algorithmId, event.headers["x-run-id"] ?? "unknown", dataSubjectIds);
 
   const records = (result.Items ?? []).map((item) => ({ recordId: item.RecordId, data: item.Data }));
   const nextCursor = result.LastEvaluatedKey
