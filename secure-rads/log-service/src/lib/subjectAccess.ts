@@ -33,10 +33,14 @@ export function parseSubjectAccessBody(body: unknown): SubjectAccessIngest | { e
   return { ...result.data, receivedAt: new Date().toISOString() };
 }
 
-export function toItem(row: SubjectAccessRow, nonce: string): Record<string, unknown> {
+// The sort key is (timestamp, algorithmId, runId). That tuple is unique per item: a data subject's record
+// lives on exactly one PDM page, so it is read once per run by exactly one algorithm. Dropping the old
+// random nonce makes writes idempotent - a redelivered ingest overwrites an identical row instead of
+// appending a duplicate.
+export function toItem(row: SubjectAccessRow): Record<string, unknown> {
   return {
     DataSubjectId: row.dataSubjectId,
-    Sk: `${row.timestamp}#${row.algorithmId}#${row.runId}#${nonce}`,
+    Sk: `${row.timestamp}#${row.algorithmId}#${row.runId}`,
     AlgorithmId: row.algorithmId,
     RunId: row.runId,
     Timestamp: row.timestamp,

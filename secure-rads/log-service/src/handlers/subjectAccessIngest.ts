@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { BatchWriteCommand, DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
@@ -23,8 +22,8 @@ function chunk<T>(rows: T[], size: number): T[][] {
   return out;
 }
 
-// Retries only when DynamoDB throttles (partial writes surface as UnprocessedItems, not a rejection). Each
-// item's nonce is fixed for the whole chunk, so re-sending a partially-written chunk is idempotent.
+// Retries only when DynamoDB throttles (partial writes surface as UnprocessedItems, not a rejection). The
+// item key is derived entirely from the payload, so re-sending a chunk overwrites with identical data.
 async function writeItems(items: Record<string, unknown>[]): Promise<void> {
   await retryAsync(
     async () => {
@@ -49,18 +48,15 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const parsed = parseSubjectAccessBody(body);
   if ("error" in parsed) return jsonResponse(400, { error: parsed.error });
 
-  // A DS-keyed subject-access row per data subject, on its own stable nonce so DynamoDB retries are idempotent.
+  // A DS-keyed subject-access row per data subject; the sort key is (timestamp, algorithmId, runId).
   const items = [...new Set(parsed.dataSubjectIds)].map((dataSubjectId) =>
-    toItem(
-      {
-        dataSubjectId,
-        algorithmId: parsed.algorithmId,
-        runId: parsed.runId,
-        timestamp: parsed.timestamp,
-        receivedAt: parsed.receivedAt,
-      },
-      randomUUID(),
-    ),
+    toItem({
+      dataSubjectId,
+      algorithmId: parsed.algorithmId,
+      runId: parsed.runId,
+      timestamp: parsed.timestamp,
+      receivedAt: parsed.receivedAt,
+    }),
   );
 
   // Write every 25-item chunk concurrently (DynamoDB caps one BatchWrite request at 25).
