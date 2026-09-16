@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { exportJsonUrl, exportUrl, type RunEvent } from "@/lib/api";
 import { shortId } from "@/lib/format";
 
-export function ExportTab({ events }: { events: RunEvent[] }) {
+export function ExportTab({ events }: { events: ReadonlyArray<RunEvent> }) {
   const algorithms = [...new Set(events.map((event) => event.algorithmId))].sort();
 
   return (

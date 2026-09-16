@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Effect } from "effect";
 import { RefreshCwIcon, TriangleAlertIcon } from "lucide-react";
 import { AccessTab } from "@/components/authority/access-tab";
 import { ExportTab } from "@/components/authority/export-tab";
@@ -9,15 +10,12 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getAllSubjectAccess, getRunEvents } from "@/lib/api";
+import { getAuthorityData } from "@/lib/api";
 
 export function AuthorityPage() {
   const { data, error, isPending, isFetching, refetch } = useQuery({
     queryKey: ["authority"],
-    queryFn: async () => {
-      const [events, accessResponse] = await Promise.all([getRunEvents(), getAllSubjectAccess()]);
-      return { events, access: accessResponse.accesses };
-    },
+    queryFn: () => Effect.runPromise(getAuthorityData),
   });
 
   return (
