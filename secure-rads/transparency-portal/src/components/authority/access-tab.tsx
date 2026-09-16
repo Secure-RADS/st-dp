@@ -1,33 +1,81 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { type ColumnDef, type PaginationState, useTable } from "@tanstack/react-table";
 import { SearchIcon } from "lucide-react";
-import { DataPagination } from "@/components/data-pagination";
+import { DataTablePagination } from "@/components/data-pagination";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { SubjectAccess } from "@/lib/api";
 import { formatDateTime, shortId } from "@/lib/format";
-import { usePagination } from "@/lib/use-pagination";
+import { dataTableFeatures, type DataTableFeatures } from "@/lib/table-features";
 
-export function AccessTab({ access }: { access: ReadonlyArray<SubjectAccess> }) {
+const columns: ColumnDef<DataTableFeatures, SubjectAccess>[] = [
+  {
+    accessorKey: "dataSubjectId",
+    header: "Data subject",
+    cell: ({ row }) => (
+      <span className="font-mono text-xs" title={row.original.dataSubjectId}>
+        {shortId(row.original.dataSubjectId, 20)}
+      </span>
+    ),
+  },
+  {
+    accessorKey: "algorithmId",
+    header: "Algorithm",
+    cell: ({ row }) => (
+      <span className="font-mono text-xs" title={row.original.algorithmId}>
+        {shortId(row.original.algorithmId)}
+      </span>
+    ),
+  },
+  {
+    accessorKey: "runId",
+    header: "Run",
+    cell: ({ row }) => (
+      <span className="font-mono text-xs" title={row.original.runId}>
+        {shortId(row.original.runId)}
+      </span>
+    ),
+  },
+  {
+    accessorKey: "timestamp",
+    header: "Accessed at",
+    cell: ({ row }) => formatDateTime(row.original.timestamp),
+  },
+];
+
+export function AccessTab({ access }: { access: SubjectAccess[] }) {
   const [query, setQuery] = useState("");
-  const needle = query.trim().toLowerCase();
-  const filtered = access
-    .filter((row) => {
-      if (!needle) return true;
-      return (
-        row.dataSubjectId.toLowerCase().includes(needle) ||
-        row.algorithmId.toLowerCase().includes(needle) ||
-        row.runId.toLowerCase().includes(needle)
-      );
-    })
-    .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 50 });
 
-  const pagination = usePagination(filtered);
+  const needle = query.trim().toLowerCase();
+  const data = useMemo(
+    () =>
+      access
+        .filter((row) => {
+          if (!needle) return true;
+          return (
+            row.dataSubjectId.toLowerCase().includes(needle) ||
+            row.algorithmId.toLowerCase().includes(needle) ||
+            row.runId.toLowerCase().includes(needle)
+          );
+        })
+        .sort((a, b) => b.timestamp.localeCompare(a.timestamp)),
+    [access, needle],
+  );
+
+  const table = useTable({
+    features: dataTableFeatures,
+    data,
+    columns,
+    state: { pagination },
+    onPaginationChange: setPagination,
+  });
 
   function updateQuery(value: string) {
     setQuery(value);
-    pagination.setPage(1);
+    setPagination((current) => ({ ...current, pageIndex: 0 }));
   }
 
   return (
@@ -48,31 +96,43 @@ export function AccessTab({ access }: { access: ReadonlyArray<SubjectAccess> }) 
         </div>
 
         <div className="flex items-center gap-2">
-          <Badge variant="secondary">{filtered.length.toLocaleString()} accesses</Badge>
+          <Badge variant="secondary">{data.length.toLocaleString()} accesses</Badge>
         </div>
 
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead>Data subject</TableHead>
-              <TableHead>Algorithm</TableHead>
-              <TableHead>Run</TableHead>
-              <TableHead>Accessed at</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {pagination.pageItems.map((row, index) => (
-              <TableRow key={`${row.dataSubjectId}-${row.runId}-${row.timestamp}-${index}`}>
-                <TableCell className="font-mono text-xs">{shortId(row.dataSubjectId, 20)}</TableCell>
-                <TableCell className="font-mono text-xs">{shortId(row.algorithmId)}</TableCell>
-                <TableCell className="font-mono text-xs">{shortId(row.runId)}</TableCell>
-                <TableCell>{formatDateTime(row.timestamp)}</TableCell>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => (
+                  <TableHead key={header.id}>
+                    {header.isPlaceholder ? null : <table.FlexRender header={header} />}
+                  </TableHead>
+                ))}
               </TableRow>
             ))}
+          </TableHeader>
+          <TableBody>
+            {table.getRowModel().rows.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={columns.length} className="h-24 text-center text-muted-foreground">
+                  No accesses.
+                </TableCell>
+              </TableRow>
+            ) : (
+              table.getRowModel().rows.map((row) => (
+                <TableRow key={row.id}>
+                  {row.getAllCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                      <table.FlexRender cell={cell} />
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
 
-        <DataPagination pagination={pagination} label="Subject access events" />
+        <DataTablePagination table={table} label="Subject access events" />
       </CardContent>
     </Card>
   );

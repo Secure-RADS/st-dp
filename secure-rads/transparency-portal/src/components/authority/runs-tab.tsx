@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { type ColumnDef, type PaginationState, useTable } from "@tanstack/react-table";
 import { SearchIcon } from "lucide-react";
-import { DataPagination } from "@/components/data-pagination";
+import { DataTablePagination } from "@/components/data-pagination";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,36 +9,89 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { RunEvent } from "@/lib/api";
 import { formatDateTime, isFailureEvent, shortId } from "@/lib/format";
-import { usePagination } from "@/lib/use-pagination";
+import { dataTableFeatures, type DataTableFeatures } from "@/lib/table-features";
 
-export function RunsTab({ events }: { events: ReadonlyArray<RunEvent> }) {
+const columns: ColumnDef<DataTableFeatures, RunEvent>[] = [
+  {
+    accessorKey: "algorithmId",
+    header: "Algorithm",
+    cell: ({ row }) => (
+      <span className="font-mono text-xs" title={row.original.algorithmId}>
+        {shortId(row.original.algorithmId)}
+      </span>
+    ),
+  },
+  {
+    accessorKey: "runId",
+    header: "Run",
+    cell: ({ row }) => (
+      <span className="font-mono text-xs" title={row.original.runId}>
+        {shortId(row.original.runId)}
+      </span>
+    ),
+  },
+  {
+    accessorKey: "event",
+    header: "Event",
+    cell: ({ row }) => (
+      <Badge variant={isFailureEvent(row.original.event) ? "destructive" : "secondary"}>{row.original.event}</Badge>
+    ),
+  },
+  {
+    accessorKey: "timestamp",
+    header: "Timestamp",
+    cell: ({ row }) => formatDateTime(row.original.timestamp),
+  },
+  {
+    accessorKey: "detail",
+    header: "Detail",
+    cell: ({ row }) => (row.original.detail == null ? "" : JSON.stringify(row.original.detail)),
+  },
+];
+
+const headClass = (id: string) => (id === "detail" ? "hidden lg:table-cell" : undefined);
+const cellClass = (id: string) =>
+  id === "detail" ? "hidden max-w-xs truncate text-xs text-muted-foreground lg:table-cell" : undefined;
+
+export function RunsTab({ events }: { events: RunEvent[] }) {
   const [algorithm, setAlgorithm] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 50 });
 
   const algorithms = [...new Set(events.map((event) => event.algorithmId))].sort();
   const needle = query.trim().toLowerCase();
-  const filtered = events
-    .filter((event) => (algorithm ? event.algorithmId === algorithm : true))
-    .filter((event) => {
-      if (!needle) return true;
-      return (
-        event.event.toLowerCase().includes(needle) ||
-        event.runId.toLowerCase().includes(needle) ||
-        event.algorithmId.toLowerCase().includes(needle)
-      );
-    })
-    .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+  const data = useMemo(
+    () =>
+      events
+        .filter((event) => (algorithm ? event.algorithmId === algorithm : true))
+        .filter((event) => {
+          if (!needle) return true;
+          return (
+            event.event.toLowerCase().includes(needle) ||
+            event.runId.toLowerCase().includes(needle) ||
+            event.algorithmId.toLowerCase().includes(needle)
+          );
+        })
+        .sort((a, b) => b.timestamp.localeCompare(a.timestamp)),
+    [events, algorithm, needle],
+  );
 
-  const pagination = usePagination(filtered);
+  const table = useTable({
+    features: dataTableFeatures,
+    data,
+    columns,
+    state: { pagination },
+    onPaginationChange: setPagination,
+  });
 
   function selectAlgorithm(id: string | null) {
     setAlgorithm(id);
-    pagination.setPage(1);
+    setPagination((current) => ({ ...current, pageIndex: 0 }));
   }
 
   function updateQuery(value: string) {
     setQuery(value);
-    pagination.setPage(1);
+    setPagination((current) => ({ ...current, pageIndex: 0 }));
   }
 
   return (
@@ -81,37 +135,43 @@ export function RunsTab({ events }: { events: ReadonlyArray<RunEvent> }) {
         </div>
 
         <div className="flex items-center gap-2">
-          <Badge variant="secondary">{filtered.length.toLocaleString()} events</Badge>
+          <Badge variant="secondary">{data.length.toLocaleString()} events</Badge>
         </div>
 
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead>Algorithm</TableHead>
-              <TableHead>Run</TableHead>
-              <TableHead>Event</TableHead>
-              <TableHead>Timestamp</TableHead>
-              <TableHead className="hidden lg:table-cell">Detail</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {pagination.pageItems.map((event, index) => (
-              <TableRow key={`${event.runId}-${event.timestamp}-${index}`}>
-                <TableCell className="font-mono text-xs" title={event.algorithmId}>{shortId(event.algorithmId)}</TableCell>
-                <TableCell className="font-mono text-xs" title={event.runId}>{shortId(event.runId)}</TableCell>
-                <TableCell>
-                  <Badge variant={isFailureEvent(event.event) ? "destructive" : "secondary"}>{event.event}</Badge>
-                </TableCell>
-                <TableCell>{formatDateTime(event.timestamp)}</TableCell>
-                <TableCell className="hidden max-w-xs truncate text-xs text-muted-foreground lg:table-cell">
-                  {event.detail == null ? "" : JSON.stringify(event.detail)}
-                </TableCell>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => (
+                  <TableHead key={header.id} className={headClass(header.column.id)}>
+                    {header.isPlaceholder ? null : <table.FlexRender header={header} />}
+                  </TableHead>
+                ))}
               </TableRow>
             ))}
+          </TableHeader>
+          <TableBody>
+            {table.getRowModel().rows.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={columns.length} className="h-24 text-center text-muted-foreground">
+                  No events.
+                </TableCell>
+              </TableRow>
+            ) : (
+              table.getRowModel().rows.map((row) => (
+                <TableRow key={row.id}>
+                  {row.getAllCells().map((cell) => (
+                    <TableCell key={cell.id} className={cellClass(cell.column.id)}>
+                      <table.FlexRender cell={cell} />
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
 
-        <DataPagination pagination={pagination} label="Run events" />
+        <DataTablePagination table={table} label="Run events" />
       </CardContent>
     </Card>
   );
