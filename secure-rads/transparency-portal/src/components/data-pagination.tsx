@@ -59,7 +59,7 @@ export function DataTablePagination<TData extends RowData>({ table, label }: Dat
             <ChevronLeftIcon />
           </Button>
           <span className="text-xs text-muted-foreground">
-            Page {pageIndex.toLocaleString()} of {pageCount.toLocaleString()}
+            Page {(pageIndex + 1).toLocaleString()} of {pageCount.toLocaleString()}
           </span>
           <Button
             variant="outline"
