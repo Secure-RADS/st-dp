@@ -6,8 +6,8 @@ import type { RunEvent, SubjectAccess } from "@/lib/api";
 import { formatDateTime, isFailureEvent, shortId } from "@/lib/format";
 
 interface OverviewTabProps {
-  events: ReadonlyArray<RunEvent>;
-  access: ReadonlyArray<SubjectAccess>;
+  events: RunEvent[];
+  access: SubjectAccess[];
 }
 
 export function OverviewTab({ events, access }: OverviewTabProps) {

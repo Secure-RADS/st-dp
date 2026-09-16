@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Effect } from "effect";
 import { SearchIcon, TriangleAlertIcon } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +14,7 @@ import { formatDateTime, shortId } from "@/lib/format";
 
 export function SubjectLookup() {
   const [dataSubjectId, setDataSubjectId] = useState("");
-  const lookup = useMutation({ mutationFn: (id: string) => Effect.runPromise(getSubjectAccess(id)) });
+  const lookup = useMutation({ mutationFn: (id: string) => getSubjectAccess(id) });
 
   function submit() {
     const id = dataSubjectId.trim();
