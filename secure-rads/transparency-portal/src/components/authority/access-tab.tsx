@@ -1,15 +1,15 @@
 import { useState } from "react";
 import { SearchIcon } from "lucide-react";
+import { DataPagination } from "@/components/data-pagination";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { SubjectAccess } from "@/lib/api";
 import { formatDateTime, shortId } from "@/lib/format";
+import { usePagination } from "@/lib/use-pagination";
 
-const MAX_ROWS = 500;
-
-export function AccessTab({ access }: { access: SubjectAccess[] }) {
+export function AccessTab({ access }: { access: ReadonlyArray<SubjectAccess> }) {
   const [query, setQuery] = useState("");
   const needle = query.trim().toLowerCase();
   const filtered = access
@@ -22,6 +22,13 @@ export function AccessTab({ access }: { access: SubjectAccess[] }) {
       );
     })
     .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+
+  const pagination = usePagination(filtered);
+
+  function updateQuery(value: string) {
+    setQuery(value);
+    pagination.setPage(1);
+  }
 
   return (
     <Card>
@@ -36,13 +43,12 @@ export function AccessTab({ access }: { access: SubjectAccess[] }) {
             className="pl-8"
             placeholder="Filter by subject, algorithm, or run"
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => updateQuery(event.target.value)}
           />
         </div>
 
         <div className="flex items-center gap-2">
           <Badge variant="secondary">{filtered.length.toLocaleString()} accesses</Badge>
-          {filtered.length > MAX_ROWS ? <Badge variant="outline">showing first {MAX_ROWS}</Badge> : null}
         </div>
 
         <Table>
@@ -55,7 +61,7 @@ export function AccessTab({ access }: { access: SubjectAccess[] }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.slice(0, MAX_ROWS).map((row, index) => (
+            {pagination.pageItems.map((row, index) => (
               <TableRow key={`${row.dataSubjectId}-${row.runId}-${row.timestamp}-${index}`}>
                 <TableCell className="font-mono text-xs">{shortId(row.dataSubjectId, 20)}</TableCell>
                 <TableCell className="font-mono text-xs">{shortId(row.algorithmId)}</TableCell>
@@ -65,6 +71,8 @@ export function AccessTab({ access }: { access: SubjectAccess[] }) {
             ))}
           </TableBody>
         </Table>
+
+        <DataPagination pagination={pagination} label="Subject access events" />
       </CardContent>
     </Card>
   );

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { SearchIcon } from "lucide-react";
+import { DataPagination } from "@/components/data-pagination";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,10 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { RunEvent } from "@/lib/api";
 import { formatDateTime, isFailureEvent, shortId } from "@/lib/format";
+import { usePagination } from "@/lib/use-pagination";
 
-const MAX_ROWS = 500;
-
-export function RunsTab({ events }: { events: RunEvent[] }) {
+export function RunsTab({ events }: { events: ReadonlyArray<RunEvent> }) {
   const [algorithm, setAlgorithm] = useState<string | null>(null);
   const [query, setQuery] = useState("");
 
@@ -28,6 +28,18 @@ export function RunsTab({ events }: { events: RunEvent[] }) {
     })
     .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
 
+  const pagination = usePagination(filtered);
+
+  function selectAlgorithm(id: string | null) {
+    setAlgorithm(id);
+    pagination.setPage(1);
+  }
+
+  function updateQuery(value: string) {
+    setQuery(value);
+    pagination.setPage(1);
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -37,20 +49,24 @@ export function RunsTab({ events }: { events: RunEvent[] }) {
       <CardContent className="flex flex-col gap-4">
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant={algorithm === null ? "default" : "outline"} size="sm" onClick={() => setAlgorithm(null)}>
+            <Button
+              variant={algorithm === null ? "default" : "outline"}
+              size="sm"
+              onClick={() => selectAlgorithm(null)}
+            >
               All algorithms
             </Button>
             {algorithms.map((id) => (
-                <Button
-                  key={id}
-                  variant={algorithm === id ? "default" : "outline"}
-                  size="sm"
-                  className="font-mono text-xs"
-                  title={id}
-                  onClick={() => setAlgorithm(id)}
-                >
-                  {shortId(id)}
-                </Button>
+              <Button
+                key={id}
+                variant={algorithm === id ? "default" : "outline"}
+                size="sm"
+                className="font-mono text-xs"
+                title={id}
+                onClick={() => selectAlgorithm(id)}
+              >
+                {shortId(id)}
+              </Button>
             ))}
           </div>
           <div className="relative max-w-sm">
@@ -59,14 +75,13 @@ export function RunsTab({ events }: { events: RunEvent[] }) {
               className="pl-8"
               placeholder="Filter by event, run, or algorithm"
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => updateQuery(event.target.value)}
             />
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           <Badge variant="secondary">{filtered.length.toLocaleString()} events</Badge>
-          {filtered.length > MAX_ROWS ? <Badge variant="outline">showing first {MAX_ROWS}</Badge> : null}
         </div>
 
         <Table>
@@ -80,7 +95,7 @@ export function RunsTab({ events }: { events: RunEvent[] }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.slice(0, MAX_ROWS).map((event, index) => (
+            {pagination.pageItems.map((event, index) => (
               <TableRow key={`${event.runId}-${event.timestamp}-${index}`}>
                 <TableCell className="font-mono text-xs" title={event.algorithmId}>{shortId(event.algorithmId)}</TableCell>
                 <TableCell className="font-mono text-xs" title={event.runId}>{shortId(event.runId)}</TableCell>
@@ -95,6 +110,8 @@ export function RunsTab({ events }: { events: RunEvent[] }) {
             ))}
           </TableBody>
         </Table>
+
+        <DataPagination pagination={pagination} label="Run events" />
       </CardContent>
     </Card>
   );
