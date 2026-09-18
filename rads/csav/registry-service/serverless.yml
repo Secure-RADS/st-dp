@@ -18,7 +18,6 @@ provider:
         - Effect: Allow
           Action:
             - s3:PutObject
-            - s3:GetObject
           Resource:
             - !GetAtt ImagesBucket.Arn
             - !Sub "${ImagesBucket.Arn}/*"
@@ -41,12 +40,9 @@ functions:
       - httpApi:
           method: POST
           path: /upload
+  # Triggered by the ImagesBucket ObjectCreated notification wired in resources below, not by HTTP.
   register:
     handler: src/handlers/register.handler
-    events:
-      - httpApi:
-          method: POST
-          path: /register
 
 resources:
   Resources:
@@ -73,6 +69,25 @@ resources:
           BlockPublicPolicy: true
           IgnorePublicAcls: true
           RestrictPublicBuckets: true
+        NotificationConfiguration:
+          LambdaConfigurations:
+            - Event: s3:ObjectCreated:*
+              Filter:
+                S3Key:
+                  Rules:
+                    - Name: suffix
+                      Value: .tar
+              Function: !GetAtt RegisterLambdaFunction.Arn
+
+    # The Serverless s3 event can't target a bucket this same stack creates, so the notification is wired by hand.
+    RegisterLambdaPermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        Action: lambda:InvokeFunction
+        FunctionName: !GetAtt RegisterLambdaFunction.Arn
+        Principal: s3.amazonaws.com
+        SourceArn: !GetAtt ImagesBucket.Arn
+        SourceAccount: !Ref AWS::AccountId
 
     AlgorithmsTable:
       Type: AWS::DynamoDB::Table

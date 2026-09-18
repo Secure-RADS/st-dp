@@ -15,8 +15,8 @@ they can still be run by hand.
 
 | App | Language | Aggregation |
 | --- | --- | --- |
-| `record-summary-python` | Python (stdlib) | record count, page count, average `age` |
-| `health-risk-python` | Python (stdlib) | resting HR / steps / sleep means, risk-flagged share, activity levels |
+| `record-summary-python` | Python (pydantic) | record count, page count, average `age` |
+| `health-risk-python` | Python (pydantic) | resting HR / steps / sleep means, risk-flagged share, activity levels |
 | `spend-analysis-go` | Go (stdlib) | spend by category, avg monthly spend, anomaly users |
 | `product-trends-node` | Node (`node:fs`) | revenue and orders, top categories by age band |
 | `audience-segments-rust` | Rust (serde) | interest segments, engagement tiers, avg connections |
@@ -27,8 +27,9 @@ they can still be run by hand.
 1. **Upload (build phase).** The registry-service stores the DC's docker image tarball raw in
    S3 as `{algorithmId}/image.tar` and records `algorithmId -> (bucket, key)` in DynamoDB (see
    `rads/csav/registry-service`). `POST /upload` with a JSON `algorithmId` (UUID) returns a
-   presigned S3 PUT URL; the client uploads the tarball directly, then `POST /register` with
-   the same `algorithmId` records the mapping. No EIF build, KMS, or attestation happens here.
+   presigned S3 PUT URL; the client uploads the tarball directly and an S3 `ObjectCreated`
+   notification records the mapping, so `/upload` is the only call the client makes. No EIF
+   build, KMS, or attestation happens here.
 2. **Run (execution phase).** The runner owns the PDM call: it downloads every record for the
    `algorithmId` from `PDM_URL/records?algorithmId=<id>` (open, no auth), following the
    `nextCursor` returned by each page, and writes `{"algorithmId", "pages", "records"}` to
