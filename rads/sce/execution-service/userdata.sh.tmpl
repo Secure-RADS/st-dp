@@ -2,10 +2,7 @@
 set -uo pipefail
 exec > >(tee /var/log/rads-execution-service-run.log) 2>&1
 
-# Per-run plain Docker executor. The host owns the data path: it downloads this algorithm's PDM records
-# to a fixed location, the DC app reads that file and writes its result to another fixed location, and
-# this script ships that result file to the result queue. Values are baked in at launch by the control
-# plane; {{....}} are template slots.
+# Per-run plain Docker executor; the host owns the data path and result delivery.
 RUN_ID="{{.RunId}}"
 ALGORITHM_ID="{{.AlgorithmId}}"
 S3_BUCKET="{{.S3Bucket}}"
@@ -15,37 +12,23 @@ PDM_URL="{{.PdmUrl}}"
 RUN_RESULTS_QUEUE="{{.RunResultsQueueUrl}}"
 LOG_EVENTS_QUEUE="{{.LogEventsQueueUrl}}"
 
-# Fixed host paths, bind-mounted into the container at /data so host and app agree on where the data and
-# the result live.
+# Host paths, bind-mounted into the container at /data.
 RUN_DIR=/opt/rads/run
 RECORDS_FILE="$RUN_DIR/records.json"
 RESULT_FILE="$RUN_DIR/result.json"
 OUTPUT_FILE="$RUN_DIR/output.txt"
 DOCKER_LOAD_LOG="$RUN_DIR/docker-load.log"
 
-# Always publish the run outcome to the result queue, log the terminal lifecycle event, and clean up the
-# per-run instance so it does not linger. The result carries the runId execution-service assigned at launch.
+# Publish the run outcome, log the terminal event, and terminate the instance.
 finish() {
   STATUS=$?
   TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
   INSTANCE_ID=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-id)
-  python3 - "$STATUS" "$INSTANCE_ID" "$RESULT_FILE" "$OUTPUT_FILE" "$DOCKER_LOAD_LOG" > /tmp/result.json <<'PYEOF'
-import json, sys
-def read(path):
-    try:
-        return open(path, "rb").read().decode("utf-8", "replace")
-    except FileNotFoundError:
-        return ""
-status, instance_id, result_path, output_path, load_path = sys.argv[1:6]
-# Prefer the app's own result file; fall back to its stdout, and when both are empty surface the docker
-# load log so an empty result is diagnosable instead of silent.
-out = read(result_path) or read(output_path)
-diag = {"dockerLoad": read(load_path)} if not out else {}
-print(json.dumps({"runId": "{{.RunId}}", "algorithmId": "{{.AlgorithmId}}", "instanceId": instance_id, "status": "exit:" + status, "output": out, "diag": diag}))
+  python3 - "$STATUS" "$INSTANCE_ID" "$RESULT_FILE" "$OUTPUT_FILE" "$DOCKER_LOAD_LOG" "$RUN_ID" "$ALGORITHM_ID" > /tmp/result.json <<'PYEOF'
+{{.RunResultScript}}
 PYEOF
-  python3 - "$STATUS" "$INSTANCE_ID" > /tmp/log-event.json <<'PYEOF'
-import json, sys, datetime
-print(json.dumps({"algorithmId": "{{.AlgorithmId}}", "runId": "{{.RunId}}", "event": "executor-finished", "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(), "detail": {"status": "exit:" + sys.argv[1], "instanceId": sys.argv[2]}}))
+  python3 - "$STATUS" "$INSTANCE_ID" "$ALGORITHM_ID" "$RUN_ID" > /tmp/log-event.json <<'PYEOF'
+{{.LogEventScript}}
 PYEOF
   aws sqs send-message --queue-url "$RUN_RESULTS_QUEUE" --message-body file:///tmp/result.json --region "$REGION" || true
   aws sqs send-message --queue-url "$LOG_EVENTS_QUEUE" --message-body file:///tmp/log-event.json --region "$REGION" || true
@@ -53,34 +36,16 @@ PYEOF
 }
 trap finish EXIT
 
-# Docker on Amazon Linux 2023; awscli is used for the S3 pull and the SQS publishes below.
+# Docker on Amazon Linux 2023; awscli covers the S3 pull and SQS publishes.
 dnf install -y docker awscli >/dev/null
 systemctl enable --now docker
 for attempt in 1 2 3 4 5 6; do docker info >/dev/null 2>&1 && break; sleep 5; done
 
 mkdir -p "$RUN_DIR"
 
-# Download the algorithm's full record set to a predictable path before the app starts, so the DC app reads
-# a local file instead of talking to the PDM itself. The file carries the page count for apps that report it.
+# Download the algorithm's full record set before the app starts, so the DC app reads a local file.
 python3 - "$PDM_URL" "$ALGORITHM_ID" "$RECORDS_FILE" <<'PYEOF'
-import json, sys, urllib.parse, urllib.request
-base, algorithm_id, dest = sys.argv[1], sys.argv[2], sys.argv[3]
-records, cursor, pages = [], None, 0
-while True:
-    params = {"algorithmId": algorithm_id}
-    if cursor:
-        params["cursor"] = cursor
-    url = base.rstrip("/") + "/records?" + urllib.parse.urlencode(params)
-    with urllib.request.urlopen(url) as response:
-        body = json.load(response)
-    pages += 1
-    records.extend(body.get("records", []))
-    cursor = body.get("nextCursor")
-    if not cursor:
-        break
-with open(dest, "w", encoding="utf-8") as f:
-    json.dump({"algorithmId": algorithm_id, "pages": pages, "records": records}, f)
-print(f"pdm: downloaded {len(records)} records in {pages} page(s) to {dest}", file=sys.stderr)
+{{.FetchRecordsScript}}
 PYEOF
 
 aws s3 cp "s3://$S3_BUCKET/$S3_KEY" /tmp/app.tar --region "$REGION"
@@ -91,6 +56,5 @@ if [ -z "$IMAGE" ]; then
   exit 1
 fi
 
-# The app reads /data/records.json and writes /data/result.json; stdout is kept only as a diagnostic
-# fallback for finish() when the result file is missing.
+# The app reads /data/records.json and writes /data/result.json; stdout is the diagnostic fallback.
 docker run --rm -v "$RUN_DIR:/data" -e RECORDS_PATH=/data/records.json -e RESULT_PATH=/data/result.json "$IMAGE" > "$OUTPUT_FILE"

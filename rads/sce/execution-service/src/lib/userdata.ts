@@ -1,7 +1,16 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const template = readFileSync(join(process.env.LAMBDA_TASK_ROOT ?? process.cwd(), "userdata.sh.tmpl"), "utf8");
+const ROOT = process.env.LAMBDA_TASK_ROOT ?? process.cwd();
+
+// The instance runs these as heredocs; keeping them as real .py files lets them be linted and typed.
+const scripts = {
+  FetchRecordsScript: readFileSync(join(ROOT, "scripts/fetch-records.py"), "utf8"),
+  LogEventScript: readFileSync(join(ROOT, "scripts/log-event.py"), "utf8"),
+  RunResultScript: readFileSync(join(ROOT, "scripts/run-result.py"), "utf8"),
+};
+
+const template = readFileSync(join(ROOT, "userdata.sh.tmpl"), "utf8");
 
 export interface UserDataValues {
   algorithmId: string;
@@ -16,6 +25,7 @@ export interface UserDataValues {
 
 export function userData(values: UserDataValues): string {
   const replacements: Record<string, string> = {
+    ...scripts,
     AlgorithmId: values.algorithmId,
     LogEventsQueueUrl: values.logEventsQueueUrl,
     PdmUrl: values.pdmUrl,
