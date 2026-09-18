@@ -9,8 +9,12 @@ Producers are unchanged: they still POST `{algorithmId, runId, event, timestamp,
 - `POST /events` - a producer (execution-service, the enclave host, sce-unit inside the enclave, result-consumer) posts one event `{algorithmId, runId, event, timestamp, detail?}`. The `timestamp` is client-provided - the time the event actually happened, not server receive time - and is stored alongside a server `receivedAt` stamped at ingest. Validation happens here; valid events are enqueued and the handler returns `202` without waiting for DynamoDB.
 - `GET /logs/{algorithmId}` - exports one algorithm's timeline. `?runId=` narrows to a single run. Pages through all results, never truncated.
 - `GET /logs` - exports the whole table across all algorithms.
+- `POST /subject-access` - a producer (pdm-service) posts one batch of `{algorithmId, runId, dataSubjectIds, timestamp}` each time it serves records to an enclave. The event is validated, deduplicated, and written one item per data subject into the DS-keyed `SubjectAccessTable`. This is the GDPR trail: which algorithm/run read which data subjects, and when.
+- `GET /subject-access` - the data-subject/authority read path. `?dataSubjectId=` returns one data subject's chronological access entries as a key query; omitting it scans and returns every access event for the authority dashboard.
 
 Both export routes take `?format=csv` (`text/csv`) or default to JSON. CSV columns: `algorithmId,runId,event,timestamp,receivedAt,detail`, with `detail` as compact JSON per cell.
+
+The HTTP API sets `cors: true` so the transparency portal can call it directly from the browser.
 
 ## Queue
 

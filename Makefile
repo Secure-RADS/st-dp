@@ -91,7 +91,24 @@ DEMO_APPS := \
 	trial-eligibility-ruby:$(EHEALTH_ID)
 
 .PHONY: registry-logs demo-ready demo-seed demo-build demo-build-all demo-run demo-run-all demo-all \
-	logs-csv logs-csv-algo logs-csv-all
+	logs-csv logs-csv-algo logs-csv-all portal-install portal-dev portal-infra portal-deploy portal-status
+
+# Transparency portal (Vite SPA): data-subject lookup + service-authority dashboard.
+# Hosted on S3 + CloudFront at transparency.sr.secure-rads.org.
+portal-install:
+	$(MAKE) -C secure-rads/transparency-portal install
+
+portal-dev:
+	$(MAKE) -C secure-rads/transparency-portal dev
+
+portal-infra:
+	$(MAKE) -C secure-rads/transparency-portal deploy-infra
+
+portal-deploy:
+	$(MAKE) -C secure-rads/transparency-portal deploy
+
+portal-status:
+	$(MAKE) -C secure-rads/transparency-portal status
 
 # Tail registry-service's compose logs on the csav host (build phase).
 registry-logs:

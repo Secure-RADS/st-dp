@@ -15,7 +15,7 @@ const CONCURRENCY = 5;
 interface DatasetFile {
   algorithmId: string;
   name: string;
-  records: { recordId: string; data: Record<string, unknown> }[];
+  records: { recordId: string; dataSubjectId: string; data: Record<string, unknown> }[];
 }
 
 const table = process.env.PDM_TABLE;
@@ -114,6 +114,7 @@ for (const file of files) {
       ds.records.slice(i, i + BATCH_SIZE).map((r) => ({
         AlgorithmId: ds.algorithmId,
         RecordId: r.recordId,
+        DataSubjectId: r.dataSubjectId,
         Data: encryptData(Buffer.from(dek), r.data),
       })),
     );

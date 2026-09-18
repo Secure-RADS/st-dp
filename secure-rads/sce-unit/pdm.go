@@ -21,7 +21,7 @@ type pdmRecord struct {
 // fetchAllRecords pulls every personal-data record for this enclave's algorithm from the PDM service,
 // following pagination cursors until exhausted. The bearer token is all pdm-service needs - it derives the
 // algorithmId from the token's attestation session via verifier-service, never from us.
-func fetchAllRecords(cfg runConfig, accessToken string) ([]pdmRecord, []byte, error) {
+func fetchAllRecords(cfg runConfig, accessToken, runID string) ([]pdmRecord, []byte, error) {
 	client := cfg.pdm().client()
 
 	var records []pdmRecord
@@ -40,6 +40,7 @@ func fetchAllRecords(cfg runConfig, accessToken string) ([]pdmRecord, []byte, er
 			return nil, nil, err
 		}
 		req.Header.Set("Authorization", "Bearer "+accessToken)
+		req.Header.Set("X-Run-Id", runID)
 
 		resp, err := client.Do(req)
 		if err != nil {

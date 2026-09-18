@@ -7,11 +7,28 @@ import { verifyAccessToken } from "../lib/jwt.js";
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const table = requiredEnv("PDM_TABLE");
 const dataKeyTable = requiredEnv("DATA_KEY_TABLE");
+const logServiceUrl = requiredEnv("LOG_SERVICE_URL");
 
 const PAGE_SIZE = 500;
 
 function jsonResponse(statusCode: number, body: unknown) {
   return { statusCode, headers: { "content-type": "application/json" }, body: JSON.stringify(body) };
+}
+
+// DSAR trail: which data subjects a run actually read. Errors are swallowed so a log-service failure
+// can't fail the records response, but the call is awaited so the request is actually sent before the
+// handler returns - an un-awaited fetch can be frozen, and dropped, when Lambda freezes the environment.
+async function logSubjectAccess(algorithmId: string, runId: string, dataSubjectIds: string[]): Promise<void> {
+  if (dataSubjectIds.length === 0) return;
+  try {
+    await fetch(`${logServiceUrl}/subject-access`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ algorithmId, runId, dataSubjectIds, timestamp: new Date().toISOString() }),
+    });
+  } catch (error) {
+    console.error("subject-access log failed", error);
+  }
 }
 
 function decodeCursor(cursor: string): Record<string, unknown> | undefined {
@@ -66,6 +83,13 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       ExclusiveStartKey: exclusiveStartKey,
     }),
   );
+
+  const dataSubjectIds = (result.Items ?? [])
+    .map((item) => item.DataSubjectId)
+    .filter((id): id is string => typeof id === "string" && id.length > 0);
+  // DSAR trail: which data subjects this page actually read. Awaited so the request is not lost to a Lambda
+  // freeze (bounded by the function timeout); failures are swallowed inside logSubjectAccess.
+  await logSubjectAccess(validation.algorithmId, event.headers["x-run-id"] ?? "unknown", dataSubjectIds);
 
   const records = (result.Items ?? []).map((item) => ({ recordId: item.RecordId, data: item.Data }));
   const nextCursor = result.LastEvaluatedKey

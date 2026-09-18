@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { faker } from "@faker-js/faker";
+import { v5 as uuidv5 } from "uuid";
 import { DATASETS } from "./config";
 
 const OUT_DIR = join(import.meta.dir, "datasets");
@@ -20,6 +21,14 @@ function tsWithinDays(n: number): string {
 
 function recordId(i: number): string {
   return `user-${String(i).padStart(6, "0")}`;
+}
+
+// Deterministic UUIDv5 over the shared record index, so the same data subject appears in every dataset that
+// has at least i records. Keyed by index, not per-algorithm PII (dataset-local), and reproducible.
+const SUBJECT_NAMESPACE = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
+
+function dataSubjectId(i: number): string {
+  return uuidv5(`secure-rads:data-subject:${i}`, SUBJECT_NAMESPACE);
 }
 
 // A birthday that makes someone exactly `age` on TODAY. Computed against the fixed reference date (not
@@ -224,7 +233,7 @@ for (const { name, algorithmId, count, seed } of DATASETS) {
   faker.seed(seed);
   const records = [];
   for (let i = 1; i <= count; i++) {
-    records.push({ recordId: recordId(i), data: gen(i, count) });
+    records.push({ recordId: recordId(i), dataSubjectId: dataSubjectId(i), data: gen(i, count) });
   }
   const body = records.map((r) => JSON.stringify(r)).join(",\n");
   const json = `{"algorithmId": ${JSON.stringify(algorithmId)}, "name": ${JSON.stringify(name)}, "records": [\n${body}\n]}\n`;
