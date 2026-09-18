@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
 import type { SQSHandler } from "aws-lambda";
@@ -14,7 +13,8 @@ async function persist(item: IngestedEvent): Promise<void> {
       TableName: table,
       Item: {
         AlgorithmId: item.algorithmId,
-        Sk: `${item.runId}#${item.timestamp}#${randomUUID()}`,
+        // Event name instead of a random nonce, so a redelivered message overwrites rather than duplicates.
+        Sk: `${item.runId}#${item.timestamp}#${item.event}`,
         RunId: item.runId,
         Event: item.event,
         Timestamp: item.timestamp,
