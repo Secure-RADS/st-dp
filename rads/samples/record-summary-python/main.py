@@ -2,56 +2,82 @@ import json
 import os
 import sys
 
+from pydantic import BaseModel, Field
 
-def required_env(name):
+
+class RecordData(BaseModel):
+    age: float | None = None
+
+
+class Record(BaseModel):
+    data: RecordData = Field(default_factory=RecordData)
+
+
+class RecordsBody(BaseModel):
+    algorithmId: str | None = None
+    pages: int = 1
+    records: list[Record] = Field(default_factory=list)
+
+
+class Result(BaseModel):
+    algorithmId: str | None
+    recordCount: int
+    pageCount: int
+    recordsWithAge: int | None = None
+    averageAge: float | None = None
+
+
+def required_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
         raise ValueError(f"missing required env var {name}; run with RECORDS_PATH set")
     return value
 
 
-def log(message):
+def log(message: str) -> None:
     print(message, file=sys.stderr, flush=True)
 
 
-def load_records(path):
-    with open(path, "r", encoding="utf-8") as handle:
-        body = json.load(handle)
-    records = body["records"] if isinstance(body, dict) else body
-    algorithm_id = body.get("algorithmId") if isinstance(body, dict) else None
-    pages = body.get("pages", 1) if isinstance(body, dict) else 1
-    return algorithm_id, records, pages
+def load_records(path: str) -> RecordsBody:
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            raw = json.load(handle)
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError(f"could not read records file {path}: {error}") from error
+    if isinstance(raw, list):
+        return RecordsBody(records=raw)
+    return RecordsBody.model_validate(raw)
 
 
-def write_result(result):
-    payload = json.dumps(result)
+def write_result(result: Result) -> None:
+    payload = result.model_dump_json(exclude_none=True)
     path = os.environ.get("RESULT_PATH")
     if path:
-        with open(path, "w", encoding="utf-8") as handle:
-            handle.write(payload)
+        try:
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write(payload)
+        except OSError as error:
+            raise ValueError(f"could not write result to {path}: {error}") from error
     else:
         print(payload)
 
 
-def main():
+def main() -> None:
     records_path = required_env("RECORDS_PATH")
-    algorithm_id, records, pages = load_records(records_path)
-    log(f"loaded {len(records)} records from {records_path}")
+    body = load_records(records_path)
+    log(f"loaded {len(body.records)} records from {records_path}")
 
-    result = {"algorithmId": algorithm_id, "recordCount": len(records), "pageCount": pages}
-    # age is present on every canonical dataset record (see seeding/generate.ts), so it is a
-    # dataset-agnostic numeric metric; if absent the result degrades to a plain record count.
-    ages = [
-        record.get("data", {}).get("age")
-        for record in records
-        if isinstance(record, dict)
-    ]
-    ages = [age for age in ages if isinstance(age, (int, float))]
-    if ages:
-        result["recordsWithAge"] = len(ages)
-        result["averageAge"] = round(sum(ages) / len(ages), 2)
-
-    write_result(result)
+    # age is on every canonical dataset record (seeding/generate.ts), so it is the dataset-agnostic metric.
+    ages = [record.data.age for record in body.records if record.data.age is not None]
+    write_result(
+        Result(
+            algorithmId=body.algorithmId,
+            recordCount=len(body.records),
+            pageCount=body.pages,
+            recordsWithAge=len(ages) if ages else None,
+            averageAge=round(sum(ages) / len(ages), 2) if ages else None,
+        )
+    )
 
 
 if __name__ == "__main__":
