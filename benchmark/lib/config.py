@@ -70,6 +70,32 @@ def stack_outputs(stack: str) -> dict[str, str]:
     return outputs
 
 
+def csav_registry_url() -> str:
+    """secure-rads' registry-service is the Go service on the CSAV host, not a CFN stack.
+
+    The stack's public-IP output goes stale across stop/start, so the IP is read from
+    the instance itself.
+    """
+    instance_id = stack_outputs("secure-rads-csav").get("CsavInstanceId", "")
+    if not instance_id:
+        raise RuntimeError("secure-rads-csav stack has no CsavInstanceId output")
+    ip = _aws(
+        "ec2",
+        "describe-instances",
+        "--region",
+        REGION,
+        "--instance-ids",
+        instance_id,
+        "--query",
+        "Reservations[0].Instances[0].PublicIpAddress",
+        "--output",
+        "text",
+    )
+    if not ip or ip == "None":
+        raise RuntimeError(f"CSAV instance {instance_id} has no public IP (is it running?)")
+    return f"http://{ip}:8080"
+
+
 def resolve_endpoints() -> dict[str, dict[str, str]]:
     endpoints: dict[str, dict[str, str]] = {}
     for tree, stacks in STACKS.items():
@@ -80,6 +106,7 @@ def resolve_endpoints() -> dict[str, dict[str, str]]:
             endpoints[tree][service] = url
             if service == "registry":
                 endpoints[tree]["registry_bucket"] = outputs["ImagesBucketName"]
+    endpoints["secure-rads"]["registry"] = csav_registry_url()
     return endpoints
 
 

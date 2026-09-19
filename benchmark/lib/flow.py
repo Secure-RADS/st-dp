@@ -65,6 +65,21 @@ def _json(body: bytes) -> dict[str, Any]:
         raise FlowError(f"expected JSON response, got: {body[:200]!r}") from err
 
 
+def now_iso() -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime())
+
+
+def post_event(log_url: str, event: dict[str, Any]) -> bool:
+    """Best-effort stage record; a logging failure must not fail the sweep."""
+    status, _ = _request(
+        "POST",
+        f"{log_url}/events",
+        data=json.dumps(event).encode(),
+        headers={"Content-Type": "application/json"},
+    )
+    return status in (200, 202)
+
+
 def upload_rads(registry_url: str, algorithm_id: str, tar_path: Path) -> float:
     start = time.perf_counter()
     status, body = _request(
