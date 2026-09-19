@@ -21,9 +21,12 @@ DYNAMO_TABLE = $(shell aws cloudformation describe-stacks --stack-name $(STORAGE
 ARTIFACT_BUCKET_KMS_KEY_ARN = $(shell aws cloudformation describe-stacks --stack-name $(STORAGE_STACK_NAME) --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='ArtifactBucketKmsKeyArn'].OutputValue" --output text)
 # CSAV writes EIFs (kms:GenerateDataKey); the enclave host reads them (kms:Decrypt). The key policy
-# references these role ARNs, so they're resolved live (names carry a CFN-generated suffix).
-CSAV_ROLE_ARN = $(shell aws iam list-roles --query "Roles[?contains(RoleName, 'CsavInstanceRole')].Arn | [0]" --output text)
-ENCLAVE_HOST_ROLE_ARN = $(shell aws iam list-roles --query "Roles[?contains(RoleName, 'secure-rads-execution-service-dev-EnclaveHostInstanceRole')].Arn | [0]" --output text)
+# references these role ARNs, so they're resolved from the stacks: IAM truncates role names at 64 chars,
+# and a name match on 'CsavInstanceRole' also hits the legacy csav stack's role.
+CSAV_ROLE_ARN = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
+	--query "Stacks[0].Outputs[?OutputKey=='CsavInstanceRoleArn'].OutputValue" --output text)
+ENCLAVE_HOST_ROLE_ARN = $(shell aws cloudformation describe-stacks --stack-name secure-rads-execution-service-dev --region $(REGION) \
+	--query "Stacks[0].Outputs[?OutputKey=='EnclaveHostInstanceRoleArn'].OutputValue" --output text)
 ROLE_PARAMETERS = $(strip $(if $(filter None,$(CSAV_ROLE_ARN)),,CsavInstanceRoleArn=$(CSAV_ROLE_ARN)) $(if $(filter None,$(ENCLAVE_HOST_ROLE_ARN)),,EnclaveHostInstanceRoleArn=$(ENCLAVE_HOST_ROLE_ARN)))
 # mTLS domain (registerPCRs -> /algorithms) and its pin.
 VERIFIER_URL ?= https://verifier.sr.secure-rads.org/algorithms
@@ -68,10 +71,6 @@ gen-client-cert:
 	openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -days 3650 -nodes \
 		-keyout tls/client.key -out tls/client.crt \
 		-subj "/CN=registry-service"
-
-# The enclave host role ARN is baked into each per-algorithm KMS key policy by registry-service.
-CSAV_ROLE_ARN = $(shell aws iam list-roles --query "Roles[?contains(RoleName, 'CsavInstanceRole')].Arn | [0]" --output text)
-ENCLAVE_HOST_ROLE_ARN = $(shell aws iam list-roles --query "Roles[?contains(RoleName, 'secure-rads-execution-service-dev-EnclaveHostInstanceRole')].Arn | [0]" --output text)
 
 # Build the docker image locally (arm64, matches the t4g.nano host).
 image: sce-unit-base eif-build-base
