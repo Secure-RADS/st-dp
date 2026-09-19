@@ -26,18 +26,18 @@ CSAV_ROLE_ARN = $(shell aws iam list-roles --query "Roles[?contains(RoleName, 'C
 ENCLAVE_HOST_ROLE_ARN = $(shell aws iam list-roles --query "Roles[?contains(RoleName, 'secure-rads-execution-service-dev-EnclaveHostInstanceRole')].Arn | [0]" --output text)
 ROLE_PARAMETERS = $(strip $(if $(filter None,$(CSAV_ROLE_ARN)),,CsavInstanceRoleArn=$(CSAV_ROLE_ARN)) $(if $(filter None,$(ENCLAVE_HOST_ROLE_ARN)),,EnclaveHostInstanceRoleArn=$(ENCLAVE_HOST_ROLE_ARN)))
 # mTLS domain (registerPCRs -> /algorithms) and its pin.
-VERIFIER_URL ?= https://verifier.secure-rads.org/algorithms
-VERIFIER_PUBKEY_SHA256 ?= 8187b2c5e26ac5079046dc74398ba43a0366f93c67cec94e8f4c378f7d2d9370
+VERIFIER_URL ?= https://verifier.sr.secure-rads.org/algorithms
+VERIFIER_PUBKEY_SHA256 ?= 207678f01b44dc030dcf7d93d6dacb4cd75ca1d7c1dad266538f85ffa479213c
 # Plain-TLS public domain (/attest, /refresh, /validate) baked into the EIF's run config - a different
 # domain and cert from the mTLS one above, so it gets its own pin.
-VERIFIER_HOST ?= verifier-attest.secure-rads.org
-VERIFIER_HOST_PUBKEY_SHA256 ?= f447d6a73bc9309977d316032a51ea53ce3d0c0867a603ab823c0adb69fd08f0
+VERIFIER_HOST ?= verifier-attest.sr.secure-rads.org
+VERIFIER_HOST_PUBKEY_SHA256 ?= 207678f01b44dc030dcf7d93d6dacb4cd75ca1d7c1dad266538f85ffa479213c
 # pdm-service's plain-TLS domain (/records) also baked into the run config, pinned the same way.
-PDM_HOST ?= pdm.secure-rads.org
-PDM_HOST_PUBKEY_SHA256 ?= 130823e12ad0f4cc0a78a102806d5e41327cd5b6a5ae90538689a70c93873e56
+PDM_HOST ?= pdm.sr.secure-rads.org
+PDM_HOST_PUBKEY_SHA256 ?= 207678f01b44dc030dcf7d93d6dacb4cd75ca1d7c1dad266538f85ffa479213c
 # log-service's plain-TLS domain (/events), baked in and pinned so the enclave can log its run timeline.
-LOG_HOST ?= log.secure-rads.org
-LOG_HOST_PUBKEY_SHA256 ?= 4ad2a53407cce9fbf808cd44f56d5174439b3184192301dda48cbbda82a13ddd
+LOG_HOST ?= log.sr.secure-rads.org
+LOG_HOST_PUBKEY_SHA256 ?= 207678f01b44dc030dcf7d93d6dacb4cd75ca1d7c1dad266538f85ffa479213c
 
 .PHONY: build test run clean sce-unit-base eif-build-base gen-client-cert image ship remote-up remote-down logs deploy-storage destroy-storage upload
 
