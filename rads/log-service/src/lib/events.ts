@@ -2,6 +2,7 @@
 // at ingest. Producers (registry, execution control plane, the EC2 executor) mirror this list - keep them in sync.
 export const RUN_EVENTS = [
   // Build phase (registry-service); no runId (the build records the algorithm).
+  "image-uploaded",
   "algorithm-registered",
   // Execution phase (execution-service control plane).
   "run-requested",

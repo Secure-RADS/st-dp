@@ -109,6 +109,7 @@ func buildAndPush(ctx context.Context, algorithmId, tarPath, existingKmsKeyArn s
 	if err := uploadToS3(ctx, key, f); err != nil {
 		return "", "", fmt.Errorf("upload EIF: %w", err)
 	}
+	logEvent(algorithmId, buildId, eventImageUploaded, map[string]any{"bucket": artifactBucket, "key": key})
 
 	log.Printf("build[%s]: registering PCRs with verifier-service", tarPath)
 	if err := registerPCRs(ctx, algorithmId, pcrs); err != nil {

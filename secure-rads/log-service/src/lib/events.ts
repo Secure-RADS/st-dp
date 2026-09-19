@@ -3,6 +3,7 @@
 // keep them in sync.
 export const RUN_EVENTS = [
   // Build phase (registry-service); runId is the build id.
+  "image-uploaded",
   "build-started",
   "eif-built",
   "pcrs-registered",
