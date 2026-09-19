@@ -225,31 +225,22 @@ RADS_EXECUTION_API_URL = $(shell aws cloudformation describe-stacks --stack-name
 	--query "Stacks[0].Outputs[?OutputKey=='HttpApiUrl'].OutputValue" --output text)
 RADS_PDM_TABLE = $(shell aws cloudformation describe-stacks --stack-name rads-pdm-service-dev --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='PersonalDataTableName'].OutputValue" --output text)
-RADS_ALGORITHMS_TABLE = $(shell aws cloudformation describe-stacks --stack-name rads-registry-service-dev --region $(REGION) \
-	--query "Stacks[0].Outputs[?OutputKey=='AlgorithmsTableName'].OutputValue" --output text)
 
 # Build phase (one app): make rads-build APP=<dir> ALGORITHM_ID=<id>.
-# Builds the arm64 image, requests a presigned S3 PUT URL from /upload, and uploads the tarball straight
-# to S3. The bucket's ObjectCreated notification then records AlgorithmId -> (bucket, key), so this waits
-# for that row and prints it.
+# Builds the arm64 image and calls /upload, which presigns the S3 PUT and records the mapping in the same
+# request, so nothing else needs to be called once the tarball lands.
 rads-build:
 	@test -n "$(APP)" || { echo "APP is required (a rads/samples dir)"; exit 1; }
 	@test -n "$(ALGORITHM_ID)" || { echo "ALGORITHM_ID is required"; exit 1; }
 	docker build --platform linux/arm64 -t $(APP):local rads/samples/$(APP)
 	docker save $(APP):local -o /tmp/$(APP).tar
-	@reg=$(RADS_REGISTRY_URL); table=$(RADS_ALGORITHMS_TABLE); \
-	url=$$(curl -sS -X POST "$$reg/upload" -H 'Content-Type: application/json' \
-		-d '{"algorithmId":"$(ALGORITHM_ID)"}' | python3 -c 'import sys,json; print(json.load(sys.stdin)["uploadUrl"])'); \
-	echo "PUTing $(APP).tar to $$url"; \
+	@reg=$(RADS_REGISTRY_URL); \
+	res=$$(curl -sS -X POST "$$reg/upload" -H 'Content-Type: application/json' \
+		-d '{"algorithmId":"$(ALGORITHM_ID)"}'); \
+	url=$$(echo "$$res" | python3 -c 'import sys,json; print(json.load(sys.stdin)["uploadUrl"])'); \
+	echo "PUTing $(APP).tar to S3"; \
 	curl -sS -X PUT -H 'Content-Type: application/x-tar' --upload-file /tmp/$(APP).tar "$$url" >/dev/null; \
-	for i in $$(seq 1 15); do \
-		aws dynamodb get-item --table-name "$$table" --region $(REGION) \
-			--key "{\"AlgorithmId\":{\"S\":\"$(ALGORITHM_ID)\"}}" \
-			--query "Item.AlgorithmId.S" --output text 2>/dev/null | grep -q "$(ALGORITHM_ID)" && break; \
-		sleep 2; \
-	done; \
-	aws dynamodb get-item --table-name "$$table" --region $(REGION) \
-		--key "{\"AlgorithmId\":{\"S\":\"$(ALGORITHM_ID)\"}}" --query Item --output json
+	echo "$$res"
 
 # Build and register all five sample apps under their fixed ids.
 rads-build-all:

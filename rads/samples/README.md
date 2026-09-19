@@ -26,11 +26,11 @@ they can still be run by hand.
 
 1. **Upload (build phase).** The registry-service stores the DC's docker image tarball raw in
    S3 as `{algorithmId}/image.tar` and records `algorithmId -> (bucket, key)` in DynamoDB (see
-   `rads/csav/registry-service`). `POST /upload` with a JSON `algorithmId` (UUID) returns a
-   presigned S3 PUT URL; the client uploads the tarball directly and an S3 `ObjectCreated`
-   notification records the mapping, so `/upload` is the only call the client makes. No EIF
-   build, KMS, or attestation happens here.
-2. **Run (execution phase).** The runner owns the PDM call: it downloads every record for the
+   `rads/csav/registry-service`). `POST /upload` with a JSON `algorithmId` (UUID) presigns the S3
+   PUT and records the mapping in the same request; the client then uploads the tarball directly.
+   No EIF build, KMS, or attestation happens here.
+2. **Run (execution phase).** `POST /run` verifies the image object exists in S3, then the runner
+   owns the PDM call: it downloads every record for the
    `algorithmId` from `PDM_URL/records?algorithmId=<id>` (open, no auth), following the
    `nextCursor` returned by each page, and writes `{"algorithmId", "pages", "records"}` to
    `/opt/rads/run/records.json`. It then runs the image with that directory bind-mounted at

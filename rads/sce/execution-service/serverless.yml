@@ -24,6 +24,9 @@ provider:
             - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${param:algorithmTable}"
             - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${param:runResultsTable}"
         - Effect: Allow
+          Action: s3:GetObject
+          Resource: !Sub "arn:aws:s3:::${param:imagesBucket}/*"
+        - Effect: Allow
           Action: ec2:RunInstances
           Resource:
             - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*"

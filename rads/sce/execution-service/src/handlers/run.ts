@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { EC2Client, RunInstancesCommand, type RunInstancesCommandInput } from "@aws-sdk/client-ec2";
+import { HeadObjectCommand, NotFound, S3Client } from "@aws-sdk/client-s3";
 import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { requiredEnv } from "../lib/env.js";
@@ -9,6 +10,7 @@ import { userData } from "../lib/userdata.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const ec2 = new EC2Client({});
+const s3 = new S3Client({});
 const algorithmTable = requiredEnv("ALGORITHM_TABLE");
 const runResultsTable = requiredEnv("RUN_RESULTS_TABLE");
 const runResultsQueueUrl = requiredEnv("RUN_RESULTS_QUEUE_URL");
@@ -65,6 +67,14 @@ export const create: APIGatewayProxyHandlerV2 = async (event) => {
     );
     const record = algorithm.Item as AlgorithmRecord | undefined;
     if (!record?.Bucket || !record.Key) return jsonResponse(404, { error: "algorithm not found" });
+
+    // Registration is optimistic: the mapping exists from presign time, so the image itself is the proof.
+    try {
+      await s3.send(new HeadObjectCommand({ Bucket: record.Bucket, Key: record.Key }));
+    } catch (error) {
+      if (error instanceof NotFound) return jsonResponse(404, { error: "no image uploaded for this algorithmId" });
+      throw error;
+    }
 
     runId = randomUUID();
     await logEvent(request.algorithmId, runId, "run-requested");
