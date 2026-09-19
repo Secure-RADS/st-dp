@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="RADS transparency">
+  <style>
+    .bg { fill: #18181b; }
+    .fg { fill: none; stroke: #fafafa; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #fafafa; }
+      .fg { stroke: #18181b; }
+    }
+  </style>
+  <rect class="bg" x="0" y="0" width="32" height="32" rx="7"/>
+  <path class="fg" d="M16 5.8 7.2 9.3v6.2c0 5 3.8 9.2 8.8 10.7 5-1.5 8.8-5.7 8.8-10.7V9.3z"/>
+  <path class="fg" d="m11.7 15.7 3.1 3.1 5.5-5.5"/>
+</svg>

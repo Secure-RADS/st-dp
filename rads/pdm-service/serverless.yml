@@ -12,6 +12,8 @@ provider:
   name: aws
   runtime: nodejs20.x
   region: ${param:region, 'ap-southeast-2'}
+  httpApi:
+    cors: true
   iam:
     role:
       statements:
@@ -20,6 +22,7 @@ provider:
           Resource: !GetAtt PersonalDataTable.Arn
   environment:
     PDM_TABLE: !Ref PersonalDataTable
+    LOG_SERVICE_URL: ${param:logServiceUrl, 'https://log.r.secure-rads.org'}
 
 functions:
   records:
@@ -28,6 +31,13 @@ functions:
       - httpApi:
           method: GET
           path: /records
+  subject:
+    handler: src/handlers/subject.handler
+    reservedConcurrency: 5
+    events:
+      - httpApi:
+          method: GET
+          path: /subject/{dataSubjectId}
 
 resources:
   Resources:

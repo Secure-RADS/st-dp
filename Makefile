@@ -96,7 +96,8 @@ SAMPLE_APPS := \
 
 .PHONY: registry-logs secure-rads-ready secure-rads-seed secure-rads-build secure-rads-build-all secure-rads-run secure-rads-run-all secure-rads-all \
 	rads-build rads-build-all rads-seed rads-run rads-run-all rads-all rads-status \
-	logs-csv logs-csv-algo logs-csv-all portal-install portal-dev portal-infra portal-deploy portal-status
+	logs-csv logs-csv-algo logs-csv-all portal-install portal-dev portal-infra portal-deploy portal-status \
+	rads-portal-install rads-portal-dev rads-portal-infra rads-portal-deploy rads-portal-status
 
 # Transparency portal (Vite SPA): data-subject lookup + service-authority dashboard.
 # Hosted on S3 + CloudFront at transparency.sr.secure-rads.org.
@@ -114,6 +115,23 @@ portal-deploy:
 
 portal-status:
 	$(MAKE) -C secure-rads/transparency-portal status
+
+# rads transparency portal: the same SPA pointed at the baseline endpoints (log.r / pdm.r).
+# Hosted on S3 + CloudFront at transparency.r.secure-rads.org.
+rads-portal-install:
+	$(MAKE) -C rads/transparency-portal install
+
+rads-portal-dev:
+	$(MAKE) -C rads/transparency-portal dev
+
+rads-portal-infra:
+	$(MAKE) -C rads/transparency-portal deploy-infra
+
+rads-portal-deploy:
+	$(MAKE) -C rads/transparency-portal deploy
+
+rads-portal-status:
+	$(MAKE) -C rads/transparency-portal status
 
 # Tail registry-service's compose logs on the csav host (build phase).
 registry-logs:
