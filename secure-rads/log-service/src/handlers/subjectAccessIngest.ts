@@ -49,15 +49,18 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   if ("error" in parsed) return jsonResponse(400, { error: parsed.error });
 
   // A DS-keyed subject-access row per data subject; the sort key is (timestamp, algorithmId, runId).
-  const items = [...new Set(parsed.dataSubjectIds)].map((dataSubjectId) =>
-    toItem({
-      dataSubjectId,
-      algorithmId: parsed.algorithmId,
-      runId: parsed.runId,
-      timestamp: parsed.timestamp,
-      receivedAt: parsed.receivedAt,
-    }),
-  );
+  // BatchWrite takes WriteRequests, not bare items: the document client only marshals PutRequest.Item.
+  const items = [...new Set(parsed.dataSubjectIds)].map((dataSubjectId) => ({
+    PutRequest: {
+      Item: toItem({
+        dataSubjectId,
+        algorithmId: parsed.algorithmId,
+        runId: parsed.runId,
+        timestamp: parsed.timestamp,
+        receivedAt: parsed.receivedAt,
+      }),
+    },
+  }));
 
   // Write every 25-item chunk concurrently (DynamoDB caps one BatchWrite request at 25).
   await Promise.all(chunk(items, CHUNK).map(writeItems));
