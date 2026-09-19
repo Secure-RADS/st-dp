@@ -18,6 +18,7 @@ provider:
         - Effect: Allow
           Action:
             - s3:PutObject
+            - s3:GetObject
           Resource:
             - !GetAtt ImagesBucket.Arn
             - !Sub "${ImagesBucket.Arn}/*"
@@ -40,6 +41,12 @@ functions:
       - httpApi:
           method: POST
           path: /upload
+  register:
+    handler: src/handlers/register.handler
+    events:
+      - httpApi:
+          method: POST
+          path: /register
 
 resources:
   Resources:
