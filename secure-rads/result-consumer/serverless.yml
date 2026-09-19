@@ -20,7 +20,7 @@ provider:
           Resource: !GetAtt RunResultsTable.Arn
   environment:
     RUN_RESULTS_TABLE: !Ref RunResultsTable
-    LOG_EVENTS_URL: ${param:logEventsUrl, 'https://log.secure-rads.org/events'}
+    LOG_EVENTS_URL: ${param:logEventsUrl, 'https://log.sr.secure-rads.org/events'}
 
 functions:
   consume:

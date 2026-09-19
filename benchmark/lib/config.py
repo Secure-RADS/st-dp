@@ -1,0 +1,104 @@
+"""Shared configuration for the secure-rads vs rads benchmark.
+
+Fleet-wide constants (algorithm ids, sample apps) mirror the root Makefile and
+seeding/config.ts. Deployed endpoints are resolved from live CloudFormation
+outputs at runtime, not hardcoded, so the harness follows the stacks.
+"""
+
+from __future__ import annotations
+
+import subprocess
+
+REGION = "ap-southeast-2"
+
+# One algorithmId per dataset, fixed so seed/build/run line up (seeding/config.ts).
+SAMPLES = [
+    ("health-risk-python", "health", "662fa378-dc53-425d-9225-a187b11ea7dc"),
+    ("spend-analysis-go", "finance", "c7cc14fa-e962-4548-aff4-a54148798cd8"),
+    ("product-trends-node", "ecommerce", "3b8bba4a-8106-4309-9446-7bce99a1453a"),
+    ("audience-segments-rust", "social", "e4082659-08d6-4f0a-9e60-327e9410c710"),
+    ("trial-eligibility-ruby", "ehealth", "e587067e-47dc-4835-8f87-5e66fc979adf"),
+]
+
+DATASET_SIZES = {"health": 250, "finance": 1000, "ecommerce": 2500, "social": 5000, "ehealth": 10000}
+
+TREES = ("rads", "secure-rads")
+
+STACKS = {
+    "rads": {
+        "registry": "rads-registry-service-dev",
+        "log": "rads-log-service-dev",
+        "pdm": "rads-pdm-service-dev",
+        "execution": "rads-execution-service-dev",
+    },
+    "secure-rads": {
+        "log": "secure-rads-log-service-dev",
+        "pdm": "secure-rads-pdm-service-dev",
+        "execution": "secure-rads-execution-service-dev",
+    },
+}
+
+
+def _aws(*args: str) -> str:
+    out = subprocess.run(
+        ["aws", *args],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return out.stdout.strip()
+
+
+def stack_outputs(stack: str) -> dict[str, str]:
+    raw = _aws(
+        "cloudformation",
+        "describe-stacks",
+        "--stack-name",
+        stack,
+        "--region",
+        REGION,
+        "--query",
+        "Stacks[0].Outputs[].[OutputKey,OutputValue]",
+        "--output",
+        "text",
+    )
+    outputs: dict[str, str] = {}
+    for line in raw.splitlines():
+        parts = line.split("\t")
+        if len(parts) == 2:
+            outputs[parts[0]] = parts[1]
+    return outputs
+
+
+def resolve_endpoints() -> dict[str, dict[str, str]]:
+    endpoints: dict[str, dict[str, str]] = {}
+    for tree, stacks in STACKS.items():
+        endpoints[tree] = {}
+        for service, stack in stacks.items():
+            outputs = stack_outputs(stack)
+            url = outputs.get("HttpApiUrl") or f"https://{outputs['ApiRegionalDomainName']}"
+            endpoints[tree][service] = url
+            if service == "registry":
+                endpoints[tree]["registry_bucket"] = outputs["ImagesBucketName"]
+    return endpoints
+
+
+def ec2_instances() -> list[dict[str, str]]:
+    raw = _aws(
+        "ec2",
+        "describe-instances",
+        "--region",
+        REGION,
+        "--filters",
+        "Name=instance-state-name,Values=pending,running,stopping,stopped",
+        "--query",
+        "Reservations[].Instances[].[InstanceId,State.Name,Tags[?Key=='Name']|[0].Value]",
+        "--output",
+        "text",
+    )
+    rows = []
+    for line in raw.splitlines():
+        parts = line.split("\t")
+        if len(parts) == 3:
+            rows.append({"instanceId": parts[0], "state": parts[1], "name": parts[2]})
+    return rows

@@ -48,9 +48,9 @@ provider:
     ENCLAVE_INSTANCE_TYPE: ${param:enclaveInstanceType, 'c6g.large'}
     ENCLAVE_SECURITY_GROUP_ID: !Ref EnclaveHostSecurityGroup
     ENCLAVE_INSTANCE_PROFILE_ARN: !GetAtt EnclaveHostInstanceProfile.Arn
-    VERIFIER_HOST: ${param:verifierHost, 'verifier-attest.secure-rads.org'}
-    PDM_HOST: ${param:pdmHost, 'pdm.secure-rads.org'}
-    LOG_HOST: ${param:logHost, 'log.secure-rads.org'}
+    VERIFIER_HOST: ${param:verifierHost, 'verifier-attest.sr.secure-rads.org'}
+    PDM_HOST: ${param:pdmHost, 'pdm.sr.secure-rads.org'}
+    LOG_HOST: ${param:logHost, 'log.sr.secure-rads.org'}
 
 functions:
   run:

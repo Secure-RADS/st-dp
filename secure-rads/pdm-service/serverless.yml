@@ -26,8 +26,8 @@ provider:
   environment:
     PDM_TABLE: !Ref PersonalDataTable
     DATA_KEY_TABLE: !Ref DataKeyTable
-    LOG_SERVICE_URL: ${param:logServiceUrl, 'https://log.secure-rads.org'}
-    VERIFIER_JWKS_URL: ${param:verifierJwksUrl, 'https://verifier-attest.secure-rads.org/.well-known/jwks.json'}
+    LOG_SERVICE_URL: ${param:logServiceUrl, 'https://log.sr.secure-rads.org'}
+    VERIFIER_JWKS_URL: ${param:verifierJwksUrl, 'https://verifier-attest.sr.secure-rads.org/.well-known/jwks.json'}
     VERIFIER_JWKS_PUBKEY_SHA256: ${param:verifierJwksPubkeySha256, 'f447d6a73bc9309977d316032a51ea53ce3d0c0867a603ab823c0adb69fd08f0'}
 
 functions:
