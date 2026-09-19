@@ -213,7 +213,7 @@ make -C secure-rads/csav/registry-service ship remote-up REGION="$REGION" \
   LOG_HOST=log.secure-rads.org LOG_HOST_PUBKEY_SHA256="$LOG_PIN"
 ```
 
-The execution-service deployment creates a new enclave-host role. Rebuild and reseed every algorithm after deployment so its KMS key policy names that role. Once `make demo-run` succeeds through the Lambda API, remove the legacy persistent execution-service EC2 stack:
+The execution-service deployment creates a new enclave-host role. Rebuild and reseed every algorithm after deployment so its KMS key policy names that role. Once `make secure-rads-run` succeeds through the Lambda API, remove the legacy persistent execution-service EC2 stack:
 
 ```sh
 aws cloudformation delete-stack --stack-name execution-service --region "$REGION"

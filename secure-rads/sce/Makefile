@@ -1,20 +1,20 @@
-STACK_NAME := execution-service-dev
+STACK_NAME := secure-rads-execution-service-dev
 REGION ?= ap-southeast-2
 
 DEFAULT_VPC_ID = $(shell aws ec2 describe-vpcs --region $(REGION) --filters Name=is-default,Values=true \
 	--query 'Vpcs[0].VpcId' --output text)
-ARTIFACT_BUCKET = $(shell aws cloudformation describe-stacks --stack-name registry-service-storage --region $(REGION) \
+ARTIFACT_BUCKET = $(shell aws cloudformation describe-stacks --stack-name secure-rads-registry-service-storage --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='ArtifactBucketName'].OutputValue" --output text)
-ALGORITHM_TABLE = $(shell aws cloudformation describe-stacks --stack-name registry-service-storage --region $(REGION) \
+ALGORITHM_TABLE = $(shell aws cloudformation describe-stacks --stack-name secure-rads-registry-service-storage --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='AlgorithmTableName'].OutputValue" --output text)
 # KMS key encrypting the artifact bucket; the enclave host role gets kms:Decrypt on it for SSE-KMS GETs.
-ARTIFACT_BUCKET_KMS_KEY_ARN = $(shell aws cloudformation describe-stacks --stack-name registry-service-storage --region $(REGION) \
+ARTIFACT_BUCKET_KMS_KEY_ARN = $(shell aws cloudformation describe-stacks --stack-name secure-rads-registry-service-storage --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='ArtifactBucketKmsKeyArn'].OutputValue" --output text)
-RUN_RESULTS_QUEUE_ARN = $(shell aws cloudformation describe-stacks --stack-name result-consumer-dev --region $(REGION) \
+RUN_RESULTS_QUEUE_ARN = $(shell aws cloudformation describe-stacks --stack-name secure-rads-result-consumer-dev --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='RunResultsQueueArn'].OutputValue" --output text)
-RUN_RESULTS_TABLE = $(shell aws cloudformation describe-stacks --stack-name result-consumer-dev --region $(REGION) \
+RUN_RESULTS_TABLE = $(shell aws cloudformation describe-stacks --stack-name secure-rads-result-consumer-dev --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='RunResultsTableName'].OutputValue" --output text)
-RUN_RESULTS_QUEUE_URL = $(shell aws cloudformation describe-stacks --stack-name result-consumer-dev --region $(REGION) \
+RUN_RESULTS_QUEUE_URL = $(shell aws cloudformation describe-stacks --stack-name secure-rads-result-consumer-dev --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='RunResultsQueueUrl'].OutputValue" --output text)
 ENCLAVE_AMI_ID = $(shell aws ssm get-parameter --region $(REGION) \
 	--name /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64 --query 'Parameter.Value' --output text)
@@ -42,4 +42,4 @@ status:
 	cd execution-service && bunx serverless info --param="region=$(REGION)"
 
 logs:
-	aws logs tail /aws/lambda/execution-service-dev-run --region $(REGION) --follow
+	aws logs tail /aws/lambda/secure-rads-execution-service-dev-run --region $(REGION) --follow

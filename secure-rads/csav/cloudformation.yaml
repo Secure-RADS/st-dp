@@ -23,15 +23,15 @@ Parameters:
 
   ArtifactBucketName:
     Type: String
-    Description: Name of the registry-service artifact bucket (from the registry-service-storage stack), for the instance's S3 write permission.
+    Description: Name of the registry-service artifact bucket (from the secure-rads-registry-service-storage stack), for the instance's S3 write permission.
 
   AlgorithmTableName:
     Type: String
-    Description: Name of the registry-service AlgorithmId->S3 path table (from the registry-service-storage stack), for the instance's DynamoDB write permission.
+    Description: Name of the registry-service AlgorithmId->S3 path table (from the secure-rads-registry-service-storage stack), for the instance's DynamoDB write permission.
 
   ArtifactBucketKmsKeyArn:
     Type: String
-    Description: ARN of the KMS key for the artifact bucket (from the registry-service-storage stack). Required to PUT EIF objects with SSE-KMS.
+    Description: ARN of the KMS key for the artifact bucket (from the secure-rads-registry-service-storage stack). Required to PUT EIF objects with SSE-KMS.
 
   LatestAmiId:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
@@ -132,7 +132,7 @@ Resources:
             (mkdir -p /usr/libexec/docker/cli-plugins && ln -s /usr/local/bin/docker-compose /usr/libexec/docker/cli-plugins/docker-compose)
       Tags:
         - Key: Name
-          Value: csav
+          Value: secure-rads-csav
 
 Outputs:
   CsavInstanceId:

@@ -1,0 +1,95 @@
+service: rads-registry-service
+
+# Bundled as CJS, not ESM, same as the secure-rads services - esbuild's ESM output can't interop with plain
+# top-level require() in some deps, and nothing here actually needs ESM at runtime.
+build:
+  esbuild:
+    format: cjs
+    outExtension:
+      ".js": ".cjs"
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: ${param:region, 'ap-southeast-2'}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+            - s3:GetObject
+          Resource:
+            - !GetAtt ImagesBucket.Arn
+            - !Sub "${ImagesBucket.Arn}/*"
+        - Effect: Allow
+          Action: dynamodb:PutItem
+          Resource: !GetAtt AlgorithmsTable.Arn
+        - Effect: Allow
+          Action: sqs:SendMessage
+          Resource: ${param:logEventsQueueArn, ''}
+  environment:
+    ARTIFACT_BUCKET: !Ref ImagesBucket
+    DYNAMO_TABLE: !Ref AlgorithmsTable
+    # The rads-log-events queue lives in another stack - its URL/ARN are passed in at deploy time.
+    LOG_EVENTS_QUEUE_URL: ${param:logEventsQueueUrl, ''}
+
+functions:
+  upload:
+    handler: src/handlers/upload.handler
+    events:
+      - httpApi:
+          method: POST
+          path: /upload
+  register:
+    handler: src/handlers/register.handler
+    events:
+      - httpApi:
+          method: POST
+          path: /register
+
+resources:
+  Resources:
+    ApiCustomDomain:
+      Type: AWS::ApiGatewayV2::DomainName
+      Properties:
+        DomainName: ${param:domainName}
+        DomainNameConfigurations:
+          - CertificateArn: ${param:certificateArn}
+
+    ApiDomainMapping:
+      Type: AWS::ApiGatewayV2::ApiMapping
+      Properties:
+        DomainName: !Ref ApiCustomDomain
+        ApiId: !Ref HttpApi
+        Stage: !Ref HttpApiStage
+
+    ImagesBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: rads-images
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: true
+          BlockPublicPolicy: true
+          IgnorePublicAcls: true
+          RestrictPublicBuckets: true
+
+    AlgorithmsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        BillingMode: PAY_PER_REQUEST
+        TableName: rads-algorithms
+        AttributeDefinitions:
+          - AttributeName: AlgorithmId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: AlgorithmId
+            KeyType: HASH
+
+  Outputs:
+    ImagesBucketName:
+      Value: !Ref ImagesBucket
+    AlgorithmsTableName:
+      Value: !Ref AlgorithmsTable
+    ApiRegionalDomainName:
+      Value: !GetAtt ApiCustomDomain.RegionalDomainName

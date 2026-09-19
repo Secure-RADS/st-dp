@@ -1,6 +1,6 @@
 IMAGE := registry-service:latest
-STACK_NAME := csav
-STORAGE_STACK_NAME := registry-service-storage
+STACK_NAME := secure-rads-csav
+STORAGE_STACK_NAME := secure-rads-registry-service-storage
 REGION ?= ap-southeast-2
 KEY_PATH := $(abspath ../../../.ssh/csav-key.pem)
 REMOTE_DIR := /home/ec2-user/registry-service
@@ -23,7 +23,7 @@ ARTIFACT_BUCKET_KMS_KEY_ARN = $(shell aws cloudformation describe-stacks --stack
 # CSAV writes EIFs (kms:GenerateDataKey); the enclave host reads them (kms:Decrypt). The key policy
 # references these role ARNs, so they're resolved live (names carry a CFN-generated suffix).
 CSAV_ROLE_ARN = $(shell aws iam list-roles --query "Roles[?contains(RoleName, 'CsavInstanceRole')].Arn | [0]" --output text)
-ENCLAVE_HOST_ROLE_ARN = $(shell aws iam list-roles --query "Roles[?contains(RoleName, 'execution-service-dev-EnclaveHostInstanceRole')].Arn | [0]" --output text)
+ENCLAVE_HOST_ROLE_ARN = $(shell aws iam list-roles --query "Roles[?contains(RoleName, 'secure-rads-execution-service-dev-EnclaveHostInstanceRole')].Arn | [0]" --output text)
 ROLE_PARAMETERS = $(strip $(if $(filter None,$(CSAV_ROLE_ARN)),,CsavInstanceRoleArn=$(CSAV_ROLE_ARN)) $(if $(filter None,$(ENCLAVE_HOST_ROLE_ARN)),,EnclaveHostInstanceRoleArn=$(ENCLAVE_HOST_ROLE_ARN)))
 # mTLS domain (registerPCRs -> /algorithms) and its pin.
 VERIFIER_URL ?= https://verifier.secure-rads.org/algorithms
@@ -71,7 +71,7 @@ gen-client-cert:
 
 # The enclave host role ARN is baked into each per-algorithm KMS key policy by registry-service.
 CSAV_ROLE_ARN = $(shell aws iam list-roles --query "Roles[?contains(RoleName, 'CsavInstanceRole')].Arn | [0]" --output text)
-ENCLAVE_HOST_ROLE_ARN = $(shell aws iam list-roles --query "Roles[?contains(RoleName, 'execution-service-dev-EnclaveHostInstanceRole')].Arn | [0]" --output text)
+ENCLAVE_HOST_ROLE_ARN = $(shell aws iam list-roles --query "Roles[?contains(RoleName, 'secure-rads-execution-service-dev-EnclaveHostInstanceRole')].Arn | [0]" --output text)
 
 # Build the docker image locally (arm64, matches the t4g.nano host).
 image: sce-unit-base eif-build-base

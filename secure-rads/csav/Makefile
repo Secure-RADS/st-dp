@@ -1,4 +1,4 @@
-STACK_NAME := csav
+STACK_NAME := secure-rads-csav
 KEY_NAME := csav-key
 KEY_PATH := $(abspath ../../.ssh/$(KEY_NAME).pem)
 REGION ?= ap-southeast-2
@@ -13,12 +13,12 @@ INSTANCE_IP = $(shell aws ec2 describe-instances --instance-ids $(INSTANCE_ID) -
 SSH = ssh -i $(KEY_PATH) ec2-user@$(INSTANCE_IP)
 DEFAULT_VPC_ID = $(shell aws ec2 describe-vpcs --region $(REGION) --filters Name=is-default,Values=true \
 	--query 'Vpcs[0].VpcId' --output text)
-ARTIFACT_BUCKET = $(shell aws cloudformation describe-stacks --stack-name registry-service-storage --region $(REGION) \
+ARTIFACT_BUCKET = $(shell aws cloudformation describe-stacks --stack-name secure-rads-registry-service-storage --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='ArtifactBucketName'].OutputValue" --output text)
-ALGORITHM_TABLE = $(shell aws cloudformation describe-stacks --stack-name registry-service-storage --region $(REGION) \
+ALGORITHM_TABLE = $(shell aws cloudformation describe-stacks --stack-name secure-rads-registry-service-storage --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='AlgorithmTableName'].OutputValue" --output text)
 # KMS key encrypting the artifact bucket; CSAV role gets kms:GenerateDataKey on it for SSE-KMS PUTs.
-ARTIFACT_BUCKET_KMS_KEY_ARN = $(shell aws cloudformation describe-stacks --stack-name registry-service-storage --region $(REGION) \
+ARTIFACT_BUCKET_KMS_KEY_ARN = $(shell aws cloudformation describe-stacks --stack-name secure-rads-registry-service-storage --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='ArtifactBucketKmsKeyArn'].OutputValue" --output text)
 
 .PHONY: build test run clean key deploy destroy up down status ssh logs

@@ -1,0 +1,68 @@
+service: rads-pdm-service
+
+# Bundled as CJS, not ESM, same as secure-rads' pdm-service - esbuild's ESM output can't interop with
+# plain top-level require() in some deps, and nothing here actually needs ESM at runtime.
+build:
+  esbuild:
+    format: cjs
+    outExtension:
+      ".js": ".cjs"
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: ${param:region, 'ap-southeast-2'}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action: dynamodb:Query
+          Resource: !GetAtt PersonalDataTable.Arn
+  environment:
+    PDM_TABLE: !Ref PersonalDataTable
+
+functions:
+  records:
+    handler: src/handlers/records.handler
+    events:
+      - httpApi:
+          method: GET
+          path: /records
+
+resources:
+  Resources:
+    ApiCustomDomain:
+      Type: AWS::ApiGatewayV2::DomainName
+      Properties:
+        DomainName: ${param:domainName}
+        DomainNameConfigurations:
+          - CertificateArn: ${param:certificateArn}
+
+    ApiDomainMapping:
+      Type: AWS::ApiGatewayV2::ApiMapping
+      Properties:
+        DomainName: !Ref ApiCustomDomain
+        ApiId: !Ref HttpApi
+        Stage: !Ref HttpApiStage
+
+    PersonalDataTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: rads-personal-data
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: AlgorithmId
+            AttributeType: S
+          - AttributeName: RecordId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: AlgorithmId
+            KeyType: HASH
+          - AttributeName: RecordId
+            KeyType: RANGE
+
+  Outputs:
+    PersonalDataTableName:
+      Value: !Ref PersonalDataTable
+    ApiRegionalDomainName:
+      Value: !GetAtt ApiCustomDomain.RegionalDomainName

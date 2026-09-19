@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "generate": "bun generate.ts",
-    "seed": "bun seed.ts",
+    "seed-rads": "bun seed-rads.ts",
+    "seed-secure-rads": "bun seed-secure-rads.ts",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "lint:fix": "biome check --write ."

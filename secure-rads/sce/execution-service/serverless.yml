@@ -1,4 +1,4 @@
-service: execution-service
+service: secure-rads-execution-service
 
 build:
   esbuild:
@@ -118,7 +118,7 @@ resources:
                   Resource: !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*"
                   Condition:
                     StringEquals:
-                      "ec2:ResourceTag/ManagedBy": execution-service
+                      "ec2:ResourceTag/ManagedBy": secure-rads-execution-service
           - PolicyName: SendRunResult
             PolicyDocument:
               Version: "2012-10-17"
