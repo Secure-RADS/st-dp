@@ -1,7 +1,7 @@
-.PHONY: up down status demo rads logs csav-key csav-deploy csav-destroy csav-status csav-up csav-down csav-ssh
+.PHONY: up down status secure-rads rads logs csav-key csav-deploy csav-destroy csav-status csav-up csav-down csav-ssh
 
 up:
-	$(MAKE) demo-ready
+	$(MAKE) secure-rads-ready
 
 down:
 	$(MAKE) csav-down
@@ -11,8 +11,8 @@ status:
 	$(MAKE) sce-status
 	$(MAKE) rads-status
 
-demo:
-	$(MAKE) demo-all
+secure-rads:
+	$(MAKE) secure-rads-all
 
 rads:
 	$(MAKE) rads-all
@@ -62,7 +62,7 @@ sce-status:
 sce-logs:
 	$(MAKE) -C secure-rads/sce logs
 
-# Demo: end-to-end build + execution. Resolved lazily so only the demo targets hit AWS.
+# End-to-end build + execution. Resolved lazily so only these targets hit AWS.
 REGION ?= ap-southeast-2
 KEY_PATH := $(CURDIR)/.ssh/csav-key.pem
 LOG_HOST ?= log.secure-rads.org
@@ -80,21 +80,21 @@ DATA_KEY_TABLE = $(shell aws cloudformation describe-stacks --stack-name secure-
 ALGORITHM_TABLE = $(shell aws cloudformation describe-stacks --stack-name secure-rads-registry-service-storage --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='AlgorithmTableName'].OutputValue" --output text)
 
-# Persistent demo fleet: each sample app is pinned to the fixed algorithmId its dataset is seeded under
-# (see seeding/config.ts). Re-running any target rebinds the same ids, so the demo is stable and repeatable.
+# Persistent fleet: each sample app is pinned to the fixed algorithmId its dataset is seeded under
+# (see seeding/config.ts). Re-running any target rebinds the same ids, so the runs are stable and repeatable.
 HEALTH_ID    := 662fa378-dc53-425d-9225-a187b11ea7dc
 FINANCE_ID   := c7cc14fa-e962-4548-aff4-a54148798cd8
 ECOMMERCE_ID := 3b8bba4a-8106-4309-9446-7bce99a1453a
 SOCIAL_ID    := e4082659-08d6-4f0a-9e60-327e9410c710
 EHEALTH_ID   := e587067e-47dc-4835-8f87-5e66fc979adf
-DEMO_APPS := \
+SAMPLE_APPS := \
 	health-risk-python:$(HEALTH_ID) \
 	spend-analysis-go:$(FINANCE_ID) \
 	product-trends-node:$(ECOMMERCE_ID) \
 	audience-segments-rust:$(SOCIAL_ID) \
 	trial-eligibility-ruby:$(EHEALTH_ID)
 
-.PHONY: registry-logs demo-ready demo-seed demo-build demo-build-all demo-run demo-run-all demo-all \
+.PHONY: registry-logs secure-rads-ready secure-rads-seed secure-rads-build secure-rads-build-all secure-rads-run secure-rads-run-all secure-rads-all \
 	rads-build rads-build-all rads-seed rads-run rads-run-all rads-all rads-status \
 	logs-csv logs-csv-algo logs-csv-all portal-install portal-dev portal-infra portal-deploy portal-status
 
@@ -120,7 +120,7 @@ registry-logs:
 	$(MAKE) -C secure-rads/csav/registry-service logs
 
 # Start the CSAV host when needed, then wait for its restarted Compose service. execution-service is Lambda.
-demo-ready:
+secure-rads-ready:
 	@set -eu; \
 	get_instance_id() { \
 		aws cloudformation describe-stacks \
@@ -157,33 +157,32 @@ demo-ready:
 
 # Seed all five context datasets into the PDM table, each under its fixed algorithmId. Records are
 # envelope-encrypted under each algorithm's per-algo KMS key, so the algorithm must be built first
-# (make demo-build), which provisions that key and stores its ARN in the AlgorithmTable.
-demo-seed:
-	cd seeding && bun install && bun run generate && PDM_TABLE=$(PDM_TABLE) DATA_KEY_TABLE=$(DATA_KEY_TABLE) ALGORITHM_TABLE=$(ALGORITHM_TABLE) AWS_REGION=$(REGION) bun run seed
+# (make secure-rads-build), which provisions that key and stores its ARN in the AlgorithmTable.
+secure-rads-seed:
+	cd seeding && bun install && bun run generate && PDM_TABLE=$(PDM_TABLE) DATA_KEY_TABLE=$(DATA_KEY_TABLE) ALGORITHM_TABLE=$(ALGORITHM_TABLE) AWS_REGION=$(REGION) bun run seed-secure-rads
 
-# Build phase (one app): make demo-build APP=<dir> ALGORITHM_ID=<id>.
+# Build phase (one app): make secure-rads-build APP=<dir> ALGORITHM_ID=<id>.
 # Builds the arm64 image, ships it to the csav host, and registers it under ALGORITHM_ID.
 # Prints {algorithmId, bucket, key}; watch `make registry-logs` alongside.
-demo-build:
+secure-rads-build:
 	@test -n "$(APP)" || { echo "APP is required (a secure-rads/samples dir)"; exit 1; }
 	@test -n "$(ALGORITHM_ID)" || { echo "ALGORITHM_ID is required"; exit 1; }
-	docker build --platform linux/arm64 -t $(APP):demo secure-rads/samples/$(APP)
-	docker save $(APP):demo -o /tmp/$(APP).tar
+	docker build --platform linux/arm64 -t $(APP):local secure-rads/samples/$(APP)
+	docker save $(APP):local -o /tmp/$(APP).tar
 	scp -i $(KEY_PATH) -o StrictHostKeyChecking=accept-new /tmp/$(APP).tar ec2-user@$(CSAV_IP):/tmp/$(APP).tar
 	ssh -i $(KEY_PATH) -o StrictHostKeyChecking=accept-new ec2-user@$(CSAV_IP) \
 		'curl -sS -F "image=@/tmp/$(APP).tar" -F "algorithmId=$(ALGORITHM_ID)" http://localhost:8080/upload; echo'
 
-# Build and register all five demo apps under their fixed ids.
-demo-build-all:
-	@for pair in $(DEMO_APPS); do \
+# Build and register all five sample apps under their fixed ids.
+secure-rads-build-all:
+	@for pair in $(SAMPLE_APPS); do \
 		app=$${pair%%:*}; id=$${pair##*:}; \
-		echo "=== build $$app ($$id) ==="; \
-		$(MAKE) demo-build APP=$$app ALGORITHM_ID=$$id || exit 1; \
+		$(MAKE) secure-rads-build APP=$$app ALGORITHM_ID=$$id || exit 1; \
 	done
 
-# Execution phase (one run): make demo-run ALGORITHM_ID=<id>.
+# Execution phase (one run): make secure-rads-run ALGORITHM_ID=<id>.
 # Fires /run (202 + runId), then polls GET /run/{runId} until the enclave reports back.
-demo-run:
+secure-rads-run:
 	@test -n "$(ALGORITHM_ID)" || { echo "ALGORITHM_ID is required"; exit 1; }
 	@api=$(EXECUTION_API_URL); \
 	runId=$$(curl -sS -X POST "$$api/run" -H 'Content-Type: application/json' \
@@ -201,23 +200,22 @@ demo-run:
 	done; \
 	echo "timed out waiting for runId=$$runId"; exit 1
 
-# Fire and poll every demo app in turn (sequential - each spins up its own enclave).
-demo-run-all:
-	@for pair in $(DEMO_APPS); do \
+# Fire and poll every sample app in turn (sequential - each spins up its own enclave).
+secure-rads-run-all:
+	@for pair in $(SAMPLE_APPS); do \
 		app=$${pair%%:*}; id=$${pair##*:}; \
-		echo "=== run $$app ($$id) ==="; \
-		$(MAKE) demo-run ALGORITHM_ID=$$id || exit 1; \
+		$(MAKE) secure-rads-run ALGORITHM_ID=$$id || exit 1; \
 	done
 
 # Start the existing hosts, then build, seed, and run the whole fleet. Build comes first because it
 # provisions the per-algorithm KMS keys used by seeding.
-demo-all:
-	$(MAKE) demo-ready
-	$(MAKE) demo-build-all
-	$(MAKE) demo-seed
-	$(MAKE) demo-run-all
+secure-rads-all:
+	$(MAKE) secure-rads-ready
+	$(MAKE) secure-rads-build-all
+	$(MAKE) secure-rads-seed
+	$(MAKE) secure-rads-run-all
 
-# --- rads: fully-trusted baseline demo. No enclave, no KMS, no verifier. Both registry and execution
+# --- rads: fully-trusted baseline. No enclave, no KMS, no verifier. Both registry and execution
 # are serverless Lambdas (no CSAV host to start), upload is presigned-S3, and the PDM holds plaintext.
 
 # rads registry and execution are HTTP APIs; the PDM table holds plaintext records.
@@ -237,8 +235,8 @@ RADS_ALGORITHMS_TABLE = $(shell aws cloudformation describe-stacks --stack-name 
 rads-build:
 	@test -n "$(APP)" || { echo "APP is required (a rads/samples dir)"; exit 1; }
 	@test -n "$(ALGORITHM_ID)" || { echo "ALGORITHM_ID is required"; exit 1; }
-	docker build --platform linux/arm64 -t $(APP):demo rads/samples/$(APP)
-	docker save $(APP):demo -o /tmp/$(APP).tar
+	docker build --platform linux/arm64 -t $(APP):local rads/samples/$(APP)
+	docker save $(APP):local -o /tmp/$(APP).tar
 	@reg=$(RADS_REGISTRY_URL); table=$(RADS_ALGORITHMS_TABLE); \
 	url=$$(curl -sS -X POST "$$reg/upload" -H 'Content-Type: application/json' \
 		-d '{"algorithmId":"$(ALGORITHM_ID)"}' | python3 -c 'import sys,json; print(json.load(sys.stdin)["uploadUrl"])'); \
@@ -253,11 +251,10 @@ rads-build:
 	aws dynamodb get-item --table-name "$$table" --region $(REGION) \
 		--key "{\"AlgorithmId\":{\"S\":\"$(ALGORITHM_ID)\"}}" --query Item --output json
 
-# Build and register all five demo apps under their fixed ids.
+# Build and register all five sample apps under their fixed ids.
 rads-build-all:
-	@for pair in $(DEMO_APPS); do \
+	@for pair in $(SAMPLE_APPS); do \
 		app=$${pair%%:*}; id=$${pair##*:}; \
-		echo "=== build $$app ($$id) ==="; \
 		$(MAKE) rads-build APP=$$app ALGORITHM_ID=$$id || exit 1; \
 	done
 
@@ -285,11 +282,10 @@ rads-run:
 	done; \
 	echo "timed out waiting for runId=$$runId"; exit 1
 
-# Fire and poll every demo app in turn (sequential - each spins up its own runner).
+# Fire and poll every sample app in turn (sequential - each spins up its own runner).
 rads-run-all:
-	@for pair in $(DEMO_APPS); do \
+	@for pair in $(SAMPLE_APPS); do \
 		app=$${pair%%:*}; id=$${pair##*:}; \
-		echo "=== run $$app ($$id) ==="; \
 		$(MAKE) rads-run ALGORITHM_ID=$$id || exit 1; \
 	done
 
@@ -302,7 +298,6 @@ rads-all:
 # Show the rads serverless stack outputs (API URLs and resource names).
 rads-status:
 	@for stack in rads-registry-service-dev rads-pdm-service-dev rads-log-service-dev rads-result-consumer-dev rads-execution-service-dev; do \
-		echo "=== $$stack ==="; \
 		aws cloudformation describe-stacks --stack-name $$stack --region $(REGION) --query 'Stacks[0].Outputs' --output table; \
 	done
 

@@ -33,7 +33,7 @@ Execution phase (SCE):
 - [`secure-rads/result-consumer/`](secure-rads/result-consumer/README.md) - SQS-triggered Lambda that persists enclave results to the `RunResults` table.
 - [`secure-rads/log-service/`](secure-rads/log-service/README.md) - fire-and-forget run-timeline logger (SQS + worker, JSON/CSV export).
 
-Demo assets:
+Sample assets:
 
 - [`secure-rads/samples/`](secure-rads/samples/README.md) - five reference Data Controller apps (one per context), each pinned to a fixed `algorithmId`.
 - [`seeding/`](seeding/README.md) - generates and seeds the five context datasets into the PDM table.
@@ -46,19 +46,19 @@ Use [Devbox](https://www.jetify.com/docs/devbox/) for all commands. It exports `
 devbox shell
 make up       # start the CSAV EC2 host and wait for registry-service
 make status   # show the CSAV and execution-service stacks
-make demo     # build, seed, and run all five samples
+make secure-rads  # build, seed, and run all five samples
 make down     # stop the CSAV EC2 host when finished
 ```
 
-`make demo` is a persistent, repeatable fleet: it registers each sample under its fixed `algorithmId`, seeds its data, and runs it. Building happens before seeding because registration creates the KMS key used to encrypt each dataset.
+`make secure-rads` is a persistent, repeatable fleet: it registers each sample under its fixed `algorithmId`, seeds its data, and runs it. Building happens before seeding because registration creates the KMS key used to encrypt each dataset.
 
 Useful root targets:
 
 ```sh
-make demo-ready                     # start and verify the CSAV host
-make demo-build-all                 # build and register all samples
-make demo-seed                      # generate and seed all datasets
-make demo-run-all                   # run all samples
+make secure-rads-ready                     # start and verify the CSAV host
+make secure-rads-build-all                 # build and register all samples
+make secure-rads-seed                      # generate and seed all datasets
+make secure-rads-run-all                   # run all samples
 make logs                           # tail the CSAV host and all Lambda logs
 make registry-logs                  # tail the CSAV registry service
 make sce-logs                       # tail the execution-service Lambda
@@ -67,8 +67,8 @@ make sce-logs                       # tail the execution-service Lambda
 Single app (APP is a secure-rads/samples/ dir, ALGORITHM_ID its fixed id):
 
 ```
-make demo-build APP=health-risk-python ALGORITHM_ID=662fa378-dc53-425d-9225-a187b11ea7dc
-make demo-run   ALGORITHM_ID=662fa378-dc53-425d-9225-a187b11ea7dc
+make secure-rads-build APP=health-risk-python ALGORITHM_ID=662fa378-dc53-425d-9225-a187b11ea7dc
+make secure-rads-run   ALGORITHM_ID=662fa378-dc53-425d-9225-a187b11ea7dc
 ```
 
 Export a run's timeline (build through execution) as CSV:
