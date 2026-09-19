@@ -22,6 +22,11 @@ provider:
           Resource:
             - !GetAtt ImagesBucket.Arn
             - !Sub "${ImagesBucket.Arn}/*"
+        # S3 answers a HeadObject on a missing key with 403 instead of 404 unless the caller may ListBucket,
+        # which would turn /register's existence check into a 500.
+        - Effect: Allow
+          Action: s3:ListBucket
+          Resource: !GetAtt ImagesBucket.Arn
         - Effect: Allow
           Action: dynamodb:PutItem
           Resource: !GetAtt AlgorithmsTable.Arn
