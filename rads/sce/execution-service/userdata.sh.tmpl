@@ -44,7 +44,7 @@ for attempt in 1 2 3 4 5 6; do docker info >/dev/null 2>&1 && break; sleep 5; do
 mkdir -p "$RUN_DIR"
 
 # Download the algorithm's full record set before the app starts, so the DC app reads a local file.
-python3 - "$PDM_URL" "$ALGORITHM_ID" "$RECORDS_FILE" <<'PYEOF'
+python3 - "$PDM_URL" "$ALGORITHM_ID" "$RECORDS_FILE" "$RUN_ID" <<'PYEOF'
 {{.FetchRecordsScript}}
 PYEOF
 
