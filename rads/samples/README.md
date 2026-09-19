@@ -15,7 +15,6 @@ they can still be run by hand.
 
 | App | Language | Aggregation |
 | --- | --- | --- |
-| `record-summary-python` | Python (pydantic) | record count, page count, average `age` |
 | `health-risk-python` | Python (pydantic) | resting HR / steps / sleep means, risk-flagged share, activity levels |
 | `spend-analysis-go` | Go (stdlib) | spend by category, avg monthly spend, anomaly users |
 | `product-trends-node` | Node (`node:fs`) | revenue and orders, top categories by age band |
@@ -64,11 +63,11 @@ curl -sS 'https://<pdm-host>/records?algorithmId=662fa378-dc53-425d-9225-a187b11
   | python3 -c 'import json,sys; print(json.dumps(json.load(sys.stdin)))' \
   > /tmp/rads-run/records.json
 
-docker build -t record-summary-python rads/samples/record-summary-python
+docker build -t health-risk-python rads/samples/health-risk-python
 docker run --rm -v /tmp/rads-run:/data \
   -e RECORDS_PATH=/data/records.json \
   -e RESULT_PATH=/data/result.json \
-  record-summary-python
+  health-risk-python
 cat /tmp/rads-run/result.json
 ```
 
