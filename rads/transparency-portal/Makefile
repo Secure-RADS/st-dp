@@ -1,8 +1,9 @@
 STACK_NAME := rads-transparency-portal
 REGION ?= ap-southeast-2
 DOMAIN ?= transparency.r.secure-rads.org
-# us-east-1 certificate (CloudFront requires the cert in us-east-1, unlike the regional API certs). It must
-# cover DOMAIN: override CERT_ARN if the default certificate has no SAN for transparency.r.secure-rads.org.
+# us-east-1 certificate (CloudFront requires the cert in us-east-1, unlike the regional API certs). The
+# default below is the secure-rads portal certificate, which covers only transparency.sr.secure-rads.org:
+# pass CERT_ARN for a us-east-1 certificate that also covers transparency.r.secure-rads.org.
 CERT_ARN ?= arn:aws:acm:us-east-1:615299756331:certificate/12f0557e-a816-4dcd-90a8-8941250c9db4
 BUCKET = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='BucketName'].OutputValue" --output text)

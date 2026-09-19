@@ -36,7 +36,7 @@ bun run dev
 
 ## Deploy
 
-Hosted on S3 + CloudFront behind `transparency.r.secure-rads.org`. The CloudFront certificate must exist in `us-east-1` and cover that name (see `CERT_ARN` in the `Makefile`).
+Hosted on S3 + CloudFront behind `transparency.r.secure-rads.org`. The CloudFront certificate must exist in `us-east-1` and cover that name; the default `CERT_ARN` in the `Makefile` is the secure-rads portal certificate and does not cover it, so override `CERT_ARN` (or add the name to that certificate) before `deploy-infra`.
 
 ```
 make -C rads/transparency-portal deploy-infra   # one-time: S3 + CloudFront + DNS target
