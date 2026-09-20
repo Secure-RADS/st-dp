@@ -11,6 +11,10 @@ import subprocess
 
 REGION = "ap-southeast-2"
 
+# Field counts for the tab-separated `aws --output text` rows parsed below.
+OUTPUT_PAIR_FIELDS = 2
+INSTANCE_ROW_FIELDS = 3
+
 # One algorithmId per dataset, fixed so seed/build/run line up (seeding/config.ts).
 SAMPLES = [
     ("health-risk-python", "health", "662fa378-dc53-425d-9225-a187b11ea7dc"),
@@ -65,7 +69,7 @@ def stack_outputs(stack: str) -> dict[str, str]:
     outputs: dict[str, str] = {}
     for line in raw.splitlines():
         parts = line.split("\t")
-        if len(parts) == 2:
+        if len(parts) == OUTPUT_PAIR_FIELDS:
             outputs[parts[0]] = parts[1]
     return outputs
 
@@ -78,7 +82,8 @@ def csav_registry_url() -> str:
     """
     instance_id = stack_outputs("secure-rads-csav").get("CsavInstanceId", "")
     if not instance_id:
-        raise RuntimeError("secure-rads-csav stack has no CsavInstanceId output")
+        msg = "secure-rads-csav stack has no CsavInstanceId output"
+        raise RuntimeError(msg)
     ip = _aws(
         "ec2",
         "describe-instances",
@@ -92,11 +97,22 @@ def csav_registry_url() -> str:
         "text",
     )
     if not ip or ip == "None":
-        raise RuntimeError(f"CSAV instance {instance_id} has no public IP (is it running?)")
+        msg = f"CSAV instance {instance_id} has no public IP (is it running?)"
+        raise RuntimeError(msg)
     return f"http://{ip}:8080"
 
 
-def resolve_endpoints() -> dict[str, dict[str, str]]:
+def resolve_endpoints(*, include_secure_registry: bool = True) -> dict[str, dict[str, str]]:
+    """Resolve the live API URLs for both trees from CloudFormation outputs.
+
+    Args:
+        include_secure_registry: Secure-rads' registry is the Go service on the CSAV
+            host, so resolving it requires that instance to be running. Read-only
+            tooling passes False so it still works with the host stopped.
+
+    Returns:
+        Mapping of tree -> service -> URL.
+    """
     endpoints: dict[str, dict[str, str]] = {}
     for tree, stacks in STACKS.items():
         endpoints[tree] = {}
@@ -106,7 +122,8 @@ def resolve_endpoints() -> dict[str, dict[str, str]]:
             endpoints[tree][service] = url
             if service == "registry":
                 endpoints[tree]["registry_bucket"] = outputs["ImagesBucketName"]
-    endpoints["secure-rads"]["registry"] = csav_registry_url()
+    if include_secure_registry:
+        endpoints["secure-rads"]["registry"] = csav_registry_url()
     return endpoints
 
 
@@ -126,6 +143,6 @@ def ec2_instances() -> list[dict[str, str]]:
     rows = []
     for line in raw.splitlines():
         parts = line.split("\t")
-        if len(parts) == 3:
+        if len(parts) == INSTANCE_ROW_FIELDS:
             rows.append({"instanceId": parts[0], "state": parts[1], "name": parts[2]})
     return rows

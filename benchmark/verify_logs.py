@@ -18,9 +18,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from lib import config, flow  # noqa: E402
+from lib import config, flow
 
 RAW_DIR = Path(__file__).resolve().parent / "results" / "raw"
+
+# Means are compared at millisecond precision; below this they are the same measurement.
+MEAN_TOLERANCE_SECONDS = 0.01
 
 
 def raw_means() -> dict[tuple[str, str, str], list[float]]:
@@ -60,7 +63,8 @@ def counts(endpoints: dict[str, dict[str, str]]) -> dict[str, dict[str, int]]:
 
 
 def main() -> int:
-    endpoints = config.resolve_endpoints()
+    # Only log-service URLs are needed, so this works with the CSAV host stopped.
+    endpoints = config.resolve_endpoints(include_secure_registry=False)
     raw = raw_means()
     logged = log_service_means(endpoints)
 
@@ -92,7 +96,7 @@ def main() -> int:
             # Probe/manual runs also emit events; the committed raw set is the sweep only.
             status = f"ok (+{len(log_vals) - len(raw_vals)} extra)"
             extras += len(log_vals) - len(raw_vals)
-        elif abs(raw_mean - log_mean) < 0.01:
+        elif abs(raw_mean - log_mean) < MEAN_TOLERANCE_SECONDS:
             status = "ok"
         else:
             status = "MEAN MISMATCH"
@@ -106,8 +110,11 @@ def main() -> int:
     print()
     if extras:
         print(f"note: {extras} extra event(s) in the log services from probe/manual runs")
-    print("reconciled: every committed measurement is present in the log service"
-          if problems == 0 else f"{problems} problem(s)")
+    print(
+        "reconciled: every committed measurement is present in the log service"
+        if problems == 0
+        else f"{problems} problem(s)"
+    )
     return 0 if problems == 0 else 1
 
 

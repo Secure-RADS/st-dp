@@ -14,21 +14,31 @@ import json
 import time
 import urllib.error
 import urllib.request
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 POLL_INTERVAL_SECONDS = 5.0
 POLL_TIMEOUT_SECONDS = 900.0
 HTTP_TIMEOUT_SECONDS = 900.0
 
+HTTP_OK = 200
+HTTP_ACCEPTED = 202
+HTTP_NO_CONTENT = 204
+
+RESPONSE_SNIPPET_BYTES = 200
+
 
 class FlowError(RuntimeError):
-    pass
+    """Raised when a flow step returns something other than its expected response."""
 
 
-@dataclass
-class StageTiming:
+class StageTiming(BaseModel):
+    """Client-observed durations for one flow, in seconds."""
+
     upload_seconds: float | None = None
     register_seconds: float | None = None
     execute_seconds: float | None = None
@@ -37,7 +47,15 @@ class StageTiming:
     status: str | None = None
     output: str | None = None
     error: str | None = None
-    events: list[dict[str, Any]] = field(default_factory=list)
+    events: list[dict[str, Any]] = Field(default_factory=list)
+
+
+def _require(response_status: int, expected: int | tuple[int, ...], context: str, body: bytes) -> None:
+    if response_status in ((expected,) if isinstance(expected, int) else expected):
+        return
+    snippet = body[:RESPONSE_SNIPPET_BYTES]
+    msg = f"{context} returned {response_status}: {snippet!r}"
+    raise FlowError(msg)
 
 
 def _request(
@@ -62,7 +80,8 @@ def _json(body: bytes) -> dict[str, Any]:
     try:
         return json.loads(body)
     except json.JSONDecodeError as err:
-        raise FlowError(f"expected JSON response, got: {body[:200]!r}") from err
+        msg = f"expected JSON response, got: {body[:RESPONSE_SNIPPET_BYTES]!r}"
+        raise FlowError(msg) from err
 
 
 def now_iso() -> str:
@@ -77,10 +96,11 @@ def post_event(log_url: str, event: dict[str, Any]) -> bool:
         data=json.dumps(event).encode(),
         headers={"Content-Type": "application/json"},
     )
-    return status in (200, 202)
+    return status in (HTTP_OK, HTTP_ACCEPTED)
 
 
 def upload_rads(registry_url: str, algorithm_id: str, tar_path: Path) -> float:
+    """Presign, PUT the tarball to S3, and register it. Returns the elapsed seconds."""
     start = time.perf_counter()
     status, body = _request(
         "POST",
@@ -88,23 +108,21 @@ def upload_rads(registry_url: str, algorithm_id: str, tar_path: Path) -> float:
         data=json.dumps({"algorithmId": algorithm_id}).encode(),
         headers={"Content-Type": "application/json"},
     )
-    if status != 200:
-        raise FlowError(f"/upload returned {status}: {body[:200]!r}")
+    _require(status, HTTP_OK, "/upload", body)
 
     upload_url = _json(body)["uploadUrl"]
-    payload = tar_path.read_bytes()
     status, body = _request(
         "PUT",
         upload_url,
-        data=payload,
+        data=tar_path.read_bytes(),
         headers={"Content-Type": "application/x-tar"},
     )
-    if status not in (200, 204):
-        raise FlowError(f"S3 PUT returned {status}: {body[:200]!r}")
+    _require(status, (HTTP_OK, HTTP_NO_CONTENT), "S3 PUT", body)
     return time.perf_counter() - start
 
 
 def register_rads(registry_url: str, algorithm_id: str) -> float:
+    """Register the uploaded tarball. Returns the elapsed seconds."""
     start = time.perf_counter()
     status, body = _request(
         "POST",
@@ -112,14 +130,13 @@ def register_rads(registry_url: str, algorithm_id: str) -> float:
         data=json.dumps({"algorithmId": algorithm_id}).encode(),
         headers={"Content-Type": "application/json"},
     )
-    if status != 200:
-        raise FlowError(f"/register returned {status}: {body[:200]!r}")
+    _require(status, HTTP_OK, "/register", body)
     return time.perf_counter() - start
 
 
 def upload_secure(registry_url: str, algorithm_id: str, tar_path: Path) -> float:
+    """Multipart-upload the OCI tar, which builds and registers the EIF. Returns elapsed seconds."""
     boundary = "----benchmarkboundary7d9f3a"
-    payload = tar_path.read_bytes()
     head = (
         f"--{boundary}\r\n"
         f'Content-Disposition: form-data; name="algorithmId"\r\n\r\n'
@@ -129,21 +146,20 @@ def upload_secure(registry_url: str, algorithm_id: str, tar_path: Path) -> float
         f"Content-Type: application/x-tar\r\n\r\n"
     ).encode()
     tail = f"\r\n--{boundary}--\r\n".encode()
-    body = head + payload + tail
 
     start = time.perf_counter()
-    status, response = _request(
+    status, body = _request(
         "POST",
         f"{registry_url}/upload",
-        data=body,
+        data=head + tar_path.read_bytes() + tail,
         headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
     )
-    if status != 200:
-        raise FlowError(f"/upload returned {status}: {response[:200]!r}")
+    _require(status, HTTP_OK, "/upload", body)
     return time.perf_counter() - start
 
 
 def execute(execution_url: str, algorithm_id: str) -> tuple[float, str, str, str]:
+    """Fire a run and poll to a terminal status. Returns (seconds, run_id, status, output)."""
     start = time.perf_counter()
     status, body = _request(
         "POST",
@@ -151,30 +167,30 @@ def execute(execution_url: str, algorithm_id: str) -> tuple[float, str, str, str
         data=json.dumps({"algorithmId": algorithm_id}).encode(),
         headers={"Content-Type": "application/json"},
     )
-    if status != 202:
-        raise FlowError(f"/run returned {status}: {body[:200]!r}")
+    _require(status, HTTP_ACCEPTED, "/run", body)
 
     run_id = _json(body)["runId"]
     deadline = time.time() + POLL_TIMEOUT_SECONDS
     while time.time() < deadline:
         status, result_body = _request("GET", f"{execution_url}/run/{run_id}")
-        if status != 200:
-            raise FlowError(f"/run/{run_id} returned {status}: {result_body[:200]!r}")
+        _require(status, HTTP_OK, f"/run/{run_id}", result_body)
         result = _json(result_body)
         if result.get("status") != "pending":
             output = result.get("output", "") or ""
             return time.perf_counter() - start, run_id, result.get("status", ""), output
         time.sleep(POLL_INTERVAL_SECONDS)
 
-    raise FlowError(f"timed out after {POLL_TIMEOUT_SECONDS:.0f}s waiting for runId={run_id}")
+    msg = f"timed out after {POLL_TIMEOUT_SECONDS:.0f}s waiting for runId={run_id}"
+    raise FlowError(msg)
 
 
 def fetch_events(log_url: str, algorithm_id: str, run_id: str | None = None) -> list[dict[str, Any]]:
+    """Read an algorithm's timeline back from its log service."""
     url = f"{log_url}/logs/{algorithm_id}"
     if run_id:
         url += f"?runId={run_id}"
     status, body = _request("GET", url)
-    if status != 200:
+    if status != HTTP_OK:
         return []
     payload = _json(body)
     return payload if isinstance(payload, list) else []

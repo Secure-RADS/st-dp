@@ -25,20 +25,38 @@ import os
 import subprocess
 import sys
 import time
-from dataclasses import asdict, dataclass
 from pathlib import Path
+
+from pydantic import BaseModel, ConfigDict
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from lib import config, flow  # noqa: E402
+from lib import config, flow
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-BUILD_DIR = Path(__file__).resolve().parent / "build"
-RAW_DIR = Path(__file__).resolve().parent / "results" / "raw"
+HERE = Path(__file__).resolve().parent
+REPO_ROOT = HERE.parent
+BUILD_DIR = HERE / "build"
+RAW_DIR = HERE / "results" / "raw"
+
+STAGE_UPLOAD = "upload"
+STAGE_EXECUTE = "execute"
+PHASES = ("uploads", "seed", "executes")
 
 
-@dataclass
-class Stage:
+class Job(BaseModel):
+    """One sample algorithm in one tree."""
+
+    model_config = ConfigDict(frozen=True)
+
+    tree: str
+    sample: str
+    dataset: str
+    algorithm_id: str
+
+
+class Stage(BaseModel):
+    """One measured stage of one repetition."""
+
     tree: str
     sample: str
     dataset: str
@@ -74,9 +92,10 @@ def build_image(tree: str, sample: str) -> Path:
     return tar_path
 
 
-def emit(client_timestamp: str, endpoints: dict[str, str], stage: Stage) -> None:
+def emit(client_timestamp: str, log_url: str, stage: Stage) -> None:
+    """Record the client-observed measurement in the tree's log service."""
     flow.post_event(
-        endpoints["log"],
+        log_url,
         {
             "algorithmId": stage.algorithm_id,
             "runId": stage.run_id or f"bench-{stage.tree}-{stage.sample}-{stage.rep}",
@@ -98,66 +117,66 @@ def emit(client_timestamp: str, endpoints: dict[str, str], stage: Stage) -> None
 
 
 def upload_once(
-    tree: str,
-    sample: str,
-    dataset: str,
-    algorithm_id: str,
+    job: Job,
     rep: int,
     endpoints: dict[str, str],
-    secure_registry: str | None,
+    secure_registry: str,
     tar_path: Path,
 ) -> Stage:
+    """Ship one image: rads presigns+PUTs+registers, secure-rads builds and registers an EIF."""
     timestamp = flow.now_iso()
     start = time.perf_counter()
     error = None
     try:
-        if tree == "rads":
-            flow.upload_rads(endpoints["registry"], algorithm_id, tar_path)
-            flow.register_rads(endpoints["registry"], algorithm_id)
+        if job.tree == "rads":
+            flow.upload_rads(endpoints["registry"], job.algorithm_id, tar_path)
+            flow.register_rads(endpoints["registry"], job.algorithm_id)
         else:
-            if not secure_registry:
-                raise flow.FlowError("secure-rads registry URL not configured")
-            flow.upload_secure(secure_registry, algorithm_id, tar_path)
+            flow.upload_secure(secure_registry, job.algorithm_id, tar_path)
     except Exception as err:  # noqa: BLE001 - record and keep sweeping
         error = f"{type(err).__name__}: {err}"
-    stage = Stage(tree, sample, dataset, algorithm_id, rep, "upload", time.perf_counter() - start, error=error)
-    emit(timestamp, endpoints, stage)
+    stage = Stage(
+        tree=job.tree,
+        sample=job.sample,
+        dataset=job.dataset,
+        algorithm_id=job.algorithm_id,
+        rep=rep,
+        stage=STAGE_UPLOAD,
+        seconds=time.perf_counter() - start,
+        error=error,
+    )
+    emit(timestamp, endpoints["log"], stage)
     return stage
 
 
-def execute_once(
-    tree: str,
-    sample: str,
-    dataset: str,
-    algorithm_id: str,
-    rep: int,
-    endpoints: dict[str, str],
-) -> Stage:
+def execute_once(job: Job, rep: int, endpoints: dict[str, str]) -> Stage:
+    """Fire one run and poll it to a terminal status."""
     start = time.perf_counter()
     error = None
     run_id = status = output = None
     try:
-        _elapsed, run_id, status, output = flow.execute(endpoints["execution"], algorithm_id)
-    except Exception as err:  # noqa: BLE001
+        _elapsed, run_id, status, output = flow.execute(endpoints["execution"], job.algorithm_id)
+    except Exception as err:  # noqa: BLE001 - record and keep sweeping
         error = f"{type(err).__name__}: {err}"
     stage = Stage(
-        tree,
-        sample,
-        dataset,
-        algorithm_id,
-        rep,
-        "execute",
-        time.perf_counter() - start,
+        tree=job.tree,
+        sample=job.sample,
+        dataset=job.dataset,
+        algorithm_id=job.algorithm_id,
+        rep=rep,
+        stage=STAGE_EXECUTE,
+        seconds=time.perf_counter() - start,
         run_id=run_id,
         status=status,
         output=output,
         error=error,
     )
-    emit(flow.now_iso(), endpoints, stage)
+    emit(flow.now_iso(), endpoints["log"], stage)
     return stage
 
 
 def seed(tree: str) -> None:
+    """Seed one tree's datasets, resolving the target tables from live stack outputs."""
     env = {
         "RADS_PDM_TABLE": config.stack_outputs(config.STACKS["rads"]["pdm"]).get("PersonalDataTableName", ""),
         "PDM_TABLE": config.stack_outputs(config.STACKS["secure-rads"]["pdm"]).get("PersonalDataTableName", ""),
@@ -176,85 +195,109 @@ def seed(tree: str) -> None:
 
 
 def flush(stages: list[Stage], phases: list[str], run_started: int) -> None:
+    """Append this phase's rows to results/raw/<phases>-<timestamp>.json."""
     if not stages:
         return
     RAW_DIR.mkdir(parents=True, exist_ok=True)
     out = RAW_DIR / f"{'-'.join(phases)}-{run_started}.json"
     existing: list[dict] = json.loads(out.read_text()) if out.exists() else []
-    existing.extend(asdict(s) for s in stages)
+    existing.extend(stage.model_dump() for stage in stages)
     out.write_text(json.dumps(existing, indent=2))
     print(f"wrote {out} ({len(existing)} rows)", flush=True)
 
 
-def main() -> int:
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--reps", type=int, default=10)
-    parser.add_argument("--rep-start", type=int, default=1, help="first rep index; lets passes append without collisions")
+    parser.add_argument(
+        "--rep-start", type=int, default=1, help="first rep index; lets passes append without collisions"
+    )
     parser.add_argument("--trees", nargs="+", choices=config.TREES, default=list(config.TREES))
     parser.add_argument("--samples", nargs="+", default=[s[0] for s in config.SAMPLES])
-    parser.add_argument(
-        "--phases",
-        nargs="+",
-        choices=["uploads", "seed", "executes"],
-        default=["uploads", "seed", "executes"],
-    )
+    parser.add_argument("--phases", nargs="+", choices=PHASES, default=list(PHASES))
     parser.add_argument("--skip-build", action="store_true")
-    args = parser.parse_args()
+    return parser.parse_args()
 
-    samples = [s for s in config.SAMPLES if s[0] in args.samples]
-    if not samples:
+
+def select_jobs(args: argparse.Namespace) -> list[Job]:
+    chosen = [s for s in config.SAMPLES if s[0] in args.samples]
+    return [Job(tree, sample, dataset, algorithm_id) for tree in args.trees for sample, dataset, algorithm_id in chosen]
+
+
+def collect_tars(jobs: list[Job], *, skip_build: bool) -> dict[tuple[str, str], Path]:
+    """Resolve (or build) the image tar each upload will ship."""
+    tars: dict[tuple[str, str], Path] = {}
+    for job in jobs:
+        tar_path = BUILD_DIR / f"{job.tree}-{job.sample}.tar"
+        if not tar_path.exists():
+            if skip_build:
+                msg = f"missing {tar_path} and --skip-build was passed"
+                print(msg, file=sys.stderr)
+                raise SystemExit(1)
+            print(f"build: {job.tree}/{job.sample}", flush=True)
+            tar_path = build_image(job.tree, job.sample)
+        tars[(job.tree, job.sample)] = tar_path
+    return tars
+
+
+def run_uploads(
+    jobs: list[Job],
+    endpoints: dict[str, dict[str, str]],
+    tars: dict[tuple[str, str], Path],
+    args: argparse.Namespace,
+) -> list[Stage]:
+    secure_registry = endpoints["secure-rads"].get("registry", "")
+    if any(job.tree == "secure-rads" for job in jobs) and not secure_registry:
+        msg = "secure-rads registry URL not configured (is the CSAV host running?)"
+        print(msg, file=sys.stderr)
+        raise SystemExit(1)
+
+    stages: list[Stage] = []
+    for job in jobs:
+        for rep in range(args.rep_start, args.rep_start + args.reps):
+            stage = upload_once(job, rep, endpoints[job.tree], secure_registry, tars[(job.tree, job.sample)])
+            stages.append(stage)
+            print(f"upload {job.tree}/{job.sample} rep={rep} {stage.seconds:.1f}s err={stage.error}", flush=True)
+    return stages
+
+
+def run_executes(
+    jobs: list[Job],
+    endpoints: dict[str, dict[str, str]],
+    args: argparse.Namespace,
+) -> list[Stage]:
+    stages: list[Stage] = []
+    for job in jobs:
+        for rep in range(args.rep_start, args.rep_start + args.reps):
+            stage = execute_once(job, rep, endpoints[job.tree])
+            stages.append(stage)
+            print(
+                f"execute {job.tree}/{job.sample} rep={rep} {stage.seconds:.1f}s "
+                f"status={stage.status} err={stage.error}",
+                flush=True,
+            )
+    return stages
+
+
+def main() -> int:
+    args = parse_args()
+    jobs = select_jobs(args)
+    if not jobs:
         print("no matching samples", file=sys.stderr)
         return 1
 
-    endpoints = config.resolve_endpoints()
-    secure_registry = endpoints["secure-rads"].get("registry")
-
-    tars: dict[tuple[str, str], Path] = {}
-    for tree in args.trees:
-        for sample, _d, _a in samples:
-            tar_path = BUILD_DIR / f"{tree}-{sample}.tar"
-            if not tar_path.exists():
-                if args.skip_build:
-                    print(f"missing {tar_path} and --skip-build was passed", file=sys.stderr)
-                    return 1
-                print(f"build: {tree}/{sample}", flush=True)
-                tar_path = build_image(tree, sample)
-            tars[(tree, sample)] = tar_path
+    tars = {} if "uploads" not in args.phases else collect_tars(jobs, skip_build=args.skip_build)
+    endpoints = config.resolve_endpoints(include_secure_registry="uploads" in args.phases)
 
     run_started = int(time.time())
-    stages: list[Stage] = []
-
     if "uploads" in args.phases:
-        for tree in args.trees:
-            for sample, dataset, algorithm_id in samples:
-                for rep in range(args.rep_start, args.rep_start + args.reps):
-                    stage = upload_once(
-                        tree, sample, dataset, algorithm_id, rep,
-                        endpoints[tree], secure_registry, tars[(tree, sample)],
-                    )
-                    stages.append(stage)
-                    print(f"upload {tree}/{sample} rep={rep} {stage.seconds:.1f}s err={stage.error}", flush=True)
-        flush(stages, ["uploads"], run_started)
-        stages = []
-
+        flush(run_uploads(jobs, endpoints, tars, args), ["uploads"], run_started)
     if "seed" in args.phases:
         for tree in args.trees:
             print(f"seed: {tree}", flush=True)
             seed(tree)
-
     if "executes" in args.phases:
-        for tree in args.trees:
-            for sample, dataset, algorithm_id in samples:
-                for rep in range(args.rep_start, args.rep_start + args.reps):
-                    stage = execute_once(tree, sample, dataset, algorithm_id, rep, endpoints[tree])
-                    stages.append(stage)
-                    print(
-                        f"execute {tree}/{sample} rep={rep} {stage.seconds:.1f}s "
-                        f"status={stage.status} err={stage.error}",
-                        flush=True,
-                    )
-        flush(stages, ["executes"], run_started)
-
+        flush(run_executes(jobs, endpoints, args), ["executes"], run_started)
     return 0
 
 
