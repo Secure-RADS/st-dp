@@ -115,12 +115,12 @@ def grouped_bars(df: pd.DataFrame, stage: str, path: Path) -> None:
         ax=ax,
     )
     for container, tree in zip(ax.containers, TREES):
-        ax.bar_label(container, fmt="%.1fs", padding=3, fontsize=9, color="#333333")
+        ax.bar_label(container, fmt="%.1fs", padding=6, fontsize=9, color="#333333")
 
     n = subset.groupby(["sample", "tree"], observed=True)["seconds"].count().min()
     ax.set_title(f"{STAGE_TITLES[stage]}  ·  mean ± 95% CI  (n={int(n)} per bar)")
     style_axis(ax, "seconds")
-    ax.margins(y=0.16)
+    ax.margins(y=0.20)
     ax.legend(title="", loc="upper center", bbox_to_anchor=(0.5, -0.09), ncol=2, fontsize=10)
     fig.savefig(path)
     plt.close(fig)
@@ -173,7 +173,7 @@ def overall(df: pd.DataFrame, path: Path) -> None:
             edgecolor="white", linewidth=0.8, ax=ax,
         )
         for container in ax.containers:
-            ax.bar_label(container, fmt="%.1fs", padding=3, fontsize=10, color="#333333")
+            ax.bar_label(container, fmt="%.1fs", padding=6, fontsize=10, color="#333333")
         ax.set_title(STAGE_TITLES[stage])
         ax.set_xticks(range(len(TREES)))
         ax.set_xticklabels([LABELS[t] for t in TREES], fontsize=9)
