@@ -20,8 +20,8 @@ persists it to the `rads-run-results` table, PK `RunId`) and terminates itself.
 the stored result.
 
 Lifecycle events are logged to the `rads-log-events` queue (the log-service ingest contract
-`{algorithmId, runId, event, timestamp, detail?}`): the control plane logs `run-requested` and
-`executor-launched`, and the executor logs `executor-finished` before it terminates.
+`{type: "run-event", algorithmId, runId, event, timestamp, detail?}`): the control plane logs `run-requested`
+and `executor-launched`, and the executor logs `executor-finished` before it terminates.
 
 ## Deployment
 
@@ -35,8 +35,8 @@ bunx serverless deploy \
   --param="runResultsTable=rads-run-results" \
   --param="runResultsQueueUrl=<rads-run-results queue URL>" \
   --param="runResultsQueueArn=<rads-run-results queue ARN>" \
-  --param="logEventsQueueUrl=<rads-log-events queue URL>" \
-  --param="logEventsQueueArn=<rads-log-events queue ARN>" \
+  --param="logQueueUrl=<rads-log-events queue URL>" \
+  --param="logQueueArn=<rads-log-events queue ARN>" \
   --param="pdmUrl=https://pdm.example.org" \
   --param="amiId=<AL2023 AMI id>" \
   --param="vpcId=<VPC id>"
@@ -54,7 +54,7 @@ time are noted as such.
 
 - `PDM_URL` - the PDM endpoint the executor downloads records from before the app runs (not passed to the container).
 - `RUN_RESULTS_QUEUE_URL` - the `rads-run-results` queue the executor publishes its result to.
-- `LOG_EVENTS_QUEUE_URL` - the `rads-log-events` queue the executor publishes `executor-finished` to.
+- `LOG_QUEUE_URL` - the `rads-log-events` queue the executor publishes `executor-finished` to.
 - `REGION` - from the instance/AWS_REGION; not operator-set.
 - `AlgorithmId`, `RunId`, `S3Bucket`, `S3Key` - from the launch request and `rads-algorithms` record.
 

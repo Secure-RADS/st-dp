@@ -20,6 +20,11 @@ ALGORITHM_TABLE = $(shell aws cloudformation describe-stacks --stack-name secure
 # KMS key encrypting the artifact bucket; CSAV role gets kms:GenerateDataKey on it for SSE-KMS PUTs.
 ARTIFACT_BUCKET_KMS_KEY_ARN = $(shell aws cloudformation describe-stacks --stack-name secure-rads-registry-service-storage --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='ArtifactBucketKmsKeyArn'].OutputValue" --output text)
+# registry-service's own build-timeline events go onto the log queue; the enclave keeps its HTTP /events path.
+LOG_QUEUE_URL = $(shell aws cloudformation describe-stacks --stack-name secure-rads-log-service-dev --region $(REGION) \
+	--query "Stacks[0].Outputs[?OutputKey=='EventQueueUrl'].OutputValue" --output text)
+LOG_QUEUE_ARN = $(shell aws cloudformation describe-stacks --stack-name secure-rads-log-service-dev --region $(REGION) \
+	--query "Stacks[0].Outputs[?OutputKey=='EventQueueArn'].OutputValue" --output text)
 
 .PHONY: build test run clean key deploy destroy up down status ssh logs
 
@@ -47,7 +52,7 @@ deploy:
 		--stack-name $(STACK_NAME) \
 		--region $(REGION) \
 		--capabilities CAPABILITY_IAM \
-		--parameter-overrides KeyName=$(KEY_NAME) VpcId=$(DEFAULT_VPC_ID) ArtifactBucketName=$(ARTIFACT_BUCKET) AlgorithmTableName=$(ALGORITHM_TABLE) ArtifactBucketKmsKeyArn=$(ARTIFACT_BUCKET_KMS_KEY_ARN) InstanceType=$(INSTANCE_TYPE)
+		--parameter-overrides KeyName=$(KEY_NAME) VpcId=$(DEFAULT_VPC_ID) ArtifactBucketName=$(ARTIFACT_BUCKET) AlgorithmTableName=$(ALGORITHM_TABLE) ArtifactBucketKmsKeyArn=$(ARTIFACT_BUCKET_KMS_KEY_ARN) LogQueueUrl=$(LOG_QUEUE_URL) LogQueueArn=$(LOG_QUEUE_ARN) InstanceType=$(INSTANCE_TYPE)
 
 destroy:
 	aws cloudformation delete-stack --stack-name $(STACK_NAME) --region $(REGION)

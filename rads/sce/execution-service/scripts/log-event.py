@@ -8,6 +8,7 @@ def main() -> None:
     print(
         json.dumps(
             {
+                "type": "run-event",
                 "algorithmId": algorithm_id,
                 "runId": run_id,
                 "event": "executor-finished",

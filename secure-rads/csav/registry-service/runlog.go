@@ -1,12 +1,13 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"log"
-	"net/http"
 	"time"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/sqs"
 )
 
 const logEventTimeout = 5 * time.Second
@@ -16,44 +17,39 @@ const logEventTimeout = 5 * time.Second
 type runEvent string
 
 const (
-	eventBuildStarted   runEvent = "build-started"
-	eventEifBuilt       runEvent = "eif-built"
-	eventPcrsRegistered runEvent = "pcrs-registered"
+	eventBuildStarted      runEvent = "build-started"
+	eventEifBuilt          runEvent = "eif-built"
+	eventPcrsRegistered    runEvent = "pcrs-registered"
 	eventKmsKeyProvisioned runEvent = "kms-key-provisioned"
-	eventBuildCompleted runEvent = "build-completed"
-	eventBuildFailed    runEvent = "build-failed"
+	eventBuildCompleted    runEvent = "build-completed"
+	eventBuildFailed       runEvent = "build-failed"
 )
 
-// logEvent fire-and-forgets one timeline event to log-service over its public TLS URL. Best-effort: a logging
-// failure must never fail a build, so errors are only logged.
+// logEvent fire-and-forgets one timeline event onto the log queue. Best-effort: a logging failure must never
+// fail a build, so errors are only logged.
 func logEvent(algorithmId, buildId string, event runEvent, detail map[string]any) {
-	if logHost == "" {
+	if logQueueURL == "" {
 		return
 	}
 
 	body, err := json.Marshal(struct {
+		Type        string         `json:"type"`
 		AlgorithmId string         `json:"algorithmId"`
 		RunId       string         `json:"runId"`
 		Event       runEvent       `json:"event"`
 		Timestamp   string         `json:"timestamp"`
 		Detail      map[string]any `json:"detail,omitempty"`
-	}{algorithmId, buildId, event, time.Now().UTC().Format(time.RFC3339Nano), detail})
+	}{"run-event", algorithmId, buildId, event, time.Now().UTC().Format(time.RFC3339Nano), detail})
 	if err != nil {
 		return
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), logEventTimeout)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://"+logHost+"/events", bytes.NewReader(body))
-	if err != nil {
-		return
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
+	if _, err := sqsClient.SendMessage(ctx, &sqs.SendMessageInput{
+		QueueUrl:    aws.String(logQueueURL),
+		MessageBody: aws.String(string(body)),
+	}); err != nil {
 		log.Printf("registry-service: log event %q failed: %v", event, err)
-		return
 	}
-	resp.Body.Close()
 }

@@ -2,7 +2,7 @@ import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
 import { requiredEnv } from "./env.js";
 
 const sqs = new SQSClient({});
-const logEventsQueueUrl = requiredEnv("LOG_EVENTS_QUEUE_URL");
+const logQueueUrl = requiredEnv("LOG_QUEUE_URL");
 
 export type RunEvent = "run-requested" | "executor-launched" | "launch-failed";
 
@@ -16,8 +16,15 @@ export async function logEvent(
   try {
     await sqs.send(
       new SendMessageCommand({
-        QueueUrl: logEventsQueueUrl,
-        MessageBody: JSON.stringify({ algorithmId, runId, event, timestamp: new Date().toISOString(), detail }),
+        QueueUrl: logQueueUrl,
+        MessageBody: JSON.stringify({
+          type: "run-event",
+          algorithmId,
+          runId,
+          event,
+          timestamp: new Date().toISOString(),
+          detail,
+        }),
       }),
     );
   } catch (error) {

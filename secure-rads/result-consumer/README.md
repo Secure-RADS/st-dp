@@ -18,5 +18,5 @@ Bun is used as the local dev/bundle tool only (`bun install`) - the Lambda itsel
 
 ```
 bun install
-bunx serverless deploy
+bunx serverless deploy --param="logQueueUrl=<secure-rads-log-service queue URL>" --param="logQueueArn=<secure-rads-log-service queue ARN>"
 ```

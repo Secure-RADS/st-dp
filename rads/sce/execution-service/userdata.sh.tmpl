@@ -10,7 +10,7 @@ S3_KEY="{{.S3Key}}"
 REGION="{{.Region}}"
 PDM_URL="{{.PdmUrl}}"
 RUN_RESULTS_QUEUE="{{.RunResultsQueueUrl}}"
-LOG_EVENTS_QUEUE="{{.LogEventsQueueUrl}}"
+LOG_QUEUE_URL="{{.LogQueueUrl}}"
 
 # Host paths, bind-mounted into the container at /data.
 RUN_DIR=/opt/rads/run
@@ -31,7 +31,7 @@ PYEOF
 {{.LogEventScript}}
 PYEOF
   aws sqs send-message --queue-url "$RUN_RESULTS_QUEUE" --message-body file:///tmp/result.json --region "$REGION" || true
-  aws sqs send-message --queue-url "$LOG_EVENTS_QUEUE" --message-body file:///tmp/log-event.json --region "$REGION" || true
+  aws sqs send-message --queue-url "$LOG_QUEUE_URL" --message-body file:///tmp/log-event.json --region "$REGION" || true
   aws ec2 terminate-instances --instance-ids "$INSTANCE_ID" --region "$REGION" || true
 }
 trap finish EXIT

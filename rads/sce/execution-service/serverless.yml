@@ -43,12 +43,12 @@ provider:
           Resource: !GetAtt ExecutorInstanceRole.Arn
         - Effect: Allow
           Action: sqs:SendMessage
-          Resource: ${param:logEventsQueueArn}
+          Resource: ${param:logQueueArn}
   environment:
     ALGORITHM_TABLE: ${param:algorithmTable}
     RUN_RESULTS_TABLE: ${param:runResultsTable}
     RUN_RESULTS_QUEUE_URL: ${param:runResultsQueueUrl}
-    LOG_EVENTS_QUEUE_URL: ${param:logEventsQueueUrl}
+    LOG_QUEUE_URL: ${param:logQueueUrl}
     PDM_URL: ${param:pdmUrl}
     EXECUTOR_AMI_ID: ${param:amiId}
     EXECUTOR_INSTANCE_TYPE: ${param:instanceType, 'c6g.large'}
@@ -125,7 +125,7 @@ resources:
               Statement:
                 - Effect: Allow
                   Action: sqs:SendMessage
-                  Resource: ${param:logEventsQueueArn}
+                  Resource: ${param:logQueueArn}
           - PolicyName: SelfTerminate
             PolicyDocument:
               Version: "2012-10-17"

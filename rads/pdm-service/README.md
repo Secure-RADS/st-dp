@@ -4,7 +4,7 @@ Serverless Framework v4, TypeScript. The Personal Data Management Service for th
 
 ## Endpoints
 
-- `GET /records` - `?algorithmId=` selects which records are returned. Paginated via `?cursor=` (base64url of DynamoDB's `LastEvaluatedKey`), 500 items per page. Every page is also recorded to log-service's `/subject-access` endpoint as a GDPR access trail: the `dataSubjectId` of each served record, the algorithm, the timestamp, and the executor-supplied `X-Run-Id` header. The write is best-effort so a log-service hiccup cannot block the executor from getting its records.
+- `GET /records` - `?algorithmId=` selects which records are returned. Paginated via `?cursor=` (base64url of DynamoDB's `LastEvaluatedKey`), 500 items per page. Every page is also enqueued onto the log queue as a GDPR access trail (`{type: "subject-access", algorithmId, runId, dataSubjectIds, timestamp}`): the `dataSubjectId` of each served record, the algorithm, the timestamp, and the executor-supplied `X-Run-Id` header. The enqueue is best-effort so a queue hiccup cannot block the executor from getting its records; the queue's DLQ is the durable signal.
 - `GET /subject/{dataSubjectId}` - the public data-subject access-request endpoint. No auth (the identifier is an opaque UUID) and rate-limited via a small reserved concurrency; it relays to log-service's `/subject-access/{dataSubjectId}` and returns which algorithms/runs touched that data subject. Never returns personal data.
 
 The baseline PDM is fully trusted: there is no access token, verifier round-trip, or envelope encryption, and records are stored and returned as plaintext. Both routes are plain server-auth TLS and the HTTP API sets `cors: true` for the transparency portal.
@@ -19,5 +19,5 @@ Bun is used as the local dev/bundle tool only (`bun install`) - the Lambda itsel
 
 ```
 bun install
-bunx serverless deploy --param="domainName=pdm.r.secure-rads.org" --param="certificateArn=..."
+bunx serverless deploy --param="domainName=pdm.r.secure-rads.org" --param="certificateArn=..." --param="logQueueUrl=<rads-log-service queue URL>" --param="logQueueArn=<rads-log-service queue ARN>"
 ```

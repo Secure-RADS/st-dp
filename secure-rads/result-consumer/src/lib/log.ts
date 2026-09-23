@@ -1,22 +1,32 @@
+import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
 import type { RunEvent } from "./events.js";
 
-const url = process.env.LOG_EVENTS_URL;
+const sqs = new SQSClient({});
+const queueUrl = process.env.LOG_QUEUE_URL;
 
-// Fire-and-forget one timeline event to log-service. Best-effort: a logging failure must never fail the
-// consumer, and if LOG_EVENTS_URL is unset it's a no-op.
+// Fire-and-forget one timeline event onto the log queue. Best-effort: a logging failure must never fail the
+// consumer, and if LOG_QUEUE_URL is unset it's a no-op.
 export async function logEvent(
   algorithmId: string,
   runId: string,
   event: RunEvent,
   detail?: Record<string, unknown>,
 ): Promise<void> {
-  if (!url || !algorithmId || !runId) return;
+  if (!queueUrl || !algorithmId || !runId) return;
   try {
-    await fetch(url, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ algorithmId, runId, event, timestamp: new Date().toISOString(), detail }),
-    });
+    await sqs.send(
+      new SendMessageCommand({
+        QueueUrl: queueUrl,
+        MessageBody: JSON.stringify({
+          type: "run-event",
+          algorithmId,
+          runId,
+          event,
+          timestamp: new Date().toISOString(),
+          detail,
+        }),
+      }),
+    );
   } catch (err) {
     console.error("log event failed", event, err);
   }

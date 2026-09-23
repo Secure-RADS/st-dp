@@ -21,6 +21,11 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const parsed = parseIngestBody(body);
   if ("error" in parsed) return jsonResponse(400, { error: parsed.error });
 
-  await sqs.send(new SendMessageCommand({ QueueUrl: queueUrl, MessageBody: JSON.stringify(parsed) }));
+  await sqs.send(
+    new SendMessageCommand({
+      QueueUrl: queueUrl,
+      MessageBody: JSON.stringify({ type: "run-event", ...parsed }),
+    }),
+  );
   return jsonResponse(202, { ok: true });
 };

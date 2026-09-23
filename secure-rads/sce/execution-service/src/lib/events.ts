@@ -1,9 +1,13 @@
+import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
 import { requiredEnv } from "./env.js";
 
-const logEventsUrl = `https://${requiredEnv("LOG_HOST")}/events`;
+const sqs = new SQSClient({});
+const logQueueUrl = requiredEnv("LOG_QUEUE_URL");
 
 export type RunEvent = "run-requested" | "enclave-launched" | "launch-failed";
 
+// Fire-and-forget one lifecycle event onto the log queue; the log-service worker persists it. Best-effort:
+// a logging failure must never fail the run.
 export async function logEvent(
   algorithmId: string,
   runId: string,
@@ -11,12 +15,19 @@ export async function logEvent(
   detail?: Record<string, unknown>,
 ): Promise<void> {
   try {
-    await fetch(logEventsUrl, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ algorithmId, runId, event, timestamp: new Date().toISOString(), detail }),
-      signal: AbortSignal.timeout(5_000),
-    });
+    await sqs.send(
+      new SendMessageCommand({
+        QueueUrl: logQueueUrl,
+        MessageBody: JSON.stringify({
+          type: "run-event",
+          algorithmId,
+          runId,
+          event,
+          timestamp: new Date().toISOString(),
+          detail,
+        }),
+      }),
+    );
   } catch (error) {
     console.error(`log event ${event} failed`, error);
   }

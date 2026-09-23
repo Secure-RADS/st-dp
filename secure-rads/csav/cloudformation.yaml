@@ -33,6 +33,14 @@ Parameters:
     Type: String
     Description: ARN of the KMS key for the artifact bucket (from the secure-rads-registry-service-storage stack). Required to PUT EIF objects with SSE-KMS.
 
+  LogQueueUrl:
+    Type: String
+    Description: URL of the secure-rads log queue (from the secure-rads-log-service stack), for the registry-service build timeline events.
+
+  LogQueueArn:
+    Type: String
+    Description: ARN of the secure-rads log queue (from the secure-rads-log-service stack), for the instance's SQS send permission.
+
   LatestAmiId:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
     Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64
@@ -99,6 +107,13 @@ Resources:
               - Effect: Allow
                 Action: dynamodb:PutItem
                 Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AlgorithmTableName}"
+        - PolicyName: LogQueueSend
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !Ref LogQueueArn
 
   CsavInstanceProfile:
     Type: AWS::IAM::InstanceProfile

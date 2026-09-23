@@ -117,10 +117,24 @@ export PDM_CERT_ARN=<pdm-acm-certificate-arn>
 export LOG_CERT_ARN=<log-acm-certificate-arn>
 ```
 
-Deploy the result consumer first because the execution-service stack needs its queue and table:
+Deploy the log service first (the result consumer and PDM both publish onto its queue), then the result consumer because the execution-service stack needs the consumer's queue and table:
 
 ```sh
-(cd secure-rads/result-consumer && bun install && bunx serverless deploy --param="region=$REGION")
+(cd secure-rads/log-service && bun install && bunx serverless deploy \
+  --param="region=$REGION" \
+  --param="domainName=log.secure-rads.org" \
+  --param="certificateArn=$LOG_CERT_ARN")
+LOG_QUEUE_URL=$(aws cloudformation describe-stacks --region "$REGION" \
+  --stack-name secure-rads-log-service-dev \
+  --query "Stacks[0].Outputs[?OutputKey=='EventQueueUrl'].OutputValue" --output text)
+LOG_QUEUE_ARN=$(aws cloudformation describe-stacks --region "$REGION" \
+  --stack-name secure-rads-log-service-dev \
+  --query "Stacks[0].Outputs[?OutputKey=='EventQueueArn'].OutputValue" --output text)
+
+(cd secure-rads/result-consumer && bun install && bunx serverless deploy \
+  --param="region=$REGION" \
+  --param="logQueueUrl=$LOG_QUEUE_URL" \
+  --param="logQueueArn=$LOG_QUEUE_ARN")
 ```
 
 Generate the mTLS client certificate, then deploy verifier-service once to create its truststore bucket:
@@ -169,7 +183,7 @@ VERIFIER_PIN=$(spki_pin verifier.secure-rads.org)
 VERIFIER_ATTEST_PIN=$(spki_pin verifier-attest.secure-rads.org)
 ```
 
-Deploy PDM and log service, create their DNS-only Cloudflare CNAME records from their outputs, then collect their pins:
+Deploy PDM with the log queue from above, create its DNS-only Cloudflare CNAME record from its output, then collect its pin:
 
 ```sh
 (cd secure-rads/pdm-service && bun install && bunx serverless deploy \
@@ -177,11 +191,9 @@ Deploy PDM and log service, create their DNS-only Cloudflare CNAME records from 
   --param="domainName=pdm.secure-rads.org" \
   --param="certificateArn=$PDM_CERT_ARN" \
   --param="verifierJwksUrl=https://verifier-attest.secure-rads.org/.well-known/jwks.json" \
-  --param="verifierJwksPubkeySha256=$VERIFIER_ATTEST_PIN")
-(cd secure-rads/log-service && bun install && bunx serverless deploy \
-  --param="region=$REGION" \
-  --param="domainName=log.secure-rads.org" \
-  --param="certificateArn=$LOG_CERT_ARN")
+  --param="verifierJwksPubkeySha256=$VERIFIER_ATTEST_PIN" \
+  --param="logQueueUrl=$LOG_QUEUE_URL" \
+  --param="logQueueArn=$LOG_QUEUE_ARN")
 ```
 
 After both DNS records resolve:

@@ -38,6 +38,9 @@ PDM_HOST_PUBKEY_SHA256 ?= 130823e12ad0f4cc0a78a102806d5e41327cd5b6a5ae90538689a7
 # log-service's plain-TLS domain (/events), baked in and pinned so the enclave can log its run timeline.
 LOG_HOST ?= log.secure-rads.org
 LOG_HOST_PUBKEY_SHA256 ?= 4ad2a53407cce9fbf808cd44f56d5174439b3184192301dda48cbbda82a13ddd
+# registry-service's own build-timeline events go onto the log queue; only the enclave still uses LOG_HOST.
+LOG_QUEUE_URL = $(shell aws cloudformation describe-stacks --stack-name secure-rads-log-service-dev --region $(REGION) \
+	--query "Stacks[0].Outputs[?OutputKey=='EventQueueUrl'].OutputValue" --output text)
 
 .PHONY: build test run clean sce-unit-base eif-build-base gen-client-cert image ship remote-up remote-down logs deploy-storage destroy-storage upload
 
@@ -92,6 +95,7 @@ ship: image
 	echo "PDM_HOST_PUBKEY_SHA256=$(PDM_HOST_PUBKEY_SHA256)" >> /tmp/registry-service.env
 	echo "LOG_HOST=$(LOG_HOST)" >> /tmp/registry-service.env
 	echo "LOG_HOST_PUBKEY_SHA256=$(LOG_HOST_PUBKEY_SHA256)" >> /tmp/registry-service.env
+	echo "LOG_QUEUE_URL=$(LOG_QUEUE_URL)" >> /tmp/registry-service.env
 	echo "ENCLAVE_HOST_ROLE_ARN=$(ENCLAVE_HOST_ROLE_ARN)" >> /tmp/registry-service.env
 	echo "CSAV_ROLE_ARN=$(CSAV_ROLE_ARN)" >> /tmp/registry-service.env
 	$(SSH) "mkdir -p $(REMOTE_DIR)"

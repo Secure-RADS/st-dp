@@ -20,9 +20,13 @@ provider:
         - Effect: Allow
           Action: dynamodb:Query
           Resource: !GetAtt PersonalDataTable.Arn
+        - Effect: Allow
+          Action: sqs:SendMessage
+          Resource: ${param:logQueueArn}
   environment:
     PDM_TABLE: !Ref PersonalDataTable
     LOG_SERVICE_URL: ${param:logServiceUrl, 'https://log.r.secure-rads.org'}
+    LOG_QUEUE_URL: ${param:logQueueUrl}
 
 functions:
   records:

@@ -69,12 +69,6 @@ functions:
       - httpApi:
           method: GET
           path: /logs
-  subjectAccessIngest:
-    handler: src/handlers/subjectAccessIngest.handler
-    events:
-      - httpApi:
-          method: POST
-          path: /subject-access
   subjectAccessBySubject:
     handler: src/handlers/subjectAccessBySubject.handler
     events:
@@ -119,6 +113,30 @@ resources:
       Properties:
         MessageRetentionPeriod: 1209600
 
+    # A poison message lands here after maxReceiveCount redeliveries; the alarm is the only signal that the
+    # trail is silently dropping rows, since the producers are best-effort.
+    LogAlarmTopic:
+      Type: AWS::SNS::Topic
+
+    EventDeadLetterQueueAlarm:
+      Type: AWS::CloudWatch::Alarm
+      Properties:
+        AlarmName: ${self:service}-dlq-not-empty
+        AlarmDescription: Log queue dead-letter queue is not empty; a trail message failed delivery.
+        Namespace: AWS/SQS
+        MetricName: ApproximateNumberOfMessagesVisible
+        Dimensions:
+          - Name: QueueName
+            Value: !GetAtt EventDeadLetterQueue.QueueName
+        Statistic: Maximum
+        Period: 300
+        EvaluationPeriods: 1
+        Threshold: 1
+        ComparisonOperator: GreaterThanOrEqualToThreshold
+        TreatMissingData: notBreaching
+        AlarmActions:
+          - !Ref LogAlarmTopic
+
     # Separate from the run log: partition key is the data subject so a DSAR lookup is a key query, not a scan.
     SubjectAccessTable:
       Type: AWS::DynamoDB::Table
@@ -156,8 +174,12 @@ resources:
       Value: !Ref RunLogTable
     EventQueueUrl:
       Value: !Ref EventQueue
+    EventQueueArn:
+      Value: !GetAtt EventQueue.Arn
     EventDeadLetterQueueUrl:
       Value: !Ref EventDeadLetterQueue
+    LogAlarmTopicArn:
+      Value: !Ref LogAlarmTopic
     SubjectAccessTableName:
       Value: !Ref SubjectAccessTable
     ApiRegionalDomainName:

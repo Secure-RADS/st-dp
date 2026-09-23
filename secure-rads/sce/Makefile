@@ -18,6 +18,11 @@ RUN_RESULTS_QUEUE_URL = $(shell aws cloudformation describe-stacks --stack-name 
 	--query "Stacks[0].Outputs[?OutputKey=='RunResultsQueueUrl'].OutputValue" --output text)
 ENCLAVE_AMI_ID = $(shell aws ssm get-parameter --region $(REGION) \
 	--name /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64 --query 'Parameter.Value' --output text)
+# execution-service publishes its own lifecycle events to the log queue; the enclave keeps its HTTP /events path.
+LOG_QUEUE_URL = $(shell aws cloudformation describe-stacks --stack-name secure-rads-log-service-dev --region $(REGION) \
+	--query "Stacks[0].Outputs[?OutputKey=='EventQueueUrl'].OutputValue" --output text)
+LOG_QUEUE_ARN = $(shell aws cloudformation describe-stacks --stack-name secure-rads-log-service-dev --region $(REGION) \
+	--query "Stacks[0].Outputs[?OutputKey=='EventQueueArn'].OutputValue" --output text)
 API_URL = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='ExecutionApiUrl'].OutputValue" --output text)
 
@@ -33,6 +38,8 @@ deploy:
 		--param="runResultsQueueArn=$(RUN_RESULTS_QUEUE_ARN)" \
 		--param="runResultsQueueUrl=$(RUN_RESULTS_QUEUE_URL)" \
 		--param="runResultsTable=$(RUN_RESULTS_TABLE)" \
+		--param="logQueueUrl=$(LOG_QUEUE_URL)" \
+		--param="logQueueArn=$(LOG_QUEUE_ARN)" \
 		--param="enclaveAmiId=$(ENCLAVE_AMI_ID)"
 
 destroy:

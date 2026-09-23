@@ -40,10 +40,14 @@ provider:
         - Effect: Allow
           Action: iam:PassRole
           Resource: !GetAtt EnclaveHostInstanceRole.Arn
+        - Effect: Allow
+          Action: sqs:SendMessage
+          Resource: ${param:logQueueArn}
   environment:
     ALGORITHM_TABLE: ${param:algorithmTable}
     RUN_RESULTS_TABLE: ${param:runResultsTable}
     RUN_RESULTS_QUEUE_URL: ${param:runResultsQueueUrl}
+    LOG_QUEUE_URL: ${param:logQueueUrl}
     ENCLAVE_AMI_ID: ${param:enclaveAmiId}
     ENCLAVE_INSTANCE_TYPE: ${param:enclaveInstanceType, 'c6g.large'}
     ENCLAVE_SECURITY_GROUP_ID: !Ref EnclaveHostSecurityGroup

@@ -18,9 +18,12 @@ provider:
         - Effect: Allow
           Action: dynamodb:PutItem
           Resource: !GetAtt RunResultsTable.Arn
+        - Effect: Allow
+          Action: sqs:SendMessage
+          Resource: ${param:logQueueArn}
   environment:
     RUN_RESULTS_TABLE: !Ref RunResultsTable
-    LOG_EVENTS_URL: ${param:logEventsUrl, 'https://log.secure-rads.org/events'}
+    LOG_QUEUE_URL: ${param:logQueueUrl}
 
 functions:
   consume:

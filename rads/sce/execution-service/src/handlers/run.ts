@@ -12,7 +12,7 @@ const ec2 = new EC2Client({});
 const algorithmTable = requiredEnv("ALGORITHM_TABLE");
 const runResultsTable = requiredEnv("RUN_RESULTS_TABLE");
 const runResultsQueueUrl = requiredEnv("RUN_RESULTS_QUEUE_URL");
-const logEventsQueueUrl = requiredEnv("LOG_EVENTS_QUEUE_URL");
+const logQueueUrl = requiredEnv("LOG_QUEUE_URL");
 const pdmUrl = requiredEnv("PDM_URL");
 const executorAmiId = requiredEnv("EXECUTOR_AMI_ID");
 const executorInstanceType = requiredEnv("EXECUTOR_INSTANCE_TYPE") as RunInstancesCommandInput["InstanceType"];
@@ -79,7 +79,7 @@ export const create: APIGatewayProxyHandlerV2 = async (event) => {
         UserData: Buffer.from(
           userData({
             algorithmId: request.algorithmId,
-            logEventsQueueUrl,
+            logQueueUrl,
             pdmUrl,
             region,
             runId,
