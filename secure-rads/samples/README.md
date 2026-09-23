@@ -10,7 +10,7 @@ Each app is pinned to the fixed `algorithmId` its dataset is seeded under (see `
 | `spend-analysis-go` | Go (stdlib) | finance / banking | finance | `c7cc14fa-e962-4548-aff4-a54148798cd8` |
 | `product-trends-bun` | TypeScript (Bun) | e-commerce | ecommerce | `3b8bba4a-8106-4309-9446-7bce99a1453a` |
 | `audience-segments-rust` | Rust (serde_json) | social media | social | `e4082659-08d6-4f0a-9e60-327e9410c710` |
-| `trial-eligibility-ruby` | Ruby (stdlib) | e-health / records | ehealth | `e587067e-47dc-4835-8f87-5e66fc979adf` |
+| `trial-eligibility-python` | Python (pydantic) | e-health / records | ehealth | `e587067e-47dc-4835-8f87-5e66fc979adf` |
 
 Each app's own README documents its exact input shape and the report it returns.
 
