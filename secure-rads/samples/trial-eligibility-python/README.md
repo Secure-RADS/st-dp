@@ -1,6 +1,6 @@
-# trial-eligibility-ruby
+# trial-eligibility-python
 
-Sample Data Controller app (Ruby, stdlib json/socket only). Listens on
+Sample Data Controller app (Python, pydantic models). Listens on
 `/run/sce/dc.sock`, receives one JSON line of health records (per-user PII,
 demographics, conditions, medications, and lab values), and screens for a
 synthetic type-2-diabetes trial: eligible iff age 40-75, HbA1c 7.0-10.0,
@@ -14,5 +14,5 @@ are ignored by the computation.
 Build:
 
 ```
-docker build --platform linux/arm64 -t trial-eligibility-ruby sample/trial-eligibility-ruby
+docker build --platform linux/arm64 -t trial-eligibility-python sample/trial-eligibility-python
 ```

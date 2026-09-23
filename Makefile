@@ -92,7 +92,7 @@ SAMPLE_APPS := \
 	spend-analysis-go:$(FINANCE_ID) \
 	product-trends-node:$(ECOMMERCE_ID) \
 	audience-segments-rust:$(SOCIAL_ID) \
-	trial-eligibility-ruby:$(EHEALTH_ID)
+	trial-eligibility-python:$(EHEALTH_ID)
 
 .PHONY: registry-logs secure-rads-ready secure-rads-seed secure-rads-build secure-rads-build-all secure-rads-run secure-rads-run-all secure-rads-all \
 	rads-build rads-build-all rads-seed rads-run rads-run-all rads-all rads-status \

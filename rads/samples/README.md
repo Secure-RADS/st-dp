@@ -20,7 +20,7 @@ they can still be run by hand.
 | `spend-analysis-go` | Go (stdlib) | spend by category, avg monthly spend, anomaly users |
 | `product-trends-node` | Node (`node:fs`) | revenue and orders, top categories by age band |
 | `audience-segments-rust` | Rust (serde) | interest segments, engagement tiers, avg connections |
-| `trial-eligibility-ruby` | Ruby (stdlib) | trial-eligible share, exclusion breakdown |
+| `trial-eligibility-python` | Python (pydantic) | trial-eligible share, exclusion breakdown |
 
 ## The rads sample model
 
