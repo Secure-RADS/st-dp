@@ -40,7 +40,7 @@ PHASES = [
     ("algorithm_processing_s", "algorithm processing"),
     ("result_delivery_s", "result delivery"),
 ]
-PHASE_COLORS = ["#8FB8CF", "#2E6F95", "#6FA8C7", "#F0A868", "#E08A3C", "#C8542A", "#8F3A1B", "#B9B9B9"]
+PHASE_COLORS = ["#4C9BE8", "#1F4E79", "#6FBF73", "#F2C14E", "#E8873C", "#C0392B", "#8E44AD", "#7F8C8D"]
 
 MIN_LABEL_SECONDS = 2.0
 BAR_GAP = 0.7
@@ -114,6 +114,16 @@ def phases_figure(df: pd.DataFrame) -> None:
         ncol=4,
         fontsize=8.5,
         frameon=False,
+    )
+    fig.text(
+        0.5,
+        -0.06,
+        "enclave init = per-run instance boot + tooling install (size-independent); data retrieval is the "
+        "PDM fetch, which grows with the dataset. rads has no enclave, so attestation / sce unit / "
+        "data decryption are blank for it.",
+        ha="center",
+        fontsize=8.5,
+        color="#444444",
     )
     out = FIG_DIR / "sweep-phases.png"
     fig.savefig(out, bbox_inches="tight", dpi=200)

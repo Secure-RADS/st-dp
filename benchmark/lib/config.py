@@ -1,8 +1,8 @@
-"""Shared configuration for the secure-rads vs rads benchmark.
+"""Shared configuration for the secure-rads vs rads dataset-size sweep.
 
-Fleet-wide constants (algorithm ids, sample apps) mirror the root Makefile and
-seeding/config.ts. Deployed endpoints are resolved from live CloudFormation
-outputs at runtime, not hardcoded, so the harness follows the stacks.
+Exp1/Exp2 run the trial-eligibility algorithm over the e-health dataset at several sizes.
+Fleet-wide constants (algorithm id, sample app) mirror seeding/config.ts; deployed endpoints
+are resolved from live CloudFormation outputs at runtime, not hardcoded.
 """
 
 from __future__ import annotations
@@ -13,30 +13,12 @@ REGION = "ap-southeast-2"
 
 # Field counts for the tab-separated `aws --output text` rows parsed below.
 OUTPUT_PAIR_FIELDS = 2
-INSTANCE_ROW_FIELDS = 3
 
-# One algorithmId per dataset, fixed so seed/build/run line up (seeding/config.ts).
-SAMPLES = [
-    ("health-risk-python", "health", "662fa378-dc53-425d-9225-a187b11ea7dc"),
-    ("spend-analysis-go", "finance", "c7cc14fa-e962-4548-aff4-a54148798cd8"),
-    ("product-trends-node", "ecommerce", "3b8bba4a-8106-4309-9446-7bce99a1453a"),
-    ("audience-segments-rust", "social", "e4082659-08d6-4f0a-9e60-327e9410c710"),
-    ("trial-eligibility-python", "ehealth-10k", "e587067e-47dc-4835-8f87-5e66fc979adf"),
-]
-
-DATASET_SIZES = {"health": 250, "finance": 1000, "ecommerce": 2500, "social": 5000, "ehealth-10k": 10000}
-
-# Exp1/Exp2: the trial-eligibility algorithm swept across dataset sizes. One algorithmId is reused and the
-# dataset reseeded per size, so the id is constant and only the record count changes.
+# The trial-eligibility algorithm swept across dataset sizes. One algorithmId is reused and the dataset
+# reseeded per size, so the id is constant and only the record count changes.
 TRIAL_SAMPLE = "trial-eligibility-python"
 TRIAL_ALGORITHM_ID = "e587067e-47dc-4835-8f87-5e66fc979adf"
 TRIAL_SIZES = [10000, 25000, 50000, 65000, 100000]
-
-
-def trial_dataset(size: int) -> str:
-    """Dataset name for one sweep size (matches seeding/config.ts EHEALTH_DATASETS)."""
-    return f"ehealth-{size // 1000}k"
-
 
 TREES = ("rads", "secure-rads")
 
@@ -53,6 +35,11 @@ STACKS = {
         "execution": "secure-rads-execution-service-dev",
     },
 }
+
+
+def trial_dataset(size: int) -> str:
+    """Dataset name for one sweep size (matches seeding/config.ts EHEALTH_DATASETS)."""
+    return f"ehealth-{size // 1000}k"
 
 
 def _aws(*args: str) -> str:
@@ -119,8 +106,7 @@ def resolve_endpoints(*, include_secure_registry: bool = True) -> dict[str, dict
 
     Args:
         include_secure_registry: Secure-rads' registry is the Go service on the CSAV
-            host, so resolving it requires that instance to be running. Read-only
-            tooling passes False so it still works with the host stopped.
+            host, so resolving it requires that instance to be running.
 
     Returns:
         Mapping of tree -> service -> URL.
@@ -137,24 +123,3 @@ def resolve_endpoints(*, include_secure_registry: bool = True) -> dict[str, dict
     if include_secure_registry:
         endpoints["secure-rads"]["registry"] = csav_registry_url()
     return endpoints
-
-
-def ec2_instances() -> list[dict[str, str]]:
-    raw = _aws(
-        "ec2",
-        "describe-instances",
-        "--region",
-        REGION,
-        "--filters",
-        "Name=instance-state-name,Values=pending,running,stopping,stopped",
-        "--query",
-        "Reservations[].Instances[].[InstanceId,State.Name,Tags[?Key=='Name']|[0].Value]",
-        "--output",
-        "text",
-    )
-    rows = []
-    for line in raw.splitlines():
-        parts = line.split("\t")
-        if len(parts) == INSTANCE_ROW_FIELDS:
-            rows.append({"instanceId": parts[0], "state": parts[1], "name": parts[2]})
-    return rows

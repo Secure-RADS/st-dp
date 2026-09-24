@@ -16,8 +16,6 @@ import urllib.error
 import urllib.request
 from typing import TYPE_CHECKING, Any
 
-from pydantic import BaseModel, Field
-
 if TYPE_CHECKING:
     from pathlib import Path
 
@@ -34,20 +32,6 @@ RESPONSE_SNIPPET_BYTES = 200
 
 class FlowError(RuntimeError):
     """Raised when a flow step returns something other than its expected response."""
-
-
-class StageTiming(BaseModel):
-    """Client-observed durations for one flow, in seconds."""
-
-    upload_seconds: float | None = None
-    register_seconds: float | None = None
-    execute_seconds: float | None = None
-    total_seconds: float | None = None
-    run_id: str | None = None
-    status: str | None = None
-    output: str | None = None
-    error: str | None = None
-    events: list[dict[str, Any]] = Field(default_factory=list)
 
 
 def _require(response_status: int, expected: int | tuple[int, ...], context: str, body: bytes) -> None:
@@ -182,15 +166,3 @@ def execute(execution_url: str, algorithm_id: str) -> tuple[float, str, str, str
 
     msg = f"timed out after {POLL_TIMEOUT_SECONDS:.0f}s waiting for runId={run_id}"
     raise FlowError(msg)
-
-
-def fetch_events(log_url: str, algorithm_id: str, run_id: str | None = None) -> list[dict[str, Any]]:
-    """Read an algorithm's timeline back from its log service."""
-    url = f"{log_url}/logs/{algorithm_id}"
-    if run_id:
-        url += f"?runId={run_id}"
-    status, body = _request("GET", url)
-    if status != HTTP_OK:
-        return []
-    payload = _json(body)
-    return payload if isinstance(payload, list) else []

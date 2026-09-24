@@ -119,8 +119,5 @@ convention = "google"
 # tools, so stdout is their user interface (T201), and this repository carries no
 # copyright-header convention (CPY001). Ignored only for the scripts, not repo-wide.
 "run.py" = ["T201", "CPY001"]
-"analyze.py" = ["T201", "CPY001"]
-"timeline.py" = ["T201", "CPY001"]
 "sweep.py" = ["T201", "CPY001"]
-"verify_logs.py" = ["T201", "CPY001"]
 "lib/*.py" = ["CPY001"]
