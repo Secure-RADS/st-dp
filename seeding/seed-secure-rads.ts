@@ -1,7 +1,7 @@
 import { createCipheriv, randomBytes } from "node:crypto";
 import { GenerateDataKeyCommand, KMSClient } from "@aws-sdk/client-kms";
 import { GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
-import { loadDatasets } from "./lib/datasets";
+import { loadDatasets, selectDatasets } from "./lib/datasets";
 import { batch, documentClient, writeAll } from "./lib/dynamo";
 import { requireEnv } from "./lib/env";
 
@@ -23,7 +23,7 @@ function encryptData(dek: Buffer, data: unknown): Record<string, string> {
   return { v: "1", nonce: nonce.toString("base64"), ct: Buffer.concat([ct, tag]).toString("base64") };
 }
 
-for (const ds of loadDatasets()) {
+for (const ds of selectDatasets(loadDatasets())) {
   console.log(`${ds.name} (${ds.algorithmId}): seeding ${ds.records.length} records`);
 
   // registry-service stored the PCR-bound KMS key ARN in the AlgorithmTable at build time; seeding must

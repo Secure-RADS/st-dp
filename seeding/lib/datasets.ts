@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { DEFAULT_SEED_NAMES } from "../config";
 
 export interface DatasetRecord {
   recordId: string;
@@ -24,4 +25,20 @@ export function loadDatasets(): DatasetFile[] {
     process.exit(1);
   }
   return files.map((f) => JSON.parse(readFileSync(join(DATASETS_DIR, f), "utf8")) as DatasetFile);
+}
+
+// Pick which datasets to seed: an explicit SEED_DATASET, else the default fleet set. The ehealth size sweep
+// reuses one algorithmId, so its sizes must be seeded one at a time via SEED_DATASET.
+export function selectDatasets(datasets: DatasetFile[]): DatasetFile[] {
+  const only = process.env.SEED_DATASET;
+  if (only) {
+    const picked = datasets.filter((dataset) => dataset.name === only);
+    if (picked.length === 0) {
+      console.error(`SEED_DATASET=${only} matched no dataset; run bun run generate first`);
+      process.exit(1);
+    }
+    return picked;
+  }
+  const defaults = new Set(DEFAULT_SEED_NAMES);
+  return datasets.filter((dataset) => defaults.has(dataset.name));
 }

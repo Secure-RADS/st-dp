@@ -8,7 +8,11 @@ export const RUN_EVENTS = [
   "run-requested",
   "executor-launched",
   "launch-failed",
-  // Executor (EC2) on completion.
+  // Executor (EC2): provisioning, then the run steps in order.
+  "executor-ready",
+  "artifact-retrieved",
+  "records-fetched",
+  "compute-completed",
   "executor-finished",
 ] as const;
 

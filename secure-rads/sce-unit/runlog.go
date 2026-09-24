@@ -24,8 +24,10 @@ type runEvent string
 
 const (
 	eventEnclaveStarted runEvent = "enclave-started"
+	eventUnitReady      runEvent = "unit-ready"
 	eventAttested       runEvent = "attested"
 	eventRecordsFetched runEvent = "records-fetched"
+	eventDataDecrypted  runEvent = "data-decrypted"
 	eventDCAppCompleted runEvent = "dc-app-completed"
 	eventOutputSent     runEvent = "output-sent"
 	eventRunFailed      runEvent = "run-failed"

@@ -15,6 +15,7 @@ Usage:
     python3 benchmark/run.py --reps 10
     python3 benchmark/run.py --phases executes --reps 3
     python3 benchmark/run.py --trees rads --samples health-risk-python --reps 1
+    python3 benchmark/run.py --sweep --reps 10          # Exp1/Exp2: trial-eligibility across 10K..100K
 """
 
 from __future__ import annotations
@@ -68,6 +69,7 @@ class Stage(BaseModel):
     status: str | None = None
     output: str | None = None
     error: str | None = None
+    size: int | None = None
 
 
 def build_image(tree: str, sample: str) -> Path:
@@ -175,8 +177,20 @@ def execute_once(job: Job, rep: int, endpoints: dict[str, str]) -> Stage:
     return stage
 
 
-def seed(tree: str) -> None:
-    """Seed one tree's datasets, resolving the target tables from live stack outputs."""
+def generate() -> None:
+    """Regenerate every dataset file (deterministic). Slow for the larger ehealth sizes, so called once."""
+    subprocess.run(["bun", "install"], check=True, cwd=REPO_ROOT / "seeding")
+    subprocess.run(["bun", "run", "generate"], check=True, cwd=REPO_ROOT / "seeding")
+
+
+def seed(tree: str, dataset: str | None = None) -> None:
+    """Seed one tree's datasets, resolving the target tables from live stack outputs.
+
+    Args:
+        tree: Which tree's PDM to seed ("rads" or "secure-rads").
+        dataset: When set, seeds only that dataset (SEED_DATASET); the ehealth size sweep reuses one
+            algorithmId, so its sizes must be seeded one at a time.
+    """
     env = {
         "RADS_PDM_TABLE": config.stack_outputs(config.STACKS["rads"]["pdm"]).get("PersonalDataTableName", ""),
         "PDM_TABLE": config.stack_outputs(config.STACKS["secure-rads"]["pdm"]).get("PersonalDataTableName", ""),
@@ -184,8 +198,9 @@ def seed(tree: str) -> None:
         "ALGORITHM_TABLE": config.stack_outputs("secure-rads-registry-service-storage").get("AlgorithmTableName", ""),
         "AWS_REGION": config.REGION,
     }
+    if dataset:
+        env["SEED_DATASET"] = dataset
     subprocess.run(["bun", "install"], check=True, cwd=REPO_ROOT / "seeding")
-    subprocess.run(["bun", "run", "generate"], check=True, cwd=REPO_ROOT / "seeding")
     subprocess.run(
         ["bun", "run", "seed-rads" if tree == "rads" else "seed-secure-rads"],
         check=True,
@@ -206,6 +221,71 @@ def flush(stages: list[Stage], phases: list[str], run_started: int) -> None:
     print(f"wrote {out} ({len(existing)} rows)", flush=True)
 
 
+def run_sweep(
+    args: argparse.Namespace,
+    endpoints: dict[str, dict[str, str]],
+    tars: dict[tuple[str, str], Path],
+    sizes: list[int],
+) -> list[Stage]:
+    """Exp1/Exp2: upload the trial-eligibility image once per tree, then reseed and run each size."""
+    secure_registry = endpoints["secure-rads"].get("registry", "")
+    if any(tree == "secure-rads" for tree in args.trees) and not secure_registry:
+        msg = "secure-rads registry URL not configured (is the CSAV host running?)"
+        print(msg, file=sys.stderr)
+        raise SystemExit(1)
+
+    stages: list[Stage] = []
+    for tree in args.trees:
+        job = Job(
+            tree=tree,
+            sample=config.TRIAL_SAMPLE,
+            dataset=config.trial_dataset(sizes[0]),
+            algorithm_id=config.TRIAL_ALGORITHM_ID,
+        )
+        print(f"upload: {tree}/{config.TRIAL_SAMPLE}", flush=True)
+        stages.append(upload_once(job, 1, endpoints[tree], secure_registry, tars[(tree, config.TRIAL_SAMPLE)]))
+
+    for size in sizes:
+        dataset = config.trial_dataset(size)
+        for tree in args.trees:
+            print(f"seed: {tree} {dataset}", flush=True)
+            seed(tree, dataset)
+            for rep in range(args.rep_start, args.rep_start + args.reps):
+                job = Job(
+                    tree=tree,
+                    sample=config.TRIAL_SAMPLE,
+                    dataset=dataset,
+                    algorithm_id=config.TRIAL_ALGORITHM_ID,
+                )
+                stage = execute_once(job, rep, endpoints[tree])
+                stage.size = size
+                stages.append(stage)
+                print(
+                    f"execute {tree}/{dataset} rep={rep} {stage.seconds:.1f}s status={stage.status} err={stage.error}",
+                    flush=True,
+                )
+    return stages
+
+
+def sweep_main(args: argparse.Namespace) -> int:
+    sizes = args.sizes or config.TRIAL_SIZES
+    jobs = [
+        Job(
+            tree=tree,
+            sample=config.TRIAL_SAMPLE,
+            dataset=config.trial_dataset(sizes[0]),
+            algorithm_id=config.TRIAL_ALGORITHM_ID,
+        )
+        for tree in args.trees
+    ]
+    endpoints = config.resolve_endpoints(include_secure_registry=True)
+    tars = collect_tars(jobs, skip_build=args.skip_build)
+    generate()
+    run_started = int(time.time())
+    flush(run_sweep(args, endpoints, tars, sizes), ["sweep"], run_started)
+    return 0
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--reps", type=int, default=10)
@@ -216,12 +296,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--samples", nargs="+", default=[s[0] for s in config.SAMPLES])
     parser.add_argument("--phases", nargs="+", choices=PHASES, default=list(PHASES))
     parser.add_argument("--skip-build", action="store_true")
+    parser.add_argument("--sweep", action="store_true", help="run the ehealth dataset-size sweep (Exp1/Exp2)")
+    parser.add_argument("--sizes", nargs="+", type=int, default=None, help="sweep sizes; defaults to TRIAL_SIZES")
     return parser.parse_args()
 
 
 def select_jobs(args: argparse.Namespace) -> list[Job]:
     chosen = [s for s in config.SAMPLES if s[0] in args.samples]
-    return [Job(tree, sample, dataset, algorithm_id) for tree in args.trees for sample, dataset, algorithm_id in chosen]
+    return [
+        Job(tree=tree, sample=sample, dataset=dataset, algorithm_id=algorithm_id)
+        for tree in args.trees
+        for sample, dataset, algorithm_id in chosen
+    ]
 
 
 def collect_tars(jobs: list[Job], *, skip_build: bool) -> dict[tuple[str, str], Path]:
@@ -281,6 +367,9 @@ def run_executes(
 
 def main() -> int:
     args = parse_args()
+    if args.sweep:
+        return sweep_main(args)
+
     jobs = select_jobs(args)
     if not jobs:
         print("no matching samples", file=sys.stderr)
@@ -293,6 +382,7 @@ def main() -> int:
     if "uploads" in args.phases:
         flush(run_uploads(jobs, endpoints, tars, args), ["uploads"], run_started)
     if "seed" in args.phases:
+        generate()
         for tree in args.trees:
             print(f"seed: {tree}", flush=True)
             seed(tree)

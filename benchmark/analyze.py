@@ -47,7 +47,7 @@ DATASET_SIZES = {
     "spend-analysis-go": 1000,
     "product-trends-node": 2500,
     "audience-segments-rust": 5000,
-    "trial-eligibility-ruby": 10000,
+    "trial-eligibility-python": 10000,
 }
 
 PERCENT = 100.0

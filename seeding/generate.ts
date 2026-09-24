@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { faker } from "@faker-js/faker";
 import { v5 as uuidv5 } from "uuid";
-import { DATASETS } from "./config";
+import { DATASETS, EHEALTH_DATASETS } from "./config";
 
 const OUT_DIR = join(import.meta.dir, "datasets");
 
@@ -227,9 +227,14 @@ const GENERATORS: Record<string, (index: number, count: number) => object> = {
   ehealth: () => ehealthData(),
 };
 
+// ehealth size variants (ehealth-10k, ehealth-25k, ...) share the ehealth generator; other names map to themselves.
+function generatorFor(name: string): (index: number, count: number) => object {
+  return GENERATORS[name.startsWith("ehealth") ? "ehealth" : name];
+}
+
 mkdirSync(OUT_DIR, { recursive: true });
-for (const { name, algorithmId, count, seed } of DATASETS) {
-  const gen = GENERATORS[name];
+for (const { name, algorithmId, count, seed } of [...DATASETS, ...EHEALTH_DATASETS]) {
+  const gen = generatorFor(name);
   faker.seed(seed);
   const records = [];
   for (let i = 1; i <= count; i++) {

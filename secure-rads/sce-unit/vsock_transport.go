@@ -54,6 +54,9 @@ func pinnedVsockHTTPClient(host, pinSHA256 string, proxyPort uint32) *http.Clien
 	return &http.Client{
 		Timeout: attestRequestTimeout,
 		Transport: &http.Transport{
+			// One request per call, and the vsock-proxy only holds a few connections open: without this the
+			// pooled connection is never reused (a fresh client is built each call) and later events fail.
+			DisableKeepAlives: true,
 			DialTLSContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 				raw, err := dialVsock(ctx, hostCID, proxyPort)
 				if err != nil {

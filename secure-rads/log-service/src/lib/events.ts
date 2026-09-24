@@ -13,11 +13,15 @@ export const RUN_EVENTS = [
   // Execution phase (execution-service).
   "run-requested",
   "enclave-launched",
+  "executor-ready",
+  "artifact-retrieved",
   "launch-failed",
   // Inside the enclave (sce-unit).
   "enclave-started",
+  "unit-ready",
   "attested",
   "records-fetched",
+  "data-decrypted",
   "dc-app-completed",
   "output-sent",
   "run-failed",

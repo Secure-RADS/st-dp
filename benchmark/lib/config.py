@@ -21,10 +21,22 @@ SAMPLES = [
     ("spend-analysis-go", "finance", "c7cc14fa-e962-4548-aff4-a54148798cd8"),
     ("product-trends-node", "ecommerce", "3b8bba4a-8106-4309-9446-7bce99a1453a"),
     ("audience-segments-rust", "social", "e4082659-08d6-4f0a-9e60-327e9410c710"),
-    ("trial-eligibility-ruby", "ehealth", "e587067e-47dc-4835-8f87-5e66fc979adf"),
+    ("trial-eligibility-python", "ehealth-10k", "e587067e-47dc-4835-8f87-5e66fc979adf"),
 ]
 
-DATASET_SIZES = {"health": 250, "finance": 1000, "ecommerce": 2500, "social": 5000, "ehealth": 10000}
+DATASET_SIZES = {"health": 250, "finance": 1000, "ecommerce": 2500, "social": 5000, "ehealth-10k": 10000}
+
+# Exp1/Exp2: the trial-eligibility algorithm swept across dataset sizes. One algorithmId is reused and the
+# dataset reseeded per size, so the id is constant and only the record count changes.
+TRIAL_SAMPLE = "trial-eligibility-python"
+TRIAL_ALGORITHM_ID = "e587067e-47dc-4835-8f87-5e66fc979adf"
+TRIAL_SIZES = [10000, 25000, 50000, 65000, 100000]
+
+
+def trial_dataset(size: int) -> str:
+    """Dataset name for one sweep size (matches seeding/config.ts EHEALTH_DATASETS)."""
+    return f"ehealth-{size // 1000}k"
+
 
 TREES = ("rads", "secure-rads")
 

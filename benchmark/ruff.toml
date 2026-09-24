@@ -121,5 +121,6 @@ convention = "google"
 "run.py" = ["T201", "CPY001"]
 "analyze.py" = ["T201", "CPY001"]
 "timeline.py" = ["T201", "CPY001"]
+"sweep.py" = ["T201", "CPY001"]
 "verify_logs.py" = ["T201", "CPY001"]
 "lib/*.py" = ["CPY001"]

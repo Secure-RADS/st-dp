@@ -4,7 +4,15 @@ import { requiredEnv } from "./env.js";
 const sqs = new SQSClient({});
 const logEventsQueueUrl = requiredEnv("LOG_EVENTS_QUEUE_URL");
 
-export type RunEvent = "run-requested" | "executor-launched" | "launch-failed";
+export type RunEvent =
+  | "run-requested"
+  | "executor-launched"
+  | "launch-failed"
+  | "executor-ready"
+  | "artifact-retrieved"
+  | "records-fetched"
+  | "compute-completed"
+  | "executor-finished";
 
 // Fire-and-forget one lifecycle event onto the rads-log-events queue; the log-service worker persists it.
 export async function logEvent(
