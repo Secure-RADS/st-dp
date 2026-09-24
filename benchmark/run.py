@@ -144,6 +144,19 @@ def upload_once(
     return stage
 
 
+def payload_error(output: str | None) -> str | None:
+    """A run whose payload carries an `error` key failed, even though the host itself exited 0."""
+    if not output:
+        return None
+    try:
+        parsed = json.loads(output)
+    except json.JSONDecodeError:
+        return None
+    if isinstance(parsed, dict) and parsed.get("error"):
+        return str(parsed["error"])
+    return None
+
+
 def execute_once(job: Job, rep: int, endpoints: dict[str, str]) -> Stage:
     """Fire one run and poll it to a terminal status."""
     start = time.perf_counter()
@@ -151,6 +164,7 @@ def execute_once(job: Job, rep: int, endpoints: dict[str, str]) -> Stage:
     run_id = status = output = None
     try:
         _elapsed, run_id, status, output = flow.execute(endpoints["execution"], job.algorithm_id)
+        error = payload_error(output)
     except Exception as err:  # noqa: BLE001 - record and keep sweeping
         error = f"{type(err).__name__}: {err}"
     stage = Stage(
@@ -174,6 +188,25 @@ def generate() -> None:
     """Regenerate every dataset file (deterministic). Slow for the larger ehealth sizes, so called once."""
     subprocess.run(["bun", "install"], check=True, cwd=REPO_ROOT / "seeding")
     subprocess.run(["bun", "run", "generate"], check=True, cwd=REPO_ROOT / "seeding")
+
+
+def clear() -> None:
+    """Clear the sweep algorithm's PDM records in both trees, before any size is seeded.
+
+    The sweep reuses one algorithmId, so without this a previous (larger) size's records would remain
+    and contaminate a smaller size's run.
+    """
+    env = {
+        "RADS_PDM_TABLE": config.stack_outputs(config.STACKS["rads"]["pdm"]).get("PersonalDataTableName", ""),
+        "PDM_TABLE": config.stack_outputs(config.STACKS["secure-rads"]["pdm"]).get("PersonalDataTableName", ""),
+        "AWS_REGION": config.REGION,
+    }
+    subprocess.run(
+        ["bun", "run", "clear-sweep"],
+        check=True,
+        cwd=REPO_ROOT / "seeding",
+        env={**os.environ, **env},
+    )
 
 
 def seed(tree: str, dataset: str) -> None:
@@ -286,7 +319,7 @@ def run_sweep(
 
 def main() -> int:
     args = parse_args()
-    sizes = args.sizes or config.TRIAL_SIZES
+    sizes = sorted(args.sizes or config.TRIAL_SIZES)
     jobs = [
         Job(
             tree=tree,
@@ -299,6 +332,7 @@ def main() -> int:
     endpoints = config.resolve_endpoints(include_secure_registry=True)
     tars = collect_tars(jobs, skip_build=args.skip_build)
     generate()
+    clear()
     run_started = int(time.time())
     flush(run_sweep(args, endpoints, tars, sizes), run_started)
     return 0

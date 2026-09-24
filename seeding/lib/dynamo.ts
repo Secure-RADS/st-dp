@@ -1,5 +1,5 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { BatchWriteCommand, DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+import { BatchWriteCommand, DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
 import pMap from "p-map";
 
 const BATCH_SIZE = 25;
@@ -55,6 +55,58 @@ async function writeBatch(
   for (let attempt = 0; requests.length > 0; attempt++) {
     if (attempt > MAX_RETRIES) {
       throw new Error(`giving up after ${MAX_RETRIES} retries with ${requests.length} unprocessed items`);
+    }
+    if (attempt > 0) {
+      await sleep(100 * 2 ** attempt);
+    }
+    try {
+      const out = await client.send(new BatchWriteCommand({ RequestItems: { [table]: requests } }));
+      requests = (out.UnprocessedItems?.[table] ?? []) as typeof requests;
+    } catch (error) {
+      if (error instanceof Error && error.name === "ThrottlingException") continue;
+      throw error;
+    }
+  }
+}
+
+// Delete every record for one algorithm. The size sweep reuses one algorithmId, so the previous size's
+// records must be removed before seeding a different (especially smaller) size.
+export async function deleteAllForAlgorithm(
+  client: DynamoDBDocumentClient,
+  table: string,
+  algorithmId: string,
+): Promise<number> {
+  let deleted = 0;
+  let exclusiveStartKey: Record<string, unknown> | undefined;
+  do {
+    const page = await client.send(
+      new QueryCommand({
+        TableName: table,
+        KeyConditionExpression: "AlgorithmId = :a",
+        ExpressionAttributeValues: { ":a": algorithmId },
+        ProjectionExpression: "AlgorithmId, RecordId",
+        ExclusiveStartKey: exclusiveStartKey,
+      }),
+    );
+    const keys = page.Items ?? [];
+    await pMap(batch(keys), (items) => deleteBatch(client, table, items), { concurrency: CONCURRENCY });
+    deleted += keys.length;
+    exclusiveStartKey = page.LastEvaluatedKey;
+  } while (exclusiveStartKey);
+  return deleted;
+}
+
+async function deleteBatch(
+  client: DynamoDBDocumentClient,
+  table: string,
+  items: Record<string, unknown>[],
+): Promise<void> {
+  let requests = items.map((item) => ({
+    DeleteRequest: { Key: { AlgorithmId: item.AlgorithmId, RecordId: item.RecordId } },
+  }));
+  for (let attempt = 0; requests.length > 0; attempt++) {
+    if (attempt > MAX_RETRIES) {
+      throw new Error(`giving up after ${MAX_RETRIES} retries with ${requests.length} unprocessed deletes`);
     }
     if (attempt > 0) {
       await sleep(100 * 2 ** attempt);

@@ -1,26 +1,36 @@
+import http.client
 import json
 import sys
 import urllib.parse
-import urllib.request
 
 
 def fetch_records(base: str, algorithm_id: str, run_id: str) -> tuple[list[dict], int]:
+    # One connection for every page: pdm-service is paginated, and opening a fresh TCP+TLS
+    # connection per page dominated the fetch time for large datasets.
+    parsed = urllib.parse.urlsplit(base)
+    conn = http.client.HTTPSConnection(parsed.netloc, timeout=60)
     records: list[dict] = []
     cursor: str | None = None
     pages = 0
-    while True:
-        params = {"algorithmId": algorithm_id}
-        if cursor:
-            params["cursor"] = cursor
-        url = base.rstrip("/") + "/records?" + urllib.parse.urlencode(params)
-        request = urllib.request.Request(url, headers={"X-Run-Id": run_id})
-        with urllib.request.urlopen(request) as response:
-            body = json.load(response)
-        pages += 1
-        records.extend(body.get("records", []))
-        cursor = body.get("nextCursor")
-        if not cursor:
-            return records, pages
+    try:
+        while True:
+            params = {"algorithmId": algorithm_id}
+            if cursor:
+                params["cursor"] = cursor
+            path = parsed.path.rstrip("/") + "/records?" + urllib.parse.urlencode(params)
+            conn.request("GET", path, headers={"X-Run-Id": run_id})
+            response = conn.getresponse()
+            payload = response.read()
+            if response.status != 200:
+                raise RuntimeError(f"pdm-service returned {response.status}: {payload!r}")
+            body = json.loads(payload)
+            pages += 1
+            records.extend(body.get("records", []))
+            cursor = body.get("nextCursor")
+            if not cursor:
+                return records, pages
+    finally:
+        conn.close()
 
 
 def main() -> None:
