@@ -16,7 +16,7 @@ import (
 // from the result, and uploads only that to S3. The whole pipeline is
 // daemonless: skopeo + rootless umoci for unpack, eif_build directly on the
 // composed rootfs (eif.go) - no docker.sock anywhere.
-func buildAndPush(ctx context.Context, algorithmId, tarPath string) (key, kmsKeyArn string, err error) {
+func buildAndPush(ctx context.Context, algorithmId, tarPath, existingKmsKeyArn string) (key, kmsKeyArn string, err error) {
 	start := time.Now()
 	log.Printf("build[%s]: start", tarPath)
 
@@ -116,18 +116,18 @@ func buildAndPush(ctx context.Context, algorithmId, tarPath string) (key, kmsKey
 	}
 	logEvent(algorithmId, buildId, eventPcrsRegistered, nil)
 
-	log.Printf("build[%s]: provisioning per-algorithm KMS key", tarPath)
+	log.Printf("build[%s]: ensuring per-algorithm KMS key", tarPath)
 	if enclaveHostRoleArn == "" {
 		return "", "", fmt.Errorf("ENCLAVE_HOST_ROLE_ARN not configured")
 	}
 	if csavRoleArn == "" {
 		return "", "", fmt.Errorf("CSAV_ROLE_ARN not configured")
 	}
-	kmsKeyArn, err = provisionAlgorithmKmsKey(ctx, algorithmId, pcrs, enclaveHostRoleArn, csavRoleArn)
+	kmsKeyArn, err = ensureAlgorithmKmsKey(ctx, algorithmId, pcrs, existingKmsKeyArn, enclaveHostRoleArn, csavRoleArn)
 	if err != nil {
 		return "", "", fmt.Errorf("provision KMS key: %w", err)
 	}
-	logEvent(algorithmId, buildId, eventKmsKeyProvisioned, map[string]any{"kmsKeyArn": kmsKeyArn})
+	logEvent(algorithmId, buildId, eventKmsKeyProvisioned, map[string]any{"kmsKeyArn": kmsKeyArn, "reused": existingKmsKeyArn != ""})
 
 	log.Printf("build[%s]: done key=%s took=%s", tarPath, key, time.Since(start))
 	logEvent(algorithmId, buildId, eventBuildCompleted, map[string]any{"key": key})

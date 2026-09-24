@@ -83,7 +83,17 @@ func main() {
 		}
 		defer os.Remove(tmpPath)
 
-		builtKey, kmsKeyArn, err := buildAndPush(c.Request.Context(), algorithmId, tmpPath)
+		existing, found, err := getAlgorithm(c.Request.Context(), algorithmId)
+		if err != nil {
+			c.String(http.StatusInternalServerError, "could not read algorithm: %v", err)
+			return
+		}
+		existingKmsKeyArn := ""
+		if found {
+			existingKmsKeyArn = existing.KmsKeyArn
+		}
+
+		builtKey, kmsKeyArn, err := buildAndPush(c.Request.Context(), algorithmId, tmpPath, existingKmsKeyArn)
 		if err != nil {
 			c.String(http.StatusInternalServerError, "build failed: %v", err)
 			return
