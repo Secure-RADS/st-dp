@@ -84,20 +84,21 @@ Resources:
                 Action: [kms:GenerateDataKey, kms:Decrypt]
                 Resource: !Ref ArtifactBucketKmsKeyArn
         # The CSAV builds one PCR-bound KMS key per algorithm (registry-service provisions it after the EIF
-        # build, when the measurements are known). CreateKey is a management call with no key resource.
+        # build, when the measurements are known) and reuses it on rebuild, rewriting the policy. CreateKey is a
+        # management call with no key resource; Get/PutKeyPolicy act on the algorithm's own key.
         - PolicyName: KmsProvisionAlgorithmKeys
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
               - Effect: Allow
-                Action: [kms:CreateKey, kms:ListKeys, kms:DescribeKey]
+                Action: [kms:CreateKey, kms:ListKeys, kms:DescribeKey, kms:GetKeyPolicy, kms:PutKeyPolicy]
                 Resource: "*"
         - PolicyName: AlgorithmTableWrite
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
               - Effect: Allow
-                Action: dynamodb:PutItem
+                Action: [dynamodb:PutItem, dynamodb:GetItem]
                 Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AlgorithmTableName}"
 
   CsavInstanceProfile:

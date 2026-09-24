@@ -11,9 +11,63 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 )
 
-// provisionAlgorithmKmsKey creates a KMS key whose Decrypt permission is bound to the EIF measurements.
-// Only the matching enclave can unwrap this algorithm's data keys; the host and key administrators cannot.
-func provisionAlgorithmKmsKey(ctx context.Context, algorithmId string, pcrs pcrMeasurements, enclaveHostRoleArn, csavRoleArn string) (string, error) {
+func algorithmKeyDescription(algorithmId string) string {
+	return fmt.Sprintf("enclave data key for algorithm %s", algorithmId)
+}
+
+// ensureAlgorithmKmsKey returns the algorithm's PCR-bound KMS key. It creates the key on first build and reuses
+// the existing one on rebuild, rewriting the policy to the new measurements, so a build never orphans a key.
+func ensureAlgorithmKmsKey(ctx context.Context, algorithmId string, pcrs pcrMeasurements, existingKeyArn, enclaveHostRoleArn, csavRoleArn string) (string, error) {
+	policy, err := algorithmKeyPolicy(ctx, pcrs, enclaveHostRoleArn, csavRoleArn)
+	if err != nil {
+		return "", err
+	}
+
+	if existingKeyArn != "" {
+		if err := assertAlgorithmKey(ctx, existingKeyArn, algorithmId); err != nil {
+			return "", err
+		}
+		if _, err := kmsClient.PutKeyPolicy(ctx, &kms.PutKeyPolicyInput{
+			KeyId:      aws.String(existingKeyArn),
+			PolicyName: aws.String("default"),
+			Policy:     aws.String(policy),
+		}); err != nil {
+			return "", fmt.Errorf("update KMS key policy: %w", err)
+		}
+		return existingKeyArn, nil
+	}
+
+	out, err := kmsClient.CreateKey(ctx, &kms.CreateKeyInput{
+		Description: aws.String(algorithmKeyDescription(algorithmId)),
+		KeyUsage:    types.KeyUsageTypeEncryptDecrypt,
+		KeySpec:     types.KeySpecSymmetricDefault,
+		Policy:      aws.String(policy),
+	})
+	if err != nil {
+		return "", fmt.Errorf("create KMS key: %w", err)
+	}
+	if out.KeyMetadata == nil {
+		return "", fmt.Errorf("create KMS key: no key metadata")
+	}
+	return *out.KeyMetadata.Arn, nil
+}
+
+// assertAlgorithmKey refuses to reuse a key that is not this algorithm's, so the artifact bucket key (or any
+// other key that ends up referenced by the row) can never have its policy rewritten.
+func assertAlgorithmKey(ctx context.Context, keyArn, algorithmId string) error {
+	out, err := kmsClient.DescribeKey(ctx, &kms.DescribeKeyInput{KeyId: aws.String(keyArn)})
+	if err != nil {
+		return fmt.Errorf("describe existing KMS key: %w", err)
+	}
+	if out.KeyMetadata == nil || aws.ToString(out.KeyMetadata.Description) != algorithmKeyDescription(algorithmId) {
+		return fmt.Errorf("refusing to reuse KMS key %s: description is not %q", keyArn, algorithmKeyDescription(algorithmId))
+	}
+	return nil
+}
+
+// algorithmKeyPolicy binds Decrypt to the EIF measurements. Only the matching enclave can unwrap this
+// algorithm's data keys; the host and key administrators cannot.
+func algorithmKeyPolicy(ctx context.Context, pcrs pcrMeasurements, enclaveHostRoleArn, csavRoleArn string) (string, error) {
 	identity, err := stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
 	if err != nil {
 		return "", fmt.Errorf("get AWS account identity: %w", err)
@@ -22,7 +76,7 @@ func provisionAlgorithmKmsKey(ctx context.Context, algorithmId string, pcrs pcrM
 		return "", fmt.Errorf("get AWS account identity: missing account")
 	}
 	rootArn := "arn:aws:iam::" + *identity.Account + ":root"
-	keyPolicy, err := json.Marshal(map[string]any{
+	policy, err := json.Marshal(map[string]any{
 		"Version": "2012-10-17",
 		"Statement": []map[string]any{
 			{
@@ -71,18 +125,5 @@ func provisionAlgorithmKmsKey(ctx context.Context, algorithmId string, pcrs pcrM
 	if err != nil {
 		return "", fmt.Errorf("marshal key policy: %w", err)
 	}
-
-	out, err := kmsClient.CreateKey(ctx, &kms.CreateKeyInput{
-		Description: aws.String(fmt.Sprintf("enclave data key for algorithm %s", algorithmId)),
-		KeyUsage:    types.KeyUsageTypeEncryptDecrypt,
-		KeySpec:     types.KeySpecSymmetricDefault,
-		Policy:      aws.String(string(keyPolicy)),
-	})
-	if err != nil {
-		return "", fmt.Errorf("create KMS key: %w", err)
-	}
-	if out.KeyMetadata == nil {
-		return "", fmt.Errorf("create KMS key: no key metadata")
-	}
-	return *out.KeyMetadata.Arn, nil
+	return string(policy), nil
 }
