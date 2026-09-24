@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -24,17 +25,20 @@ func ensureAlgorithmKmsKey(ctx context.Context, algorithmId string, pcrs pcrMeas
 	}
 
 	if existingKeyArn != "" {
-		if err := assertAlgorithmKey(ctx, existingKeyArn, algorithmId); err != nil {
+		reusable, err := reusableAlgorithmKey(ctx, existingKeyArn, algorithmId)
+		if err != nil {
 			return "", err
 		}
-		if _, err := kmsClient.PutKeyPolicy(ctx, &kms.PutKeyPolicyInput{
-			KeyId:      aws.String(existingKeyArn),
-			PolicyName: aws.String("default"),
-			Policy:     aws.String(policy),
-		}); err != nil {
-			return "", fmt.Errorf("update KMS key policy: %w", err)
+		if reusable {
+			if _, err := kmsClient.PutKeyPolicy(ctx, &kms.PutKeyPolicyInput{
+				KeyId:      aws.String(existingKeyArn),
+				PolicyName: aws.String("default"),
+				Policy:     aws.String(policy),
+			}); err != nil {
+				return "", fmt.Errorf("update KMS key policy: %w", err)
+			}
+			return existingKeyArn, nil
 		}
-		return existingKeyArn, nil
 	}
 
 	out, err := kmsClient.CreateKey(ctx, &kms.CreateKeyInput{
@@ -52,17 +56,27 @@ func ensureAlgorithmKmsKey(ctx context.Context, algorithmId string, pcrs pcrMeas
 	return *out.KeyMetadata.Arn, nil
 }
 
-// assertAlgorithmKey refuses to reuse a key that is not this algorithm's, so the artifact bucket key (or any
-// other key that ends up referenced by the row) can never have its policy rewritten.
-func assertAlgorithmKey(ctx context.Context, keyArn, algorithmId string) error {
+// reusableAlgorithmKey reports whether keyArn is this algorithm's Enabled key and can have its policy rewritten.
+// A description that does not match is refused, so the artifact bucket key (or any other key the row points at)
+// is never touched; a key that is missing or already scheduled for deletion is simply not reusable, and the
+// caller creates a fresh one.
+func reusableAlgorithmKey(ctx context.Context, keyArn, algorithmId string) (bool, error) {
 	out, err := kmsClient.DescribeKey(ctx, &kms.DescribeKeyInput{KeyId: aws.String(keyArn)})
 	if err != nil {
-		return fmt.Errorf("describe existing KMS key: %w", err)
+		var notFound *types.NotFoundException
+		if errors.As(err, &notFound) {
+			return false, nil
+		}
+		return false, fmt.Errorf("describe existing KMS key: %w", err)
 	}
-	if out.KeyMetadata == nil || aws.ToString(out.KeyMetadata.Description) != algorithmKeyDescription(algorithmId) {
-		return fmt.Errorf("refusing to reuse KMS key %s: description is not %q", keyArn, algorithmKeyDescription(algorithmId))
+	meta := out.KeyMetadata
+	if meta == nil {
+		return false, nil
 	}
-	return nil
+	if aws.ToString(meta.Description) != algorithmKeyDescription(algorithmId) {
+		return false, fmt.Errorf("refusing to reuse KMS key %s: description is not %q", keyArn, algorithmKeyDescription(algorithmId))
+	}
+	return meta.KeyState == types.KeyStateEnabled, nil
 }
 
 // algorithmKeyPolicy binds Decrypt to the EIF measurements. Only the matching enclave can unwrap this
