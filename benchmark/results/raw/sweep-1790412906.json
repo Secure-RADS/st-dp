@@ -1,0 +1,14 @@
+[
+  {
+    "tree": "secure-rads",
+    "dataset": "ehealth-10k",
+    "algorithm_id": "e587067e-47dc-4835-8f87-5e66fc979adf",
+    "rep": 1,
+    "size": 10000,
+    "seconds": 96.07989578100023,
+    "run_id": "78b60761-1a49-4818-9dd4-fce5ed1971ad",
+    "status": "exit:0",
+    "output": "{\"algorithmId\":\"e587067e-47dc-4835-8f87-5e66fc979adf\",\"userCount\":10000,\"eligibleCount\":282,\"eligiblePct\":2.82,\"exclusionBreakdown\":{\"age\":5093,\"hba1c\":8628,\"egfr\":1590,\"ckd\":2545,\"bmi\":4378},\"eligibleRecordIds\":[\"user-000019\",\"user-000023\",\"user-000118\",\"user-000136\",\"user-000143\",\"user-000170\",\"user-000174\",\"user-000280\",\"user-000302\",\"user-000318\",\"user-000336\",\"user-000416\",\"user-000491\",\"user-000495\",\"user-000569\",\"user-000572\",\"user-000620\",\"user-000689\",\"user-000706\",\"user-000708\",\"user-000795\",\"user-000853\",\"user-000863\",\"user-000932\",\"user-000951\",\"user-000979\",\"user-001040\",\"user-001080\",\"user-001094\",\"user-001116\",\"user-001148\",\"user-001151\",\"user-001263\",\"user-001335\",\"user-001348\",\"user-001358\",\"user-001369\",\"user-001370\",\"user-001379\",\"user-001465\",\"user-001533\",\"user-001606\",\"user-001622\",\"user-001637\",\"user-001652\",\"user-001758\",\"user-001837\",\"user-001844\",\"user-001890\",\"user-001912\"]}\n",
+    "error": null
+  }
+]

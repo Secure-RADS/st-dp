@@ -1,6 +1,7 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { createReadStream, existsSync, readdirSync } from "node:fs";
+import { createInterface } from "node:readline";
 import { join } from "node:path";
-import { DEFAULT_SEED_NAMES } from "../config";
+import { DEFAULT_SEED_NAMES, EHEALTH_SIZES } from "../config";
 
 export interface DatasetRecord {
   recordId: string;
@@ -8,37 +9,83 @@ export interface DatasetRecord {
   data: Record<string, unknown>;
 }
 
-export interface DatasetFile {
+export interface DatasetMeta {
   algorithmId: string;
   name: string;
-  records: DatasetRecord[];
+  path: string;
+  expectedCount: number | null;
 }
 
 const DATASETS_DIR = join(import.meta.dir, "..", "datasets");
 
-export function loadDatasets(): DatasetFile[] {
-  const files = readdirSync(DATASETS_DIR)
-    .filter((f) => f.endsWith(".json"))
-    .sort();
-  if (files.length === 0) {
-    console.error(`no dataset files in ${DATASETS_DIR}; run bun run generate first`);
-    process.exit(1);
-  }
-  return files.map((f) => JSON.parse(readFileSync(join(DATASETS_DIR, f), "utf8")) as DatasetFile);
+const EHEALTH_COUNT = new Map(EHEALTH_SIZES.map((count) => [`ehealth-${count / 1000}k`, count]));
+
+function datasetPath(name: string): string {
+  return join(DATASETS_DIR, `${name}.json`);
 }
 
-// Pick which datasets to seed: an explicit SEED_DATASET, else the default fleet set. The ehealth size sweep
-// reuses one algorithmId, so its sizes must be seeded one at a time via SEED_DATASET.
-export function selectDatasets(datasets: DatasetFile[]): DatasetFile[] {
+export function resolveSeedNames(): string[] {
   const only = process.env.SEED_DATASET;
   if (only) {
-    const picked = datasets.filter((dataset) => dataset.name === only);
-    if (picked.length === 0) {
+    if (!existsSync(datasetPath(only))) {
       console.error(`SEED_DATASET=${only} matched no dataset; run bun run generate first`);
       process.exit(1);
     }
-    return picked;
+    return [only];
   }
+
   const defaults = new Set(DEFAULT_SEED_NAMES);
-  return datasets.filter((dataset) => defaults.has(dataset.name));
+  const names = readdirSync(DATASETS_DIR)
+    .filter((f) => f.endsWith(".json"))
+    .map((f) => f.replace(/\.json$/, ""))
+    .filter((name) => defaults.has(name))
+    .sort();
+  if (names.length === 0) {
+    console.error(`no dataset files in ${DATASETS_DIR}; run bun run generate first`);
+    process.exit(1);
+  }
+  return names;
+}
+
+export async function readDatasetMeta(name: string): Promise<DatasetMeta> {
+  const path = datasetPath(name);
+  if (!existsSync(path)) {
+    throw new Error(`dataset ${name} not found at ${path}`);
+  }
+  const rl = createInterface({ input: createReadStream(path, { encoding: "utf8" }), crlfDelay: Infinity });
+  for await (const line of rl) {
+    const match = line.match(/"algorithmId"\s*:\s*"([^"]+)"\s*,\s*"name"\s*:\s*"([^"]+)"/);
+    rl.close();
+    if (!match) {
+      throw new Error(`dataset ${name}: could not parse header line`);
+    }
+    return {
+      algorithmId: match[1]!,
+      name: match[2]!,
+      path,
+      expectedCount: EHEALTH_COUNT.get(name) ?? null,
+    };
+  }
+  throw new Error(`dataset ${name}: empty file`);
+}
+
+// Records are one JSON object per line (see generate.ts); stream them so multi-GB files do not need to fit in RAM.
+export async function* streamDatasetRecords(name: string): AsyncGenerator<DatasetRecord> {
+  const path = datasetPath(name);
+  const rl = createInterface({ input: createReadStream(path, { encoding: "utf8" }), crlfDelay: Infinity });
+  let header = true;
+  for await (const raw of rl) {
+    if (header) {
+      header = false;
+      continue;
+    }
+    let line = raw.trim();
+    if (!line || line === "]}" || line === "]") {
+      continue;
+    }
+    if (line.endsWith(",")) {
+      line = line.slice(0, -1);
+    }
+    yield JSON.parse(line) as DatasetRecord;
+  }
 }

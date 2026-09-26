@@ -10,7 +10,10 @@ export interface DatasetConfig {
 // The trial-eligibility algorithm is benchmarked across dataset sizes (Exp1/Exp2). One algorithmId is reused
 // and reseeded per size, so every size shares the id and differs only in record count.
 export const EHEALTH_ALGORITHM_ID = "e587067e-47dc-4835-8f87-5e66fc979adf";
-export const EHEALTH_SIZES = [10000, 25000, 50000, 65000, 100000];
+// Exp1/Exp2 sheet sizes (10K through 5M).
+export const EHEALTH_SIZES = [
+  10_000, 25_000, 50_000, 75_000, 100_000, 250_000, 500_000, 1_000_000, 2_500_000, 5_000_000,
+];
 
 // One dataset per shared sample app, at the size its app is registered under.
 export const DATASETS: DatasetConfig[] = [
@@ -20,12 +23,14 @@ export const DATASETS: DatasetConfig[] = [
   { name: "social", algorithmId: "e4082659-08d6-4f0a-9e60-327e9410c710", count: 5000, seed: 404 },
 ];
 
-// The ehealth size sweep: one file per size, all under EHEALTH_ALGORITHM_ID. Only one size is seeded at a time.
-export const EHEALTH_DATASETS: DatasetConfig[] = EHEALTH_SIZES.map((count, i) => ({
+// The ehealth size sweep: one file per size, all under EHEALTH_ALGORITHM_ID and sharing one faker seed, so
+// each size is a strict prefix of the largest (the first N records are identical). A run asks for N records
+// and reads the first N, so only the largest dataset needs seeding.
+export const EHEALTH_DATASETS: DatasetConfig[] = EHEALTH_SIZES.map((count) => ({
   name: `ehealth-${count / 1000}k`,
   algorithmId: EHEALTH_ALGORITHM_ID,
   count,
-  seed: 505 + i,
+  seed: 505,
 }));
 
 // Datasets seeded when no explicit SEED_DATASET is given (the 5-sample fleet, ehealth at its base size).

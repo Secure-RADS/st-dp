@@ -7,7 +7,8 @@
     "generate": "bun generate.ts",
     "seed-rads": "bun seed-rads.ts",
     "seed-secure-rads": "bun seed-secure-rads.ts",
-    "clear-sweep": "bun clear-sweep.ts",
+    "export-s3": "bun export-s3.ts",
+    "import-table": "bun import-table.ts",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "lint:fix": "biome check --write ."
@@ -20,9 +21,11 @@
     "typescript": "^5.7.0"
   },
   "dependencies": {
-    "@aws-sdk/client-dynamodb": "^3.700.0",
+    "@aws-sdk/client-dynamodb": "^3.1141.0",
     "@aws-sdk/client-kms": "^3.1119.0",
+    "@aws-sdk/client-s3": "^3.1141.0",
     "@aws-sdk/lib-dynamodb": "^3.700.0",
+    "@aws-sdk/lib-storage": "^3.1141.0",
     "p-map": "^7.0.6",
     "uuid": "^14.0.2"
   }

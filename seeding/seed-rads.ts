@@ -1,22 +1,65 @@
-import { loadDatasets, selectDatasets } from "./lib/datasets";
-import { batch, documentClient, writeAll } from "./lib/dynamo";
+import { readDatasetMeta, resolveSeedNames, streamDatasetRecords } from "./lib/datasets";
+import { documentClient, writeAll } from "./lib/dynamo";
 import { requireEnv } from "./lib/env";
 
 const table = requireEnv("RADS_PDM_TABLE");
+const BATCH_SIZE = 25;
+const flushEvery = Math.max(25, Number(process.env.SEED_FLUSH_BATCHES ?? 400));
+const pipelineDepth = Math.max(1, Number(process.env.SEED_PIPELINE ?? 2));
+const skip = Math.max(0, Number(process.env.SEED_SKIP ?? 0));
 
 const region = process.env.AWS_REGION ?? "ap-southeast-2";
 const client = documentClient(region);
 
-// The rads PDM is open: records are stored as raw JSON, no envelope encryption or KMS involved.
-// DataSubjectId is kept beside the payload so pdm-service can record which subjects a run read (DSAR trail).
-for (const ds of selectDatasets(loadDatasets())) {
-  console.log(`${ds.name} (${ds.algorithmId}): seeding ${ds.records.length} records`);
-  const items = ds.records.map((r) => ({
-    AlgorithmId: ds.algorithmId,
-    RecordId: r.recordId,
-    DataSubjectId: r.dataSubjectId,
-    Data: r.data,
-  }));
-  await writeAll(client, table, ds.name, batch(items));
+for (const name of resolveSeedNames()) {
+  const meta = await readDatasetMeta(name);
+  const progress = { written: skip, total: meta.expectedCount };
+  console.log(
+    `${meta.name} (${meta.algorithmId}): seeding${meta.expectedCount ? ` ${meta.expectedCount}` : ""} records` +
+      (skip > 0 ? ` (skip ${skip})` : ""),
+  );
+
+  let seen = 0;
+  let batch: Record<string, unknown>[] = [];
+  let batches: Record<string, unknown>[][] = [];
+  const inflight: Promise<void>[] = [];
+
+  const enqueue = async (chunk: Record<string, unknown>[][]) => {
+    const written = await writeAll(client, table, meta.name, chunk);
+    progress.written += written;
+    console.log(`${meta.name}: ${progress.written}/${progress.total ?? "?"}`);
+  };
+
+  for await (const record of streamDatasetRecords(name)) {
+    seen++;
+    if (seen <= skip) continue;
+
+    batch.push({
+      AlgorithmId: meta.algorithmId,
+      RecordId: record.recordId,
+      DataSubjectId: record.dataSubjectId,
+      Data: record.data,
+    });
+    if (batch.length >= BATCH_SIZE) {
+      batches.push(batch);
+      batch = [];
+    }
+    if (batches.length >= flushEvery) {
+      const chunk = batches;
+      batches = [];
+      inflight.push(enqueue(chunk));
+      if (inflight.length >= pipelineDepth) {
+        await inflight.shift();
+      }
+    }
+  }
+  if (batch.length > 0) {
+    batches.push(batch);
+  }
+  if (batches.length > 0) {
+    inflight.push(enqueue(batches));
+  }
+  await Promise.all(inflight);
+  console.log(`${meta.name}: finished ${progress.written} records`);
 }
 console.log("done");
