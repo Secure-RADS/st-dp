@@ -4,18 +4,50 @@ End-to-end Exp1/Exp2 sweep: `rads` (baseline CE) vs `secure-rads` (Sec-CE) on th
 
 One algorithm id is reused across sizes. The harness generates the dataset once, BatchWrites the same JSON into both trees, then runs each size with a `size` limit on fetch.
 
+## Quick start (Makefile)
+
+From `benchmark/`:
+
+```
+make help       # list targets
+make install    # uv + bun deps
+make smoke      # 10K + 100K, 3 reps, both trees (~10–15 min)
+make report     # export CSV + figures from results/raw/
+```
+
+From the repo root:
+
+```
+make benchmark              # same as: make -C benchmark help
+make benchmark-smoke        # cheap 10K/100K check
+make benchmark-report       # export + figures
+make -C benchmark run REPS=3
+```
+
+Common overrides:
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `REPS` | `10` | Repetitions per size × tree |
+| `SIZES` | (config default) | e.g. `SIZES='10000 100000'` |
+| `TREES` | `rads secure-rads` | Which trees to run |
+| `SKIP` | empty | `SKIP=1` → `--skip-generate --skip-seed` |
+
+```
+make run REPS=3
+make run SIZES='10000 100000' REPS=10
+make reuse REPS=3 SIZES='10000 25000 50000 75000 100000'
+make seed                    # generate once, BatchWrite ehealth-100k to both trees
+make export && make figures  # or: make report
+```
+
 ## Prerequisites
 
 - AWS credentials for the PoC account (`AWS_REGION=ap-southeast-2`)
 - Both trees deployed (PDM, execution, log, result-consumer; secure-rads also needs CSAV registry + verifier)
 - CSAV host running so the secure registry is reachable (`make up` / `make secure-rads-ready` from the repo root)
 - Docker (arm64) to build the sample algorithm image on first run
-- `uv` (Python) and `bun` (seeding + CSV export)
-
-```
-cd benchmark && uv sync
-cd ../seeding && bun install
-```
+- `uv` (Python) and `bun` (seeding + CSV export) — `make install` sets these up
 
 Executors default to `c6g.large`. Keep rads and secure-rads on the same instance type when comparing.
 
@@ -29,37 +61,37 @@ Examples:
 
 | Matrix | Launches | Rough wall clock |
 | --- | --- | --- |
+| `make smoke` (10K+100K, 3 reps) | 12 | ~10–15 min |
 | 10K + 100K, 2 trees, 10 reps | 40 | ~1–1.5 h |
 | 10K…100K (5 sizes), 2 trees, 10 reps | 100 | ~3 h |
 | 10K…100K (5 sizes), 2 trees, 3 reps | 30 | ~45–60 min |
 
-Use `--reps 3` (or `--sizes 10000 100000`) while iterating; reserve `--reps 10` for the paper Exp2 runs.
+Use `make smoke` or `make run REPS=3` while iterating; reserve `--reps 10` / `REPS=10` for the paper Exp2 runs.
 
 ## Shared seed data
 
-Generate once, seed each tree from the **same** file (rads stores plaintext; secure-rads envelope-encrypts):
+`make seed` (or the seed step inside `make run`) generates once and BatchWrites the **same** `ehealth-100k.json` into both trees (rads plaintext; secure-rads envelope-encrypted).
 
-```
-cd seeding
-bun run generate
-
-# run.py wires tables from CloudFormation; for a manual seed:
-RADS_PDM_TABLE=<rads-pdm> SEED_DATASET=ehealth-100k bun run seed-rads
-PDM_TABLE=<secure-pdm> DATA_KEY_TABLE=<dek-table> ALGORITHM_TABLE=<algo-table> \
-  SEED_DATASET=ehealth-100k bun run seed-secure-rads
-```
-
-`ehealth-10k` … `ehealth-100k` are prefixes of one faker stream (seed `505`), so the first N records are identical across sizes. Seeding the largest (`ehealth-100k`) is enough for every size in the sweep.
+`ehealth-10k` … `ehealth-100k` are prefixes of one faker stream (seed `505`), so the first N records are identical across sizes. Seeding the largest is enough for every size in the sweep.
 
 Use BatchWrite via `seed-rads` / `seed-secure-rads` only. Do not use DynamoDB ImportTable / S3 import for this harness.
 
-## Run the suite
+Manual equivalent:
+
+```
+make generate
+make seed
+```
+
+## Run without Make
 
 Defaults in `lib/config.py`: sizes `10_000 25_000 50_000 75_000 100_000`, `--reps 10`, both trees.
 
 ```
 cd benchmark
 uv run python run.py
+uv run python run.py --sizes 10000 100000 --reps 3
+uv run python run.py --skip-generate --skip-seed --reps 3
 ```
 
 | Flag | Meaning |
@@ -70,35 +102,20 @@ uv run python run.py
 | `--skip-generate` | Reuse `seeding/datasets/` |
 | `--skip-seed` | Reuse PDM rows already BatchWritten |
 
-Examples:
-
-```
-# Full Exp2 matrix (default sizes, 10 reps) — long / expensive
-uv run python run.py
-
-# Cheaper smoke: extremes only, 3 reps
-uv run python run.py --sizes 10000 100000 --reps 3
-
-# Re-run executes only (algorithm already uploaded, PDM already seeded)
-uv run python run.py --skip-generate --skip-seed --reps 3
-```
-
 Each finished sweep writes `results/raw/sweep-<unix>.json`. Stdout logs client wall time per rep; phase timings come from the log-service export below.
 
 Stop early with Ctrl-C (and terminate any leftover `*-execution-service-run` EC2 instances if needed).
 
 ## Export results and figures
 
-Pull per-phase durations from the log stacks into CSV, then render figures:
-
 ```
-cd benchmark
-bun install
-bun run export          # -> results/sweep.csv
-uv run python sweep.py  # -> results/figures/sweep-phases.png, sweep-scaling.png
+make report
+# or:
+make export     # -> results/sweep.csv
+make figures    # -> results/figures/sweep-phases.png, sweep-scaling.png
 ```
 
-`export.ts` reads **every** `results/raw/sweep-*.json`. To export one sweep only, temporarily move the other raw files aside, run export, then move them back.
+`export.ts` reads **every** `results/raw/sweep-*.json`. To export one sweep only, temporarily move the other raw files aside, run `make export`, then move them back.
 
 Failed reps (`error` set in the raw JSON, or a 500 from PDM) should be dropped or re-run before treating the CSV as final.
 
@@ -106,6 +123,7 @@ Failed reps (`error` set in the raw JSON, or a 500 from PDM) should be dropped o
 
 | Path | Role |
 | --- | --- |
+| `Makefile` | `install` / `seed` / `run` / `smoke` / `report` wrappers |
 | `run.py` | Generate → upload algorithm → seed → execute sweep |
 | `lib/config.py` | Sizes, algorithm id, CFN stack names |
 | `lib/flow.py` | Upload / execute / poll helpers |
