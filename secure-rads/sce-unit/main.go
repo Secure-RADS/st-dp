@@ -39,7 +39,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("sce-unit: load run config: %v", err)
 	}
-	runID := readRunID()
+	info := readRunInfo()
+	runID := info.RunID
 	logEvent(cfg, runID, eventEnclaveStarted, nil)
 
 	// Must run before any crypto/rand use (attestation, TLS) - see entropy.go.
@@ -52,7 +53,7 @@ func main() {
 
 	// Attest and fetch the data before nsjail starts - the DC app can't run without its records, and starting
 	// the jail only to leave it blocked on a connection that never comes would hang the whole enclave.
-	payload, err := prepareDCPayload(cfg, runID)
+	payload, err := prepareDCPayload(cfg, runID, info.Size)
 	if err != nil {
 		log.Printf("sce-unit: %v", err)
 		logEvent(cfg, runID, eventRunFailed, map[string]any{"error": err.Error()})
@@ -108,7 +109,7 @@ func main() {
 
 // prepareDCPayload attests, fetches this algorithm's records from pdm-service, and returns the single JSON
 // line handed to the DC app over its socket.
-func prepareDCPayload(cfg runConfig, runID string) ([]byte, error) {
+func prepareDCPayload(cfg runConfig, runID string, limit int) ([]byte, error) {
 	tp, err := attest(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("attestation failed: %w", err)
@@ -123,7 +124,7 @@ func prepareDCPayload(cfg runConfig, runID string) ([]byte, error) {
 		return nil, fmt.Errorf("fetch AWS creds: %w", err)
 	}
 
-	records, encDataKey, err := fetchAllRecords(cfg, tp.AccessToken, runID)
+	records, encDataKey, err := fetchAllRecords(cfg, runID, limit)
 	if err != nil {
 		return nil, fmt.Errorf("fetch records: %w", err)
 	}

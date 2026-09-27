@@ -23,6 +23,7 @@ const region = requiredEnv("AWS_REGION");
 
 interface RunRequest {
   algorithmId: string;
+  size?: number;
 }
 
 interface AlgorithmRecord {
@@ -48,8 +49,12 @@ function parseRunRequest(body: string | undefined): RunRequest | undefined {
   try {
     const parsed: unknown = JSON.parse(body ?? "");
     if (typeof parsed !== "object" || parsed === null) return undefined;
-    const algorithmId = (parsed as Record<string, unknown>).algorithmId;
-    return typeof algorithmId === "string" && algorithmId.length > 0 ? { algorithmId } : undefined;
+    const { algorithmId, size } = parsed as Record<string, unknown>;
+    if (typeof algorithmId !== "string" || algorithmId.length === 0) return undefined;
+    if (size !== undefined && (typeof size !== "number" || !Number.isInteger(size) || size <= 0)) {
+      return undefined;
+    }
+    return size === undefined ? { algorithmId } : { algorithmId, size };
   } catch {
     return undefined;
   }
@@ -88,6 +93,7 @@ export const create: APIGatewayProxyHandlerV2 = async (event) => {
             runId,
             s3Bucket: record.S3Bucket,
             s3Key: record.S3Key,
+            size: request.size,
             verifierHost,
           }),
         ).toString("base64"),

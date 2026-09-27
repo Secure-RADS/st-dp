@@ -33,7 +33,8 @@ deploy:
 		--param="runResultsQueueArn=$(RUN_RESULTS_QUEUE_ARN)" \
 		--param="runResultsQueueUrl=$(RUN_RESULTS_QUEUE_URL)" \
 		--param="runResultsTable=$(RUN_RESULTS_TABLE)" \
-		--param="enclaveAmiId=$(ENCLAVE_AMI_ID)"
+		--param="enclaveAmiId=$(ENCLAVE_AMI_ID)" \
+		--param="enclaveInstanceType=c6g.large"
 
 destroy:
 	cd execution-service && bunx serverless remove --param="region=$(REGION)"

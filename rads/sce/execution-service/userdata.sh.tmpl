@@ -11,6 +11,8 @@ REGION="{{.Region}}"
 PDM_URL="{{.PdmUrl}}"
 RUN_RESULTS_QUEUE="{{.RunResultsQueueUrl}}"
 LOG_EVENTS_QUEUE="{{.LogEventsQueueUrl}}"
+# Record count for this run; empty means the whole dataset.
+SIZE="{{.Size}}"
 
 # Emit one run-timeline checkpoint onto the log queue. Best-effort: logging must never fail the run.
 emit_event() {
@@ -70,7 +72,7 @@ fi
 emit_event artifact-retrieved
 
 # Download the algorithm's full record set before the app starts, so the DC app reads a local file.
-python3 - "$PDM_URL" "$ALGORITHM_ID" "$RECORDS_FILE" "$RUN_ID" <<'PYEOF'
+python3 - "$PDM_URL" "$ALGORITHM_ID" "$RECORDS_FILE" "$RUN_ID" "$SIZE" <<'PYEOF'
 {{.FetchRecordsScript}}
 PYEOF
 emit_event records-fetched

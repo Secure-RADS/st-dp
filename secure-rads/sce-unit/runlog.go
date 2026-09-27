@@ -33,12 +33,19 @@ const (
 	eventRunFailed      runEvent = "run-failed"
 )
 
-// readRunID fetches the runId the host is serving on hostRunIDPort. Best-effort: an empty string just means
-// enclave-side events go unattributed to a run, not a failure.
-func readRunID() string {
+// runInfo is the per-run data the host serves on hostRunIDPort: the run id and how many records to read
+// (0 = the whole dataset). The enclave takes no user-data, so this is its only source for both.
+type runInfo struct {
+	RunID string `json:"runId"`
+	Size  int    `json:"size"`
+}
+
+// readRunInfo fetches the run info the host is serving on hostRunIDPort. Best-effort: a zero value just
+// means enclave-side events go unattributed and all records are read, not a failure.
+func readRunInfo() runInfo {
 	fd, err := unix.Socket(unix.AF_VSOCK, unix.SOCK_STREAM, 0)
 	if err != nil {
-		return ""
+		return runInfo{}
 	}
 	defer unix.Close(fd)
 
@@ -48,7 +55,7 @@ func readRunID() string {
 			break
 		}
 		if i >= vsockRetryLimit {
-			return ""
+			return runInfo{}
 		}
 		time.Sleep(vsockRetryWait)
 	}
@@ -64,7 +71,13 @@ func readRunID() string {
 			break
 		}
 	}
-	return buf.String()
+
+	var info runInfo
+	if err := json.Unmarshal(buf.Bytes(), &info); err != nil {
+		// Backwards-compat: a bare run-id string is treated as just the id.
+		return runInfo{RunID: buf.String()}
+	}
+	return info
 }
 
 // logEvent fire-and-forgets one timeline event to log-service over the pinned vsock transport. The timestamp is

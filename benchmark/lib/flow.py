@@ -1,13 +1,3 @@
-"""End-to-end flow clients for both trees, with per-stage wall-clock timing.
-
-Both trees follow the same client-visible shape:
-  rads:        POST /upload (presigned URL) -> PUT tar to S3 -> POST /register -> POST /run -> poll /run/{id}
-  secure-rads: POST /upload (multipart; builds the EIF) ----/                 -> POST /run -> poll /run/{id}
-
-Timing is client-observed: upload (including the S3 PUT / EIF build), register,
-and execute-to-result, plus the total.
-"""
-
 from __future__ import annotations
 
 import json
@@ -20,8 +10,9 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 POLL_INTERVAL_SECONDS = 5.0
-POLL_TIMEOUT_SECONDS = 900.0
-HTTP_TIMEOUT_SECONDS = 900.0
+# 5M secure-rads: PDM page + decrypt can exceed 1h; keep the client waiting.
+POLL_TIMEOUT_SECONDS = 7200.0
+HTTP_TIMEOUT_SECONDS = 7200.0
 
 HTTP_OK = 200
 HTTP_ACCEPTED = 202
@@ -31,7 +22,7 @@ RESPONSE_SNIPPET_BYTES = 200
 
 
 class FlowError(RuntimeError):
-    """Raised when a flow step returns something other than its expected response."""
+    pass
 
 
 def _require(response_status: int, expected: int | tuple[int, ...], context: str, body: bytes) -> None:
@@ -68,24 +59,7 @@ def _json(body: bytes) -> dict[str, Any]:
         raise FlowError(msg) from err
 
 
-def now_iso() -> str:
-    return time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime())
-
-
-def post_event(log_url: str, event: dict[str, Any]) -> bool:
-    """Best-effort stage record; a logging failure must not fail the sweep."""
-    status, _ = _request(
-        "POST",
-        f"{log_url}/events",
-        data=json.dumps(event).encode(),
-        headers={"Content-Type": "application/json"},
-    )
-    return status in (HTTP_OK, HTTP_ACCEPTED)
-
-
-def upload_rads(registry_url: str, algorithm_id: str, tar_path: Path) -> float:
-    """Presign, PUT the tarball to S3, and register it. Returns the elapsed seconds."""
-    start = time.perf_counter()
+def upload_rads(registry_url: str, algorithm_id: str, tar_path: Path) -> None:
     status, body = _request(
         "POST",
         f"{registry_url}/upload",
@@ -102,12 +76,9 @@ def upload_rads(registry_url: str, algorithm_id: str, tar_path: Path) -> float:
         headers={"Content-Type": "application/x-tar"},
     )
     _require(status, (HTTP_OK, HTTP_NO_CONTENT), "S3 PUT", body)
-    return time.perf_counter() - start
 
 
-def register_rads(registry_url: str, algorithm_id: str) -> float:
-    """Register the uploaded tarball. Returns the elapsed seconds."""
-    start = time.perf_counter()
+def register_rads(registry_url: str, algorithm_id: str) -> None:
     status, body = _request(
         "POST",
         f"{registry_url}/register",
@@ -115,11 +86,9 @@ def register_rads(registry_url: str, algorithm_id: str) -> float:
         headers={"Content-Type": "application/json"},
     )
     _require(status, HTTP_OK, "/register", body)
-    return time.perf_counter() - start
 
 
-def upload_secure(registry_url: str, algorithm_id: str, tar_path: Path) -> float:
-    """Multipart-upload the OCI tar, which builds and registers the EIF. Returns elapsed seconds."""
+def upload_secure(registry_url: str, algorithm_id: str, tar_path: Path) -> None:
     boundary = "----benchmarkboundary7d9f3a"
     head = (
         f"--{boundary}\r\n"
@@ -131,7 +100,6 @@ def upload_secure(registry_url: str, algorithm_id: str, tar_path: Path) -> float
     ).encode()
     tail = f"\r\n--{boundary}--\r\n".encode()
 
-    start = time.perf_counter()
     status, body = _request(
         "POST",
         f"{registry_url}/upload",
@@ -139,16 +107,16 @@ def upload_secure(registry_url: str, algorithm_id: str, tar_path: Path) -> float
         headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
     )
     _require(status, HTTP_OK, "/upload", body)
-    return time.perf_counter() - start
 
 
-def execute(execution_url: str, algorithm_id: str) -> tuple[float, str, str, str]:
-    """Fire a run and poll to a terminal status. Returns (seconds, run_id, status, output)."""
-    start = time.perf_counter()
+def execute(execution_url: str, algorithm_id: str, size: int | None = None) -> tuple[str, str, str]:
+    payload: dict[str, object] = {"algorithmId": algorithm_id}
+    if size is not None:
+        payload["size"] = size
     status, body = _request(
         "POST",
         f"{execution_url}/run",
-        data=json.dumps({"algorithmId": algorithm_id}).encode(),
+        data=json.dumps(payload).encode(),
         headers={"Content-Type": "application/json"},
     )
     _require(status, HTTP_ACCEPTED, "/run", body)
@@ -161,7 +129,7 @@ def execute(execution_url: str, algorithm_id: str) -> tuple[float, str, str, str
         result = _json(result_body)
         if result.get("status") != "pending":
             output = result.get("output", "") or ""
-            return time.perf_counter() - start, run_id, result.get("status", ""), output
+            return run_id, result.get("status", ""), output
         time.sleep(POLL_INTERVAL_SECONDS)
 
     msg = f"timed out after {POLL_TIMEOUT_SECONDS:.0f}s waiting for runId={run_id}"

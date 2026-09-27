@@ -1,36 +1,24 @@
-"""Shared configuration for the secure-rads vs rads dataset-size sweep.
-
-Exp1/Exp2 run the trial-eligibility algorithm over the e-health dataset at several sizes.
-Fleet-wide constants (algorithm id, sample app) mirror seeding/config.ts; deployed endpoints
-are resolved from live CloudFormation outputs at runtime, not hardcoded.
-"""
-
 from __future__ import annotations
 
 import subprocess
 
 REGION = "ap-southeast-2"
-
-# Field counts for the tab-separated `aws --output text` rows parsed below.
 OUTPUT_PAIR_FIELDS = 2
 
-# The trial-eligibility algorithm swept across dataset sizes. One algorithmId is reused and the dataset
-# reseeded per size, so the id is constant and only the record count changes.
+# One algorithmId reused across sizes; only the record count changes.
 TRIAL_SAMPLE = "trial-eligibility-python"
 TRIAL_ALGORITHM_ID = "e587067e-47dc-4835-8f87-5e66fc979adf"
-TRIAL_SIZES = [10000, 25000, 50000, 65000, 100000]
+TRIAL_SIZES = [10_000, 100_000]
 
 TREES = ("rads", "secure-rads")
 
 STACKS = {
     "rads": {
         "registry": "rads-registry-service-dev",
-        "log": "rads-log-service-dev",
         "pdm": "rads-pdm-service-dev",
         "execution": "rads-execution-service-dev",
     },
     "secure-rads": {
-        "log": "secure-rads-log-service-dev",
         "pdm": "secure-rads-pdm-service-dev",
         "execution": "secure-rads-execution-service-dev",
     },
@@ -38,7 +26,6 @@ STACKS = {
 
 
 def trial_dataset(size: int) -> str:
-    """Dataset name for one sweep size (matches seeding/config.ts EHEALTH_DATASETS)."""
     return f"ehealth-{size // 1000}k"
 
 
@@ -74,11 +61,7 @@ def stack_outputs(stack: str) -> dict[str, str]:
 
 
 def csav_registry_url() -> str:
-    """secure-rads' registry-service is the Go service on the CSAV host, not a CFN stack.
-
-    The stack's public-IP output goes stale across stop/start, so the IP is read from
-    the instance itself.
-    """
+    # Stack public-IP output goes stale across stop/start; read the instance itself.
     instance_id = stack_outputs("secure-rads-csav").get("CsavInstanceId", "")
     if not instance_id:
         msg = "secure-rads-csav stack has no CsavInstanceId output"
@@ -102,24 +85,12 @@ def csav_registry_url() -> str:
 
 
 def resolve_endpoints(*, include_secure_registry: bool = True) -> dict[str, dict[str, str]]:
-    """Resolve the live API URLs for both trees from CloudFormation outputs.
-
-    Args:
-        include_secure_registry: Secure-rads' registry is the Go service on the CSAV
-            host, so resolving it requires that instance to be running.
-
-    Returns:
-        Mapping of tree -> service -> URL.
-    """
     endpoints: dict[str, dict[str, str]] = {}
     for tree, stacks in STACKS.items():
         endpoints[tree] = {}
         for service, stack in stacks.items():
             outputs = stack_outputs(stack)
-            url = outputs.get("HttpApiUrl") or f"https://{outputs['ApiRegionalDomainName']}"
-            endpoints[tree][service] = url
-            if service == "registry":
-                endpoints[tree]["registry_bucket"] = outputs["ImagesBucketName"]
+            endpoints[tree][service] = outputs.get("HttpApiUrl") or f"https://{outputs['ApiRegionalDomainName']}"
     if include_secure_registry:
         endpoints["secure-rads"]["registry"] = csav_registry_url()
     return endpoints

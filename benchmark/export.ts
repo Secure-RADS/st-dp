@@ -1,11 +1,4 @@
 #!/usr/bin/env bun
-// Export the Exp1/Exp2 dataset-size sweep as a per-run CSV shaped like the experiment sheet.
-//
-// Reads the benchmark's raw sweep rows (results/raw/sweep-*.json) to learn each (size, tree, run) and its
-// runId, pulls that run's timeline from its tree's log-service, and writes one row per run: the phase
-// durations (the sheet's columns) plus the raw checkpoint timestamps behind them.
-//
-// Run: bun benchmark/export.ts
 
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -20,8 +13,7 @@ const LOG_STACKS: Record<string, string> = {
   "secure-rads": "secure-rads-log-service-dev",
 };
 
-// One phase = the window between two checkpoint events. null start/end means the phase does not apply
-// (rads has no enclave, so attestation/sce unit/data decryption stay blank).
+// null endpoints = phase does not apply (rads has no enclave).
 type Window = [start: string | null, end: string | null];
 
 const PHASES: Record<string, Record<string, Window>> = {
@@ -49,10 +41,8 @@ const PHASES: Record<string, Record<string, Window>> = {
   },
 };
 
-// Phase columns, in the sheet's order (same set for both trees).
 const COLUMNS = Object.keys(PHASES["secure-rads"]);
 
-// Every checkpoint event we record, in order, emitted as its own timestamp column.
 const TIMESTAMP_EVENTS = [
   "run-requested",
   "executor-launched",

@@ -1,10 +1,12 @@
+from __future__ import annotations
+
 import http.client
 import json
 import sys
 import urllib.parse
 
 
-def fetch_records(base: str, algorithm_id: str, run_id: str) -> tuple[list[dict], int]:
+def fetch_records(base: str, algorithm_id: str, run_id: str, max_records: int | None) -> tuple[list[dict], int]:
     # One connection for every page: pdm-service is paginated, and opening a fresh TCP+TLS
     # connection per page dominated the fetch time for large datasets.
     parsed = urllib.parse.urlsplit(base)
@@ -27,6 +29,8 @@ def fetch_records(base: str, algorithm_id: str, run_id: str) -> tuple[list[dict]
             pages += 1
             records.extend(body.get("records", []))
             cursor = body.get("nextCursor")
+            if max_records is not None and len(records) >= max_records:
+                return records[:max_records], pages
             if not cursor:
                 return records, pages
     finally:
@@ -34,8 +38,9 @@ def fetch_records(base: str, algorithm_id: str, run_id: str) -> tuple[list[dict]
 
 
 def main() -> None:
-    base, algorithm_id, dest, run_id = sys.argv[1:5]
-    records, pages = fetch_records(base, algorithm_id, run_id)
+    base, algorithm_id, dest, run_id, size = sys.argv[1:6]
+    max_records = int(size) if size else None
+    records, pages = fetch_records(base, algorithm_id, run_id, max_records)
     with open(dest, "w", encoding="utf-8") as handle:
         json.dump({"algorithmId": algorithm_id, "pages": pages, "records": records}, handle)
     print(f"pdm: downloaded {len(records)} records in {pages} page(s) to {dest}", file=sys.stderr)

@@ -1,13 +1,4 @@
 #!/usr/bin/env python3
-"""Render the Exp1/Exp2 dataset-size sweep: where execution time goes, and how it scales.
-
-Reads results/sweep.csv (written by benchmark/export.ts) and renders:
-
-  sweep-phases.png    per dataset size, the phase breakdown for rads vs secure-rads (stacked bars)
-  sweep-scaling.png   total execution time against dataset size, one line per tree
-
-Run with:  uv run python benchmark/sweep.py
-"""
 
 from __future__ import annotations
 
@@ -29,7 +20,6 @@ TREES = ["rads", "secure-rads"]
 PALETTE = {"rads": "#2E6F95", "secure-rads": "#C8542A"}
 LABELS = {"rads": "rads (baseline)", "secure-rads": "secure-rads (enclave)"}
 
-# Phase order and labels, matching the experiment sheet (encrypt result / log excluded).
 PHASES = [
     ("algorithm_retrieval_s", "algorithm retrieval"),
     ("enclave_initialization_s", "enclave init"),
@@ -47,7 +37,6 @@ BAR_GAP = 0.7
 
 
 def load() -> pd.DataFrame:
-    """Load the sweep CSV with numeric phase columns."""
     if not CSV.exists():
         print(f"no sweep CSV at {CSV}; run bun benchmark/export.ts first", file=sys.stderr)
         raise SystemExit(1)
@@ -60,7 +49,6 @@ def load() -> pd.DataFrame:
 
 
 def phases_figure(df: pd.DataFrame) -> None:
-    """Stacked phase bars per size, rads vs secure-rads."""
     sizes = sorted(df["dataset_size"].unique())
     fig, ax = plt.subplots(figsize=(12, 1.5 * len(sizes) + 2.0))
 
@@ -132,7 +120,6 @@ def phases_figure(df: pd.DataFrame) -> None:
 
 
 def scaling_figure(df: pd.DataFrame) -> None:
-    """Total execution time against dataset size, one line per tree."""
     fig, ax = plt.subplots(figsize=(9, 5.2))
     for tree in TREES:
         subset = df[df["tree"] == tree].groupby("dataset_size", as_index=False)["total_s"].mean()
@@ -162,7 +149,6 @@ def scaling_figure(df: pd.DataFrame) -> None:
 
 
 def main() -> int:
-    """Render both sweep figures."""
     FIG_DIR.mkdir(parents=True, exist_ok=True)
     df = load()
     print(f"loaded {len(df)} runs across {df['dataset_size'].nunique()} sizes")

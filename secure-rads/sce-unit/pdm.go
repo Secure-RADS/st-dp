@@ -18,16 +18,23 @@ type pdmRecord struct {
 	Data     json.RawMessage `json:"data"`
 }
 
-// fetchAllRecords pulls every personal-data record for this enclave's algorithm from the PDM service,
-// following pagination cursors until exhausted. The bearer token is all pdm-service needs - it derives the
-// algorithmId from the token's attestation session via verifier-service, never from us.
-func fetchAllRecords(cfg runConfig, accessToken, runID string) ([]pdmRecord, []byte, error) {
+// fetchAllRecords pulls personal-data records for this enclave's algorithm from the PDM service, following
+// pagination cursors until the dataset ends or `limit` records have been read (limit 0 = the whole dataset).
+// The bearer token is all pdm-service needs - it derives the algorithmId from the token's attestation
+// session via verifier-service, never from us.
+func fetchAllRecords(cfg runConfig, runID string, limit int) ([]pdmRecord, []byte, error) {
 	client := cfg.pdm().client()
 
 	var records []pdmRecord
 	var dataKey []byte
 	cursor := ""
 	for page := 1; ; page++ {
+		// Access tokens live 5m; refreshLoop keeps currentTokens fresh — never reuse the attest-time string.
+		accessToken, ok := CurrentAccessToken()
+		if !ok {
+			return nil, nil, fmt.Errorf("GET /records page %d: no access token", page)
+		}
+
 		endpoint := "https://" + cfg.PdmHost + "/records"
 		if cursor != "" {
 			endpoint += "?cursor=" + url.QueryEscape(cursor)
@@ -57,8 +64,8 @@ func fetchAllRecords(cfg runConfig, accessToken, runID string) ([]pdmRecord, []b
 
 		var body struct {
 			Records    []pdmRecord `json:"records"`
-			DataKey    *string           `json:"dataKey"`
-			NextCursor *string           `json:"nextCursor"`
+			DataKey    *string     `json:"dataKey"`
+			NextCursor *string     `json:"nextCursor"`
 		}
 		err = json.NewDecoder(resp.Body).Decode(&body)
 		resp.Body.Close()
@@ -74,6 +81,9 @@ func fetchAllRecords(cfg runConfig, accessToken, runID string) ([]pdmRecord, []b
 				return nil, nil, fmt.Errorf("decode data key: %w", derr)
 			}
 			dataKey = decoded
+		}
+		if limit > 0 && len(records) >= limit {
+			return records[:limit], dataKey, nil
 		}
 		if body.NextCursor == nil || *body.NextCursor == "" {
 			return records, dataKey, nil
