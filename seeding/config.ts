@@ -10,8 +10,8 @@ export interface DatasetConfig {
 // The trial-eligibility algorithm is benchmarked across dataset sizes (Exp1/Exp2). One algorithmId is reused
 // and reseeded per size, so every size shares the id and differs only in record count.
 export const EHEALTH_ALGORITHM_ID = "e587067e-47dc-4835-8f87-5e66fc979adf";
-// Exp1/Exp2: 10K + 100K only for this harness pass.
-export const EHEALTH_SIZES = [10_000, 100_000];
+// Exp1/Exp2 sizes: 10K through 100K.
+export const EHEALTH_SIZES = [10_000, 25_000, 50_000, 75_000, 100_000];
 
 // One dataset per shared sample app, at the size its app is registered under.
 export const DATASETS: DatasetConfig[] = [

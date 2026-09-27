@@ -8,7 +8,7 @@ OUTPUT_PAIR_FIELDS = 2
 # One algorithmId reused across sizes; only the record count changes.
 TRIAL_SAMPLE = "trial-eligibility-python"
 TRIAL_ALGORITHM_ID = "e587067e-47dc-4835-8f87-5e66fc979adf"
-TRIAL_SIZES = [10_000, 100_000]
+TRIAL_SIZES = [10_000, 25_000, 50_000, 75_000, 100_000]
 
 TREES = ("rads", "secure-rads")
 

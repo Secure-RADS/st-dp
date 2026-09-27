@@ -37,6 +37,7 @@ Sample assets:
 
 - [`secure-rads/samples/`](secure-rads/samples/README.md) - five reference Data Controller apps (one per context), each pinned to a fixed `algorithmId`.
 - [`seeding/`](seeding/README.md) - generates and seeds the five context datasets into the PDM table.
+- [`benchmark/`](benchmark/README.md) - Exp1/Exp2 size sweep (rads vs secure-rads): generate once, BatchWrite both trees, run, export figures.
 
 ## Working with an existing environment
 
