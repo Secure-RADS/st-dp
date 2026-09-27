@@ -11,6 +11,7 @@ mpl.use("Agg")
 
 import matplotlib.pyplot as plt
 import pandas as pd
+import seaborn as sns
 
 HERE = Path(__file__).resolve().parent
 CSV = HERE / "results" / "sweep.csv"
@@ -49,6 +50,7 @@ def load() -> pd.DataFrame:
 
 
 def phases_figure(df: pd.DataFrame) -> None:
+    # seaborn has no stacked horizontal bar helper; draw on a themed axes.
     sizes = sorted(df["dataset_size"].unique())
     fig, ax = plt.subplots(figsize=(12, 1.5 * len(sizes) + 2.0))
 
@@ -120,20 +122,25 @@ def phases_figure(df: pd.DataFrame) -> None:
 
 
 def scaling_figure(df: pd.DataFrame) -> None:
+    means = (
+        df.groupby(["tree", "dataset_size"], as_index=False)["total_s"]
+        .mean()
+        .sort_values("dataset_size")
+    )
+    means["label"] = means["tree"].map(LABELS)
+
     fig, ax = plt.subplots(figsize=(9, 5.2))
-    for tree in TREES:
-        subset = df[df["tree"] == tree].groupby("dataset_size", as_index=False)["total_s"].mean()
-        subset = subset.sort_values("dataset_size")
-        if subset.empty:
-            continue
-        ax.plot(
-            subset["dataset_size"],
-            subset["total_s"],
-            marker="o",
-            color=PALETTE[tree],
-            label=LABELS[tree],
-            linewidth=2.0,
-        )
+    sns.lineplot(
+        data=means,
+        x="dataset_size",
+        y="total_s",
+        hue="label",
+        hue_order=[LABELS[tree] for tree in TREES if tree in means["tree"].unique()],
+        palette={LABELS[tree]: color for tree, color in PALETTE.items()},
+        marker="o",
+        linewidth=2.0,
+        ax=ax,
+    )
     ax.set_xlabel("dataset size (records)")
     ax.set_ylabel("total execution time (seconds, mean per run)")
     ax.set_title("End-to-end execution time vs dataset size", fontsize=13, fontweight="bold")
@@ -141,7 +148,9 @@ def scaling_figure(df: pd.DataFrame) -> None:
     ax.set_axisbelow(True)
     for side in ("top", "right"):
         ax.spines[side].set_visible(False)
-    ax.legend(frameon=False)
+    legend = ax.legend(frameon=False, title=None)
+    if legend is not None:
+        legend.set_title(None)
     out = FIG_DIR / "sweep-scaling.png"
     fig.savefig(out, bbox_inches="tight", dpi=200)
     plt.close(fig)
@@ -149,6 +158,7 @@ def scaling_figure(df: pd.DataFrame) -> None:
 
 
 def main() -> int:
+    sns.set_theme(style="whitegrid", context="notebook")
     FIG_DIR.mkdir(parents=True, exist_ok=True)
     df = load()
     print(f"loaded {len(df)} runs across {df['dataset_size'].nunique()} sizes")

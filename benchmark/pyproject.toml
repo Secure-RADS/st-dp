@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "secure-rads vs rads benchmark harness and plots"
 requires-python = ">=3.11"
 dependencies = [
-    "matplotlib>=3.9",
     "pandas>=2.2",
     "pydantic>=2.9",
+    "seaborn>=0.13",
 ]
