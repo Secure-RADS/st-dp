@@ -3,3 +3,10 @@ __pycache__/
 build/
 .venv/
 node_modules/
+
+# Generated sweep outputs (dirs kept via .gitkeep)
+results/sweep.csv
+results/raw/*
+!results/raw/.gitkeep
+results/figures/*
+!results/figures/.gitkeep
