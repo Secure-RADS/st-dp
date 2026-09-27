@@ -11,7 +11,7 @@ a { color: inherit; }
 .main-nav { display: flex; gap: 34px; align-items: center; height: 100%; }
 .nav-link { height: 100%; display: inline-flex; align-items: center; color: #666660; font-size: 12px; font-weight: 600; text-decoration: none; border-bottom: 1px solid transparent; }
 .nav-link:hover, .nav-link.active { color: #111; border-bottom-color: #111; }
-.hero { min-height: 626px; position: relative; display: grid; grid-template-columns: 1.15fr .85fr; align-items: center; gap: 50px; padding-block: 78px 105px; }
+.hero { min-height: 626px; position: relative; display: grid; grid-template-columns: 1fr; align-items: center; gap: 50px; padding-block: 78px 105px; }
 .hero-copy { max-width: 630px; padding-bottom: 8px; }
 .eyebrow { margin: 0 0 21px; color: #6d6d67; font: 500 10px/1.4 monospace; letter-spacing: .13em; text-transform: uppercase; }
 .hero h1, .interior-page h1 { margin: 0; max-width: 700px; font-size: clamp(48px, 6vw, 76px); font-weight: 500; letter-spacing: -.065em; line-height: 1.02; }
@@ -24,9 +24,6 @@ a { color: inherit; }
 .button-dark:hover { background: #333; }
 .button-light { color: #111; background: #f8f8f6; }
 .text-link { display: inline-flex; align-items: center; gap: 7px; color: #111; font-size: 12px; font-weight: 700; text-decoration-thickness: 1px; text-underline-offset: 4px; }
-.hero-illustration { width: min(100%, 560px); margin: 0; justify-self: end; }
-.hero-illustration img { display: block; width: 100%; height: auto; }
-.hero-illustration figcaption { margin-top: 12px; color: #6d6d67; font: 10px/1.6 monospace; }
 .scroll-cue { position: absolute; bottom: 34px; left: 0; display: flex; align-items: center; gap: 9px; color: #6d6d67; font: 10px monospace; text-decoration: none; text-transform: uppercase; letter-spacing: .08em; }
 .research-section { padding: 104px 0; background: #ededea; }
 .section-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 100px; }
@@ -73,7 +70,6 @@ a { color: inherit; }
   .hero { min-height: auto; grid-template-columns: 1fr; gap: 38px; padding-block: 74px 91px; }
   .hero h1 { max-width: 580px; font-size: clamp(46px, 12vw, 68px); }
   .hero-lede { font-size: 14px; }
-  .hero-illustration { width: min(100%, 560px); justify-self: center; }
   .scroll-cue { bottom: 28px; }
   .research-section, .focus-section { padding-block: 72px; }
   .section-grid { grid-template-columns: 1fr; gap: 28px; }
