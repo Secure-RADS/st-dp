@@ -52,7 +52,9 @@ def load() -> pd.DataFrame:
 def phases_figure(df: pd.DataFrame) -> None:
     # seaborn has no stacked horizontal bar helper; draw on a themed axes.
     sizes = sorted(df["dataset_size"].unique())
-    fig, ax = plt.subplots(figsize=(12, 1.5 * len(sizes) + 2.0))
+    # Extra figure height leaves room under the bars for legend + footnote
+    # without relying on GridSpec rows that bbox_inches="tight" can crush together.
+    fig, ax = plt.subplots(figsize=(12, 1.5 * len(sizes) + 6.5))
 
     y = 0.0
     ticks: list[float] = []
@@ -76,7 +78,6 @@ def phases_figure(df: pd.DataFrame) -> None:
                     color=color,
                     edgecolor="white",
                     linewidth=0.6,
-                    label=label if not ticks else None,
                 )
                 if value >= MIN_LABEL_SECONDS:
                     ax.text(left + value / 2, y, f"{value:.0f}", ha="center", va="center", fontsize=8, color="white")
@@ -96,27 +97,37 @@ def phases_figure(df: pd.DataFrame) -> None:
     ax.set_axisbelow(True)
     for side in ("top", "right", "left"):
         ax.spines[side].set_visible(False)
-    ax.legend(
+
+    # Keep axes clear of the footer; place legend + note in figure coords so they
+    # cannot collide with each other or with the x-axis label.
+    fig.subplots_adjust(left=0.18, right=0.96, top=0.92, bottom=0.38)
+    fig.legend(
         handles=[plt.Rectangle((0, 0), 1, 1, color=color) for color in PHASE_COLORS],
         labels=[label for _, label in PHASES],
         loc="upper center",
-        bbox_to_anchor=(0.5, -0.12),
+        bbox_to_anchor=(0.5, 0.26),
         ncol=4,
         fontsize=8.5,
         frameon=False,
+        columnspacing=1.6,
+        handletextpad=0.6,
+        labelspacing=0.9,
     )
     fig.text(
         0.5,
-        -0.06,
-        "enclave init = per-run instance boot + tooling install (size-independent); data retrieval is the "
-        "PDM fetch, which grows with the dataset. rads has no enclave, so attestation / sce unit / "
-        "data decryption are blank for it.",
+        0.06,
+        "enclave init = per-run instance boot + tooling install (size-independent);\n"
+        "data retrieval is the PDM fetch, which grows with the dataset.\n"
+        "rads has no enclave, so attestation / sce unit / data decryption are blank for it.",
         ha="center",
+        va="bottom",
         fontsize=8.5,
         color="#444444",
+        linespacing=1.65,
     )
     out = FIG_DIR / "sweep-phases.png"
-    fig.savefig(out, bbox_inches="tight", dpi=200)
+    # Don't use bbox_inches="tight" — it collapses the reserved footer gap.
+    fig.savefig(out, dpi=200)
     plt.close(fig)
     print(f"wrote {out.relative_to(HERE)}")
 

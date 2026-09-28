@@ -19,7 +19,8 @@ type Window = [start: string | null, end: string | null];
 const PHASES: Record<string, Record<string, Window>> = {
   "secure-rads": {
     algorithm_retrieval: ["executor-ready", "artifact-retrieved"],
-    enclave_initialization: ["enclave-launched", "enclave-started"],
+    // Launch → executor-ready = host boot + tooling; enclave-started would nest algorithm retrieval.
+    enclave_initialization: ["enclave-launched", "executor-ready"],
     attestation: ["unit-ready", "attested"],
     sce_unit: ["enclave-started", "unit-ready"],
     data_retrieval: ["attested", "records-fetched"],
