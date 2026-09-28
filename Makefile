@@ -1,5 +1,5 @@
 .PHONY: up down status secure-rads rads logs csav-key csav-deploy csav-destroy csav-status csav-up csav-down csav-ssh \
-	benchmark benchmark-smoke benchmark-report
+	benchmark benchmark-report
 
 up:
 	$(MAKE) secure-rads-ready
@@ -20,10 +20,7 @@ rads:
 
 # Exp1/Exp2 size sweep (rads vs secure-rads). See benchmark/README.md.
 benchmark:
-	$(MAKE) -C benchmark $(if $(TARGET),$(TARGET),help)
-
-benchmark-smoke:
-	$(MAKE) -C benchmark smoke
+	$(MAKE) -C benchmark run
 
 benchmark-report:
 	$(MAKE) -C benchmark report
