@@ -77,8 +77,8 @@ ENCLAVE_HOST_ROLE_ARN = $(shell aws iam list-roles --query "Roles[?contains(Role
 image: sce-unit-base eif-build-base
 	docker build --platform linux/arm64 -t $(IMAGE) .
 
-# Save the image + docker-compose.yml + .env (bucket/region for compose var
-# substitution), scp all three to the instance.
+# Save the image + .env (bucket/region/pins for compose var substitution) and scp
+# those to the instance. docker-compose.yml is baked at CSAV boot (UserData) — not shipped.
 ship: image
 	docker save $(IMAGE) -o /tmp/registry-service.tar
 	echo "ARTIFACT_BUCKET=$(ARTIFACT_BUCKET)" > /tmp/registry-service.env
@@ -95,16 +95,16 @@ ship: image
 	echo "ENCLAVE_HOST_ROLE_ARN=$(ENCLAVE_HOST_ROLE_ARN)" >> /tmp/registry-service.env
 	echo "CSAV_ROLE_ARN=$(CSAV_ROLE_ARN)" >> /tmp/registry-service.env
 	$(SSH) "mkdir -p $(REMOTE_DIR)"
-	$(SCP) /tmp/registry-service.tar ../docker-compose.yml $(REMOTE):$(REMOTE_DIR)/
+	$(SCP) /tmp/registry-service.tar $(REMOTE):$(REMOTE_DIR)/
 	$(SCP) /tmp/registry-service.env $(REMOTE):$(REMOTE_DIR)/.env
 	rm -f /tmp/registry-service.tar /tmp/registry-service.env
 
-# Load the shipped image and bring the compose stack up on the instance.
+# Load the shipped image and (re)start the systemd-managed compose stack.
 remote-up:
-	$(SSH) "cd $(REMOTE_DIR) && docker load -i registry-service.tar && sudo docker compose up -d"
+	$(SSH) "cd $(REMOTE_DIR) && docker load -i registry-service.tar && sudo systemctl restart csav-registry.service"
 
 remote-down:
-	$(SSH) "cd $(REMOTE_DIR) && sudo docker compose down"
+	$(SSH) "sudo systemctl stop csav-registry.service"
 
 # Tail docker compose logs on the instance.
 logs:
