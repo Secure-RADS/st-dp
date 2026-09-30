@@ -18,6 +18,7 @@ mount_proc: true
 # nsjail strips env vars by default; PATH here is sourced from the DC's own image (see pathFromEnv in build.go).
 envar: "PATH={{.PathEnv}}"
 
+# rlimits left deliberately loose — lockdown is the seccomp allowlist below (see csav/README.md).
 rlimit_as: 2048
 rlimit_cpu: 3600
 rlimit_fsize: 1024
@@ -52,17 +53,29 @@ mount {
 	nodev: true
 }
 
-seccomp_string: "KILL_PROCESS {"
-seccomp_string: "	ptrace,"
-seccomp_string: "	process_vm_readv,"
-seccomp_string: "	process_vm_writev,"
-seccomp_string: "	mount,"
-seccomp_string: "	reboot,"
-seccomp_string: "	init_module,"
-seccomp_string: "	delete_module,"
-seccomp_string: "	acct"
+# Allowlist for shipped samples (AF_UNIX only); arbitrary DC images need per-image tuning.
+seccomp_string: "ALLOW {"
+seccomp_string: "	read, write, close, lseek, pread64, pwrite64, readv, writev,"
+seccomp_string: "	openat, newfstatat, newfstat, statx, getdents64, faccessat, faccessat2,"
+seccomp_string: "	unlinkat, mkdirat, ftruncate,"
+seccomp_string: "	mmap, mprotect, munmap, madvise, mremap, brk,"
+seccomp_string: "	rt_sigaction, rt_sigprocmask, rt_sigreturn, rt_sigtimedwait, sigaltstack,"
+seccomp_string: "	futex, set_robust_list, set_tid_address, rseq, membarrier,"
+seccomp_string: "	clone, clone3, exit, exit_group, wait4, waitid, tgkill, kill,"
+seccomp_string: "	execve, execveat,"
+seccomp_string: "	getpid, gettid, getppid, getuid, geteuid, getgid, getegid,"
+seccomp_string: "	getcwd, ioctl, fcntl, pipe2, dup, dup3,"
+seccomp_string: "	gettimeofday, clock_gettime, clock_nanosleep, nanosleep, getrandom,"
+seccomp_string: "	prctl, prlimit64, getrlimit, newuname, sysinfo, sched_yield, sched_getaffinity,"
+seccomp_string: "	epoll_create1, epoll_ctl, epoll_pwait, epoll_pwait2, ppoll, pselect6,"
+seccomp_string: "	eventfd2,"
+seccomp_string: "	socket { family == 1 },"
+seccomp_string: "	socketpair { family == 1 },"
+seccomp_string: "	bind, listen, accept, accept4, connect,"
+seccomp_string: "	sendto, recvfrom, sendmsg, recvmsg, sendmmsg, recvmmsg,"
+seccomp_string: "	shutdown, getsockname, getpeername, setsockopt, getsockopt"
 seccomp_string: "}"
-seccomp_string: "DEFAULT ALLOW"
+seccomp_string: "DEFAULT KILL_PROCESS"
 
 exec_bin {
 	path: {{printf "%q" .Path}}
