@@ -15,20 +15,15 @@ iface_no_lo: true
 
 mount_proc: true
 
-# Wall-clock cap for the jailed DC app (nsjail default is 600).
-time_limit: 600
-
 # nsjail strips env vars by default; PATH here is sourced from the DC's own image (see pathFromEnv in build.go).
 envar: "PATH={{.PathEnv}}"
 
-# MiB / seconds / counts. Sized for the shipped samples loading up to ~100k JSON
-# records in-process; tighten further only after measuring a specific algorithm.
+# rlimits left deliberately loose — lockdown is the seccomp allowlist below (see csav/README.md).
 rlimit_as: 2048
-rlimit_cpu: 600
-rlimit_fsize: 16
-rlimit_nofile: 32
-rlimit_nproc: 8
-rlimit_core: 0
+rlimit_cpu: 3600
+rlimit_fsize: 1024
+rlimit_nofile: 64
+rlimit_nproc: 16
 
 mount {
 	src: "/opt/dc-app/rootfs"
