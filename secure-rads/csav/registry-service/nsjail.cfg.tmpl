@@ -53,10 +53,7 @@ mount {
 	nodev: true
 }
 
-# Allowlist (DEFAULT KILL_PROCESS). Sized for the shipped samples
-# (python / go / node / rust) talking AF_UNIX to sce-unit — not a universal
-# policy for arbitrary DC images; those need per-image tuning.
-# Syscall names are aarch64/kafel (newfstat, newuname). AF_UNIX family == 1.
+# Allowlist for shipped samples (AF_UNIX only); arbitrary DC images need per-image tuning.
 seccomp_string: "ALLOW {"
 seccomp_string: "	read, write, close, lseek, pread64, pwrite64, readv, writev,"
 seccomp_string: "	openat, newfstatat, newfstat, statx, getdents64, faccessat, faccessat2,"
