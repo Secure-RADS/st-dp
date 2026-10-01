@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 
-from benchmark.paths import FIG_DIR, ROOT, SWEEP_CSV
+from paths import FIG_DIR, ROOT, SWEEP_CSV
 
 TREES = ["rads", "secure-rads"]
 PALETTE = {"rads": "#2E6F95", "secure-rads": "#C8542A"}

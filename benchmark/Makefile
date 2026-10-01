@@ -1,6 +1,7 @@
 REGION ?= ap-southeast-2
 export AWS_REGION ?= $(REGION)
 export AWS_DEFAULT_REGION ?= $(REGION)
+export PYTHONPATH := src
 
 REPS ?= 10
 SIZES ?=
@@ -31,9 +32,9 @@ help:
 	@echo "  make report"
 
 run:
-	uv run python -m benchmark.run $(RUN_FLAGS)
+	uv run python -m run $(RUN_FLAGS)
 
 report:
-	uv run python -m benchmark.export
-	uv run python -m benchmark.sweep
+	uv run python -m export
+	uv run python -m sweep
 	@echo "wrote results/sweep.csv and results/figures/"

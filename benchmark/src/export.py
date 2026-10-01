@@ -11,7 +11,7 @@ import urllib.request
 from datetime import datetime
 from typing import Any
 
-from benchmark.paths import RAW_DIR, SWEEP_CSV
+from paths import RAW_DIR, SWEEP_CSV
 
 REGION = "ap-southeast-2"
 

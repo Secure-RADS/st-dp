@@ -12,8 +12,8 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
 
-from benchmark.lib import config, flow
-from benchmark.paths import BUILD_DIR, RAW_DIR, REPO_ROOT
+from lib import config, flow
+from paths import BUILD_DIR, RAW_DIR, REPO_ROOT
 
 if TYPE_CHECKING:
     from pathlib import Path
