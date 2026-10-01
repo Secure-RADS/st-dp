@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import ClassVar
 
 from lib import http
 from lib.trees.base import TreeHarness
+from lib.trees.sample_tar import build_sample_tar
 from lib.trees.tree import Tree
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 MULTIPART_BOUNDARY = "----benchmarkboundary7d9f3a"
 
@@ -17,7 +15,8 @@ class SecureRadsHarness(TreeHarness):
 
     name: ClassVar[Tree] = Tree.SECURE_RADS
 
-    def upload(self, algorithm_id: str, tar_path: Path) -> None:
+    def upload(self, algorithm_id: str) -> None:
+        tar_path = build_sample_tar(self.name)
         head = (
             f"--{MULTIPART_BOUNDARY}\r\n"
             f'Content-Disposition: form-data; name="algorithmId"\r\n\r\n'

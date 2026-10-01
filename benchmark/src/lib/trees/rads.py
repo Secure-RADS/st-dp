@@ -1,14 +1,12 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, ClassVar
+from typing import ClassVar
 
 from lib import http
 from lib.trees.base import TreeHarness
+from lib.trees.sample_tar import build_sample_tar
 from lib.trees.tree import Tree
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 
 class RadsHarness(TreeHarness):
@@ -16,7 +14,8 @@ class RadsHarness(TreeHarness):
 
     name: ClassVar[Tree] = Tree.RADS
 
-    def upload(self, algorithm_id: str, tar_path: Path) -> None:
+    def upload(self, algorithm_id: str) -> None:
+        tar_path = build_sample_tar(self.name)
         status, body = http.request(
             "POST",
             f"{self._registry}/upload",

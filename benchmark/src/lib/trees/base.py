@@ -1,19 +1,18 @@
 from __future__ import annotations
 
+import json
+import time
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, ClassVar
 
 from lib import http
-from lib.trees.sample_tar import build_sample_tar
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from lib.trees.tree import Tree
 
 
 class TreeHarness(ABC):
-    """Strategy base: shared build/execute; subclasses implement tree-specific upload."""
+    """Strategy base: shared execute; subclasses implement tree-specific upload."""
 
     name: ClassVar[Tree]
 
@@ -21,11 +20,29 @@ class TreeHarness(ABC):
         self._registry = registry_url
         self._execution = execution_url
 
-    def build_tar(self) -> Path:
-        return build_sample_tar(self.name)
-
     def execute(self, algorithm_id: str, size: int) -> tuple[str, str, str]:
-        return http.execute_run(self._execution, algorithm_id, size)
+        payload: dict[str, object] = {"algorithmId": algorithm_id, "size": size}
+        status, body = http.request(
+            "POST",
+            f"{self._execution}/run",
+            data=json.dumps(payload).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        http.require(status, http.HTTP_ACCEPTED, "/run", body)
+
+        run_id = http.parse_json(body)["runId"]
+        deadline = time.time() + http.POLL_TIMEOUT_SECONDS
+        while time.time() < deadline:
+            status, result_body = http.request("GET", f"{self._execution}/run/{run_id}")
+            http.require(status, http.HTTP_OK, f"/run/{run_id}", result_body)
+            result = http.parse_json(result_body)
+            if result.get("status") != "pending":
+                output = result.get("output", "") or ""
+                return run_id, result.get("status", ""), output
+            time.sleep(http.POLL_INTERVAL_SECONDS)
+
+        msg = f"timed out after {http.POLL_TIMEOUT_SECONDS:.0f}s waiting for runId={run_id}"
+        raise http.FlowError(msg)
 
     @abstractmethod
-    def upload(self, algorithm_id: str, tar_path: Path) -> None: ...
+    def upload(self, algorithm_id: str) -> None: ...

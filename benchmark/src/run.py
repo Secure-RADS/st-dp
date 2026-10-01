@@ -111,7 +111,7 @@ def main() -> int:
         print(f"generated shared dataset {dataset} (same file seeded to every tree)", flush=True)
     for harness in harnesses:
         print(f"upload: {harness.name}/{config.TRIAL_SAMPLE}", flush=True)
-        harness.upload(config.TRIAL_ALGORITHM_ID, harness.build_tar())
+        harness.upload(config.TRIAL_ALGORITHM_ID)
     if not args.skip_seed:
         for harness in harnesses:
             print(f"seed: {harness.name} <- seeding/datasets/{dataset}.json", flush=True)
