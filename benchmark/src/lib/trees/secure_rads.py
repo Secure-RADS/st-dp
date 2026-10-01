@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from typing import ClassVar
 
+import httpx
+
 from lib import http
 from lib.trees.base import TreeHarness
 from lib.trees.sample_tar import build_sample_tar
 from lib.trees.tree import Tree
-
-MULTIPART_BOUNDARY = "----benchmarkboundary7d9f3a"
 
 
 class SecureRadsHarness(TreeHarness):
@@ -17,20 +17,11 @@ class SecureRadsHarness(TreeHarness):
 
     def upload(self, algorithm_id: str) -> None:
         tar_path = build_sample_tar(self.name)
-        head = (
-            f"--{MULTIPART_BOUNDARY}\r\n"
-            f'Content-Disposition: form-data; name="algorithmId"\r\n\r\n'
-            f"{algorithm_id}\r\n"
-            f"--{MULTIPART_BOUNDARY}\r\n"
-            f'Content-Disposition: form-data; name="image"; filename="{tar_path.name}"\r\n'
-            f"Content-Type: application/x-tar\r\n\r\n"
-        ).encode()
-        tail = f"\r\n--{MULTIPART_BOUNDARY}--\r\n".encode()
-
-        status, body = http.request(
-            "POST",
-            f"{self._registry}/upload",
-            data=head + tar_path.read_bytes() + tail,
-            headers={"Content-Type": f"multipart/form-data; boundary={MULTIPART_BOUNDARY}"},
-        )
-        http.require(status, http.HTTP_OK, "/upload", body)
+        with tar_path.open("rb") as image:
+            response = httpx.post(
+                f"{self._registry}/upload",
+                data={"algorithmId": algorithm_id},
+                files={"image": (tar_path.name, image, "application/x-tar")},
+                timeout=http.HTTP_TIMEOUT_SECONDS,
+            )
+        http.require(response.status_code, http.HTTP_OK, "/upload", response.content)
