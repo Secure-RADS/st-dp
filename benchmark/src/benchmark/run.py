@@ -8,18 +8,15 @@ import os
 import subprocess
 import sys
 import time
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+from benchmark.lib import config, flow
+from benchmark.paths import BUILD_DIR, RAW_DIR, REPO_ROOT
 
-from lib import config, flow
-
-HERE = Path(__file__).resolve().parent
-REPO_ROOT = HERE.parent
-BUILD_DIR = HERE / "build"
-RAW_DIR = HERE / "results" / "raw"
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 class Result(BaseModel):

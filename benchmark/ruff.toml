@@ -8,6 +8,8 @@ line-length = 120
 # Target Python 3.12
 target-version = "py312"
 
+src = ["src"]
+
 # Exclude common directories and potentially Lambda/Serverless build artifacts
 exclude = [
     ".bzr",
@@ -30,9 +32,9 @@ exclude = [
     "dist",
     "node_modules",
     "venv",
-    ".serverless", # If using Serverless Framework
-    ".aws-sam",   # If using AWS SAM
-    "cdk.out",    # If using AWS CDK
+    ".serverless",
+    ".aws-sam",
+    "cdk.out",
 ]
 
 # --- Formatter Configuration ---
@@ -91,9 +93,7 @@ unfixable = []
 # --- Rule-Specific Configurations ---
 
 [lint.isort]
-# Define your project's root package(s) as first-party
-known-first-party = ["app"]
-
+known-first-party = ["benchmark"]
 [lint.mccabe]
 # Set max complexity threshold (C90 rules are now enabled)
 max-complexity = 10
@@ -115,9 +115,10 @@ convention = "google"
     "ANN",     # Allow missing type hints in tests
 ]
 
-# Scoped exception to the rule set above: the benchmark entry points are command-line
-# tools, so stdout is their user interface (T201), and this repository carries no
-# copyright-header convention (CPY001). Ignored only for the scripts, not repo-wide.
-"run.py" = ["T201", "CPY001"]
-"sweep.py" = ["T201", "CPY001"]
-"lib/*.py" = ["CPY001"]
+# Entry points print to stdout (T201); no copyright-header convention (CPY001).
+"src/benchmark/run.py" = ["T201", "CPY001"]
+"src/benchmark/sweep.py" = ["T201", "CPY001"]
+"src/benchmark/export.py" = ["T201", "CPY001"]
+"src/benchmark/lib/*.py" = ["CPY001"]
+"src/benchmark/paths.py" = ["CPY001"]
+"src/benchmark/__init__.py" = ["CPY001"]

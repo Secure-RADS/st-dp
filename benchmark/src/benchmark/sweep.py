@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 
 import matplotlib as mpl
 
@@ -13,9 +12,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 
-HERE = Path(__file__).resolve().parent
-CSV = HERE / "results" / "sweep.csv"
-FIG_DIR = HERE / "results" / "figures"
+from benchmark.paths import FIG_DIR, ROOT, SWEEP_CSV
 
 TREES = ["rads", "secure-rads"]
 PALETTE = {"rads": "#2E6F95", "secure-rads": "#C8542A"}
@@ -38,10 +35,10 @@ BAR_GAP = 0.7
 
 
 def load() -> pd.DataFrame:
-    if not CSV.exists():
-        print(f"no sweep CSV at {CSV}; run bun benchmark/export.ts first", file=sys.stderr)
+    if not SWEEP_CSV.exists():
+        print(f"no sweep CSV at {SWEEP_CSV}; run `make report` (export step) first", file=sys.stderr)
         raise SystemExit(1)
-    df = pd.read_csv(CSV)
+    df = pd.read_csv(SWEEP_CSV)
     for column in (name for name, _ in PHASES):
         df[column] = pd.to_numeric(df[column], errors="coerce")
     df["total_s"] = pd.to_numeric(df["total_s"], errors="coerce")
@@ -67,7 +64,7 @@ def phases_figure(df: pd.DataFrame) -> None:
             means = subset[[name for name, _ in PHASES]].mean()
             total = float(subset["total_s"].mean())
             left = 0.0
-            for (column, label), color in zip(PHASES, PHASE_COLORS, strict=True):
+            for (column, _label), color in zip(PHASES, PHASE_COLORS, strict=True):
                 value = float(means[column]) if pd.notna(means[column]) else 0.0
                 if value <= 0:
                     continue
@@ -129,7 +126,7 @@ def phases_figure(df: pd.DataFrame) -> None:
     # Don't use bbox_inches="tight" — it collapses the reserved footer gap.
     fig.savefig(out, dpi=200)
     plt.close(fig)
-    print(f"wrote {out.relative_to(HERE)}")
+    print(f"wrote {out.relative_to(ROOT)}")
 
 
 def scaling_figure(df: pd.DataFrame) -> None:
@@ -165,7 +162,7 @@ def scaling_figure(df: pd.DataFrame) -> None:
     out = FIG_DIR / "sweep-scaling.png"
     fig.savefig(out, bbox_inches="tight", dpi=200)
     plt.close(fig)
-    print(f"wrote {out.relative_to(HERE)}")
+    print(f"wrote {out.relative_to(ROOT)}")
 
 
 def main() -> int:

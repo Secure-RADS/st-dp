@@ -31,10 +31,9 @@ help:
 	@echo "  make report"
 
 run:
-	uv run python run.py $(RUN_FLAGS)
+	uv run python -m benchmark.run $(RUN_FLAGS)
 
 report:
-	bun install
-	bun run export
-	uv run python sweep.py
+	uv run python -m benchmark.export
+	uv run python -m benchmark.sweep
 	@echo "wrote results/sweep.csv and results/figures/"
