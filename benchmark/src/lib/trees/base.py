@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import time
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, ClassVar
@@ -21,12 +20,10 @@ class TreeHarness(ABC):
         self._execution = execution_url
 
     def execute(self, algorithm_id: str, size: int) -> tuple[str, str, str]:
-        payload: dict[str, object] = {"algorithmId": algorithm_id, "size": size}
         status, body = http.request(
             "POST",
             f"{self._execution}/run",
-            data=json.dumps(payload).encode(),
-            headers={"Content-Type": "application/json"},
+            json={"algorithmId": algorithm_id, "size": size},
         )
         http.require(status, http.HTTP_ACCEPTED, "/run", body)
 

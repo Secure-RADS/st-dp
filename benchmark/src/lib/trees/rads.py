@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from typing import ClassVar
 
 from lib import http
@@ -19,8 +18,7 @@ class RadsHarness(TreeHarness):
         status, body = http.request(
             "POST",
             f"{self._registry}/upload",
-            data=json.dumps({"algorithmId": algorithm_id}).encode(),
-            headers={"Content-Type": "application/json"},
+            json={"algorithmId": algorithm_id},
         )
         http.require(status, http.HTTP_OK, "/upload", body)
 
@@ -28,7 +26,7 @@ class RadsHarness(TreeHarness):
         status, body = http.request(
             "PUT",
             upload_url,
-            data=tar_path.read_bytes(),
+            content=tar_path.read_bytes(),
             headers={"Content-Type": "application/x-tar"},
         )
         http.require(status, (http.HTTP_OK, http.HTTP_NO_CONTENT), "S3 PUT", body)
@@ -36,7 +34,6 @@ class RadsHarness(TreeHarness):
         status, body = http.request(
             "POST",
             f"{self._registry}/register",
-            data=json.dumps({"algorithmId": algorithm_id}).encode(),
-            headers={"Content-Type": "application/json"},
+            json={"algorithmId": algorithm_id},
         )
         http.require(status, http.HTTP_OK, "/register", body)

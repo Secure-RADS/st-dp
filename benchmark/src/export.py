@@ -6,11 +6,10 @@ import csv
 import json
 import subprocess
 import sys
-import urllib.error
-import urllib.request
 from datetime import datetime
 from typing import Any
 
+from lib import http
 from paths import RAW_DIR, SWEEP_CSV
 
 REGION = "ap-southeast-2"
@@ -105,13 +104,8 @@ def load_runs() -> list[dict[str, Any]]:
 
 def fetch_events(url: str, algorithm_id: str, run_id: str) -> dict[str, str]:
     endpoint = f"{url}/logs/{algorithm_id}?runId={run_id}"
-    req = urllib.request.Request(endpoint)
-    try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            body = resp.read()
-    except urllib.error.HTTPError as err:
-        msg = f"GET {endpoint} returned {err.code}"
-        raise RuntimeError(msg) from err
+    status, body = http.request("GET", endpoint, timeout=60)
+    http.require(status, http.HTTP_OK, f"GET {endpoint}", body)
     events = json.loads(body)
     events.sort(key=lambda event: _parse_ts(event["timestamp"]))
     by_event: dict[str, str] = {}

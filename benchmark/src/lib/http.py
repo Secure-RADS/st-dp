@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import json
-import urllib.error
-import urllib.request
 from typing import Any
+
+import httpx
 
 POLL_INTERVAL_SECONDS = 5.0
 # 5M secure-rads: PDM page + decrypt can exceed 1h; keep the client waiting.
@@ -29,22 +29,9 @@ def require(response_status: int, expected: int | tuple[int, ...], context: str,
     raise FlowError(msg)
 
 
-def request(
-    method: str,
-    url: str,
-    *,
-    data: bytes | None = None,
-    headers: dict[str, str] | None = None,
-    timeout: float = HTTP_TIMEOUT_SECONDS,
-) -> tuple[int, bytes]:
-    req = urllib.request.Request(url, data=data, method=method)
-    for key, value in (headers or {}).items():
-        req.add_header(key, value)
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return resp.status, resp.read()
-    except urllib.error.HTTPError as err:
-        return err.code, err.read()
+def request(method: str, url: str, *, timeout: float = HTTP_TIMEOUT_SECONDS, **kwargs: Any) -> tuple[int, bytes]:
+    response = httpx.request(method, url, timeout=timeout, **kwargs)
+    return response.status_code, response.content
 
 
 def parse_json(body: bytes) -> dict[str, Any]:

@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from typing import ClassVar
 
-import httpx
-
 from lib import http
 from lib.trees.base import TreeHarness
 from lib.trees.sample_tar import build_sample_tar
@@ -18,10 +16,10 @@ class SecureRadsHarness(TreeHarness):
     def upload(self, algorithm_id: str) -> None:
         tar_path = build_sample_tar(self.name)
         with tar_path.open("rb") as image:
-            response = httpx.post(
+            status, body = http.request(
+                "POST",
                 f"{self._registry}/upload",
                 data={"algorithmId": algorithm_id},
                 files={"image": (tar_path.name, image, "application/x-tar")},
-                timeout=http.HTTP_TIMEOUT_SECONDS,
             )
-        http.require(response.status_code, http.HTTP_OK, "/upload", response.content)
+        http.require(status, http.HTTP_OK, "/upload", body)
