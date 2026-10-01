@@ -9,6 +9,8 @@ import sys
 from datetime import datetime
 from typing import Any
 
+from tqdm import tqdm
+
 from lib import http
 from paths import RAW_DIR, SWEEP_CSV
 
@@ -151,7 +153,7 @@ def main() -> int:
     with SWEEP_CSV.open("w", newline="") as handle:
         writer = csv.writer(handle)
         writer.writerow(header)
-        for row in runs:
+        for row in tqdm(runs, desc="export", unit="run"):
             by_event = fetch_events(urls[row["tree"]], row["algorithm_id"], row["run_id"])
             phases = [window_seconds(by_event, PHASES[row["tree"]][column]) for column in COLUMNS]
             stamps = [by_event.get(event, "") for event in TIMESTAMP_EVENTS]

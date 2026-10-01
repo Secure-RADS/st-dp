@@ -10,6 +10,7 @@ import sys
 import time
 
 from pydantic import BaseModel
+from tqdm import tqdm
 
 from lib import config
 from lib.trees import Tree, TreeHarness, harness_for
@@ -120,16 +121,19 @@ def main() -> int:
         print(f"skip-seed: using existing {dataset}", flush=True)
 
     results: list[Result] = []
-    for size in sizes:
-        for harness in harnesses:
-            for rep in range(1, args.reps + 1):
-                result = run_once(harness, dataset, size, rep)
-                results.append(result)
-                print(
-                    f"execute {harness.name}/{dataset} size={size} rep={rep} {result.seconds:.1f}s "
-                    f"status={result.status} err={result.error}",
-                    flush=True,
-                )
+    jobs = [
+        (size, harness, rep)
+        for size in sizes
+        for harness in harnesses
+        for rep in range(1, args.reps + 1)
+    ]
+    for size, harness, rep in tqdm(jobs, desc="execute", unit="run"):
+        result = run_once(harness, dataset, size, rep)
+        results.append(result)
+        tqdm.write(
+            f"execute {harness.name}/{dataset} size={size} rep={rep} {result.seconds:.1f}s "
+            f"status={result.status} err={result.error}",
+        )
 
     RAW_DIR.mkdir(parents=True, exist_ok=True)
     out = RAW_DIR / f"sweep-{int(time.time())}.json"
