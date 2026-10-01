@@ -5,13 +5,13 @@ from __future__ import annotations
 import csv
 import json
 import subprocess
-import sys
 from datetime import datetime
 from typing import Any
 
 from tqdm import tqdm
 
 from lib import http
+from lib.log import logger
 from paths import RAW_DIR, SWEEP_CSV
 
 REGION = "ap-southeast-2"
@@ -136,7 +136,7 @@ def window_seconds(by_event: dict[str, str], window: Window) -> str:
 def main() -> int:
     runs = load_runs()
     if not runs:
-        print(f"no sweep rows in {RAW_DIR}; run `make execute` first", file=sys.stderr)
+        logger.error("no sweep rows in {}; run `make execute` first", RAW_DIR)
         return 1
 
     urls = {tree: log_url(stack) for tree, stack in LOG_STACKS.items()}
@@ -159,7 +159,7 @@ def main() -> int:
             stamps = [by_event.get(event, "") for event in TIMESTAMP_EVENTS]
             writer.writerow([row["size"], row["tree"], row["rep"], row.get("status") or "", *phases, *stamps])
 
-    print(f"wrote {SWEEP_CSV} ({len(runs)} runs)")
+    logger.info("wrote {} ({} runs)", SWEEP_CSV, len(runs))
     return 0
 
 

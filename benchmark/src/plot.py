@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import sys
-
 import matplotlib as mpl
 
 mpl.use("Agg")
@@ -12,6 +10,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 
+from lib.log import logger
 from lib.trees import Tree
 from paths import FIG_DIR, ROOT, SWEEP_CSV
 
@@ -37,7 +36,7 @@ BAR_GAP = 0.7
 
 def load() -> pd.DataFrame:
     if not SWEEP_CSV.exists():
-        print(f"no sweep CSV at {SWEEP_CSV}; run `make report` (export step) first", file=sys.stderr)
+        logger.error("no sweep CSV at {}; run `make report` (export step) first", SWEEP_CSV)
         raise SystemExit(1)
     df = pd.read_csv(SWEEP_CSV)
     for column in (name for name, _ in PHASES):
@@ -127,7 +126,7 @@ def phases_figure(df: pd.DataFrame) -> None:
     # Don't use bbox_inches="tight" — it collapses the reserved footer gap.
     fig.savefig(out, dpi=200)
     plt.close(fig)
-    print(f"wrote {out.relative_to(ROOT)}")
+    logger.info("wrote {}", out.relative_to(ROOT))
 
 
 def scaling_figure(df: pd.DataFrame) -> None:
@@ -163,14 +162,14 @@ def scaling_figure(df: pd.DataFrame) -> None:
     out = FIG_DIR / "sweep-scaling.png"
     fig.savefig(out, bbox_inches="tight", dpi=200)
     plt.close(fig)
-    print(f"wrote {out.relative_to(ROOT)}")
+    logger.info("wrote {}", out.relative_to(ROOT))
 
 
 def main() -> int:
     sns.set_theme(style="whitegrid", context="notebook")
     FIG_DIR.mkdir(parents=True, exist_ok=True)
     df = load()
-    print(f"loaded {len(df)} runs across {df['dataset_size'].nunique()} sizes")
+    logger.info("loaded {} runs across {} sizes", len(df), df["dataset_size"].nunique())
     phases_figure(df)
     scaling_figure(df)
     return 0

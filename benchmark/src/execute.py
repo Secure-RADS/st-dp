@@ -6,13 +6,13 @@ import argparse
 import json
 import os
 import subprocess
-import sys
 import time
 
 from pydantic import BaseModel
 from tqdm import tqdm
 
 from lib import config
+from lib.log import logger
 from lib.trees import Tree, TreeHarness, harness_for
 from paths import RAW_DIR, REPO_ROOT
 
@@ -102,23 +102,23 @@ def main() -> int:
     dataset = config.TRIAL_DATASET
     endpoints = config.resolve_endpoints(include_secure_registry=True)
     if Tree.SECURE_RADS in args.trees and not endpoints[Tree.SECURE_RADS].get("registry"):
-        print("secure-rads registry URL not configured (is the CSAV host running?)", file=sys.stderr)
+        logger.error("secure-rads registry URL not configured (is the CSAV host running?)")
         return 1
 
     harnesses = [harness_for(tree, endpoints[tree]) for tree in args.trees]
 
     if not args.skip_generate:
         generate()
-        print(f"generated shared dataset {dataset} (same file seeded to every tree)", flush=True)
+        logger.info("generated shared dataset {} (same file seeded to every tree)", dataset)
     for harness in harnesses:
-        print(f"upload: {harness.name}/{config.TRIAL_SAMPLE}", flush=True)
+        logger.info("upload: {}/{}", harness.name, config.TRIAL_SAMPLE)
         harness.upload(config.TRIAL_ALGORITHM_ID)
     if not args.skip_seed:
         for harness in harnesses:
-            print(f"seed: {harness.name} <- seeding/datasets/{dataset}.json", flush=True)
+            logger.info("seed: {} <- seeding/datasets/{}.json", harness.name, dataset)
             seed(harness.name, dataset)
     else:
-        print(f"skip-seed: using existing {dataset}", flush=True)
+        logger.info("skip-seed: using existing {}", dataset)
 
     results: list[Result] = []
     jobs = [
@@ -130,15 +130,21 @@ def main() -> int:
     for size, harness, rep in tqdm(jobs, desc="execute", unit="run"):
         result = run_once(harness, dataset, size, rep)
         results.append(result)
-        tqdm.write(
-            f"execute {harness.name}/{dataset} size={size} rep={rep} {result.seconds:.1f}s "
-            f"status={result.status} err={result.error}",
+        logger.info(
+            "execute {}/{} size={} rep={} {:.1f}s status={} err={}",
+            harness.name,
+            dataset,
+            size,
+            rep,
+            result.seconds,
+            result.status,
+            result.error,
         )
 
     RAW_DIR.mkdir(parents=True, exist_ok=True)
     out = RAW_DIR / f"sweep-{int(time.time())}.json"
     out.write_text(json.dumps([result.model_dump() for result in results], indent=2))
-    print(f"wrote {out} ({len(results)} rows)", flush=True)
+    logger.info("wrote {} ({} rows)", out, len(results))
     return 0
 
 
