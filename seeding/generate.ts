@@ -20,8 +20,7 @@ function tsWithinDays(n: number): string {
 }
 
 function recordId(i: number): string {
-  // Keep 6-digit ids through 999999 so existing prefixes stay byte-stable; grow past that.
-  return `user-${String(i).padStart(Math.max(6, String(i).length), "0")}`;
+  return `user-${String(i).padStart(6, "0")}`;
 }
 
 // Deterministic UUIDv5 over the shared record index, so the same data subject appears in every dataset that
