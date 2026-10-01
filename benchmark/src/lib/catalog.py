@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from enum import StrEnum
+
+from pydantic import BaseModel, ConfigDict
 
 from lib.tree import Tree
 
@@ -11,8 +12,9 @@ class ServiceKind(StrEnum):
     EC2_HTTP = "ec2_http"
 
 
-@dataclass(frozen=True)
-class Service:
+class Service(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     kind: ServiceKind
     stack: str
     # EC2_HTTP: CFN output that holds the instance id; URL is built from the live public IP.
@@ -26,19 +28,19 @@ class Service:
 # Per-tree service catalog. Resolve once at flow start; no one-off include_* flags.
 CATALOG: dict[Tree, dict[str, Service]] = {
     Tree.RADS: {
-        "registry": Service(ServiceKind.API_GATEWAY, "rads-registry-service-dev"),
-        "pdm": Service(ServiceKind.API_GATEWAY, "rads-pdm-service-dev"),
-        "execution": Service(ServiceKind.API_GATEWAY, "rads-execution-service-dev"),
-        "log": Service(ServiceKind.API_GATEWAY, "rads-log-service-dev"),
+        "registry": Service(kind=ServiceKind.API_GATEWAY, stack="rads-registry-service-dev"),
+        "pdm": Service(kind=ServiceKind.API_GATEWAY, stack="rads-pdm-service-dev"),
+        "execution": Service(kind=ServiceKind.API_GATEWAY, stack="rads-execution-service-dev"),
+        "log": Service(kind=ServiceKind.API_GATEWAY, stack="rads-log-service-dev"),
     },
     Tree.SECURE_RADS: {
-        "registry": Service(ServiceKind.EC2_HTTP, "secure-rads-csav"),
-        "pdm": Service(ServiceKind.API_GATEWAY, "secure-rads-pdm-service-dev"),
-        "execution": Service(ServiceKind.API_GATEWAY, "secure-rads-execution-service-dev"),
-        "log": Service(ServiceKind.API_GATEWAY, "secure-rads-log-service-dev"),
+        "registry": Service(kind=ServiceKind.EC2_HTTP, stack="secure-rads-csav"),
+        "pdm": Service(kind=ServiceKind.API_GATEWAY, stack="secure-rads-pdm-service-dev"),
+        "execution": Service(kind=ServiceKind.API_GATEWAY, stack="secure-rads-execution-service-dev"),
+        "log": Service(kind=ServiceKind.API_GATEWAY, stack="secure-rads-log-service-dev"),
         "registry_storage": Service(
-            ServiceKind.API_GATEWAY,
-            "secure-rads-registry-service-storage",
+            kind=ServiceKind.API_GATEWAY,
+            stack="secure-rads-registry-service-storage",
             has_url=False,
         ),
     },
