@@ -28,7 +28,6 @@ export function userData(values: UserDataValues): string {
     RunId: values.runId,
     S3Bucket: values.s3Bucket,
     S3Key: values.s3Key,
-    // Served to the enclave on the run-info channel; 0 means the whole dataset.
     Size: (values.size ?? 0).toString(),
     VerifierHost: values.verifierHost,
   };
