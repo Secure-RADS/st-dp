@@ -98,7 +98,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     sizes = sorted(args.sizes)
-    dataset = config.trial_dataset(max(sizes))
+    dataset = config.TRIAL_DATASET
     endpoints = config.resolve_endpoints(include_secure_registry=True)
     if "secure-rads" in args.trees and not endpoints["secure-rads"].get("registry"):
         print("secure-rads registry URL not configured (is the CSAV host running?)", file=sys.stderr)

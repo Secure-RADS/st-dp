@@ -1,8 +1,8 @@
-import { closeSync, mkdirSync, openSync, writeFileSync, writeSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { faker } from "@faker-js/faker";
 import { v5 as uuidv5 } from "uuid";
-import { DATASETS, EHEALTH_ALGORITHM_ID, EHEALTH_DATASETS, EHEALTH_SIZES } from "./config";
+import { DATASETS } from "./config";
 
 const OUT_DIR = join(import.meta.dir, "datasets");
 
@@ -228,15 +228,10 @@ const GENERATORS: Record<string, (index: number, count: number) => object> = {
   ehealth: () => ehealthData(),
 };
 
-// ehealth size variants (ehealth-10k, ehealth-25k, ...) share the ehealth generator; other names map to themselves.
-function generatorFor(name: string): (index: number, count: number) => object {
-  return GENERATORS[name.startsWith("ehealth") ? "ehealth" : name];
-}
-
 mkdirSync(OUT_DIR, { recursive: true });
 
 for (const { name, algorithmId, count, seed } of DATASETS) {
-  const gen = generatorFor(name);
+  const gen = GENERATORS[name];
   faker.seed(seed);
   const records = [];
   for (let i = 1; i <= count; i++) {
@@ -247,51 +242,4 @@ for (const { name, algorithmId, count, seed } of DATASETS) {
   writeFileSync(join(OUT_DIR, `${name}.json`), json);
   const maxItem = records.reduce((m, r) => Math.max(m, JSON.stringify(r).length), 0);
   console.log(`${name}: ${count} records, file ${(json.length / 1024).toFixed(1)} KiB, largest record ${maxItem} bytes`);
-}
-
-// One faker pass writes every ehealth size as a prefix of the largest, so memory stays O(1) even at 5M.
-{
-  const sizes = [...EHEALTH_SIZES].sort((a, b) => a - b);
-  const max = sizes[sizes.length - 1]!;
-  const seed = EHEALTH_DATASETS[0]!.seed;
-  faker.seed(seed);
-
-  const writers = sizes.map((count) => {
-    const name = `ehealth-${count / 1000}k`;
-    const path = join(OUT_DIR, `${name}.json`);
-    const fh = openSync(path, "w");
-    writeSync(
-      fh,
-      `{"algorithmId": ${JSON.stringify(EHEALTH_ALGORITHM_ID)}, "name": ${JSON.stringify(name)}, "records": [\n`,
-    );
-    return { count, name, path, fh, written: 0, maxItem: 0, bytes: 0, closed: false };
-  });
-
-  for (let i = 1; i <= max; i++) {
-    const line = JSON.stringify({
-      recordId: recordId(i),
-      dataSubjectId: dataSubjectId(i),
-      data: ehealthData(),
-    });
-    for (const w of writers) {
-      if (w.closed || i > w.count) continue;
-      if (w.written > 0) writeSync(w.fh, ",\n");
-      writeSync(w.fh, line);
-      w.written++;
-      w.maxItem = Math.max(w.maxItem, line.length);
-      w.bytes += line.length + (w.written > 1 ? 2 : 0);
-      if (i === w.count) {
-        writeSync(w.fh, "\n]}\n");
-        closeSync(w.fh);
-        w.closed = true;
-        const fileBytes = w.bytes + 80;
-        console.log(
-          `${w.name}: ${w.written} records, file ${(fileBytes / 1024 / 1024).toFixed(1)} MiB, largest record ${w.maxItem} bytes`,
-        );
-      }
-    }
-    if (i % 100_000 === 0) {
-      console.log(`ehealth: generated ${i}/${max}`);
-    }
-  }
 }

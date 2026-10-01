@@ -6,7 +6,8 @@ up the algorithm's OCI image in S3 (via the `rads-algorithms` table), launches a
 run it, and returns immediately. Results come back asynchronously through the shared rads result-consumer.
 
 `POST /run` is fire-and-forget: it assigns a `runId`, looks up `{Bucket, Key}` for the `AlgorithmId` in the
-`rads-algorithms` DynamoDB table (PK `AlgorithmId`), launches a per-run EC2 executor, and returns
+`rads-algorithms` DynamoDB table (PK `AlgorithmId`), and — when `size` is set — rejects the request if that
+count exceeds the rows already seeded for the algorithm in PDM. It then launches a per-run EC2 executor, and returns
 `202 {runId, algorithmId, instanceId, status: "pending"}`. The executor installs AWS CLI + Docker, downloads
 every PDM record for the algorithm to `/opt/rads/run/records.json`, `aws s3 cp`s the image tar into place,
 `docker load`s it, then `docker run`s the image with that directory bind-mounted at `/data` and
@@ -38,6 +39,7 @@ bunx serverless deploy \
   --param="logEventsQueueUrl=<rads-log-events queue URL>" \
   --param="logEventsQueueArn=<rads-log-events queue ARN>" \
   --param="pdmUrl=https://pdm.example.org" \
+  --param="pdmTable=rads-personal-data" \
   --param="amiId=<AL2023 AMI id>" \
   --param="vpcId=<VPC id>"
 ```

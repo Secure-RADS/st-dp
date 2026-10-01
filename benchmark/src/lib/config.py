@@ -5,9 +5,10 @@ import subprocess
 REGION = "ap-southeast-2"
 OUTPUT_PAIR_FIELDS = 2
 
-# One algorithmId reused across sizes; only the record count changes.
+# One algorithmId reused across sizes; only the record count changes at execute time.
 TRIAL_SAMPLE = "trial-eligibility-python"
 TRIAL_ALGORITHM_ID = "e587067e-47dc-4835-8f87-5e66fc979adf"
+TRIAL_DATASET = "ehealth"
 TRIAL_SIZES = [10_000, 25_000, 50_000, 75_000, 100_000]
 
 TREES = ("rads", "secure-rads")
@@ -23,10 +24,6 @@ STACKS = {
         "execution": "secure-rads-execution-service-dev",
     },
 }
-
-
-def trial_dataset(size: int) -> str:
-    return f"ehealth-{size // 1000}k"
 
 
 def _aws(*args: str) -> str:

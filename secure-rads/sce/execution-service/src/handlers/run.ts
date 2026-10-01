@@ -5,6 +5,7 @@ import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { requiredEnv } from "../lib/env.js";
 import { logEvent } from "../lib/events.js";
+import { countAlgorithmRecords } from "../lib/pdmCount.js";
 import { userData } from "../lib/userdata.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -18,6 +19,7 @@ const enclaveSecurityGroupId = requiredEnv("ENCLAVE_SECURITY_GROUP_ID");
 const enclaveInstanceProfileArn = requiredEnv("ENCLAVE_INSTANCE_PROFILE_ARN");
 const verifierHost = requiredEnv("VERIFIER_HOST");
 const pdmHost = requiredEnv("PDM_HOST");
+const pdmTable = requiredEnv("PDM_TABLE");
 const logHost = requiredEnv("LOG_HOST");
 const region = requiredEnv("AWS_REGION");
 
@@ -71,6 +73,15 @@ export const create: APIGatewayProxyHandlerV2 = async (event) => {
     );
     const record = algorithm.Item as AlgorithmRecord | undefined;
     if (!record?.S3Bucket || !record.S3Key) return jsonResponse(404, { error: "algorithm not found" });
+
+    if (request.size !== undefined) {
+      const available = await countAlgorithmRecords(ddb, pdmTable, request.algorithmId);
+      if (request.size > available) {
+        return jsonResponse(400, {
+          error: `size ${request.size} exceeds seeded dataset (${available} records)`,
+        });
+      }
+    }
 
     runId = randomUUID();
     await logEvent(request.algorithmId, runId, "run-requested");

@@ -1,7 +1,7 @@
 import { createReadStream, existsSync, readdirSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { join } from "node:path";
-import { DEFAULT_SEED_NAMES, EHEALTH_SIZES } from "../config";
+import { DATASETS, DEFAULT_SEED_NAMES } from "../config";
 
 export interface DatasetRecord {
   recordId: string;
@@ -18,7 +18,7 @@ export interface DatasetMeta {
 
 const DATASETS_DIR = join(import.meta.dir, "..", "datasets");
 
-const EHEALTH_COUNT = new Map(EHEALTH_SIZES.map((count) => [`ehealth-${count / 1000}k`, count]));
+const EXPECTED_COUNT = new Map(DATASETS.map((dataset) => [dataset.name, dataset.count]));
 
 function datasetPath(name: string): string {
   return join(DATASETS_DIR, `${name}.json`);
@@ -63,13 +63,13 @@ export async function readDatasetMeta(name: string): Promise<DatasetMeta> {
       algorithmId: match[1]!,
       name: match[2]!,
       path,
-      expectedCount: EHEALTH_COUNT.get(name) ?? null,
+      expectedCount: EXPECTED_COUNT.get(name) ?? null,
     };
   }
   throw new Error(`dataset ${name}: empty file`);
 }
 
-// Records are one JSON object per line (see generate.ts); stream them so multi-GB files do not need to fit in RAM.
+// Records are one JSON object per line (see generate.ts); stream them so large files do not need to fit in RAM.
 export async function* streamDatasetRecords(name: string): AsyncGenerator<DatasetRecord> {
   const path = datasetPath(name);
   const rl = createInterface({ input: createReadStream(path, { encoding: "utf8" }), crlfDelay: Infinity });

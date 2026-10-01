@@ -64,9 +64,7 @@ Use `make run REPS=3` while iterating; reserve `REPS=10` for the paper Exp2 runs
 
 ## Shared seed data
 
-`make run` generates once and BatchWrites the **same** `ehealth-100k.json` into both trees (rads plaintext; secure-rads envelope-encrypted).
-
-`ehealth-10k` … `ehealth-100k` are prefixes of one faker stream (seed `505`), so the first N records are identical across sizes. Seeding the largest is enough for every size in the sweep.
+`make run` generates once and BatchWrites the **same** `ehealth.json` (100K records) into both trees (rads plaintext; secure-rads envelope-encrypted). Each execute passes `size` so the executor reads only the first N of those rows.
 
 Use BatchWrite via `seed-rads` / `seed-secure-rads` only. Do not use DynamoDB ImportTable / S3 import for this harness.
 
