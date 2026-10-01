@@ -29,7 +29,7 @@ func fetchAllRecords(cfg runConfig, runID string, limit int) ([]pdmRecord, []byt
 	var dataKey []byte
 	cursor := ""
 	for page := 1; ; page++ {
-		// Access tokens live 5m; refreshLoop keeps currentTokens fresh — never reuse the attest-time string.
+		// Always read the live access token; refreshLoop refreshes before expiry — never reuse the attest-time string.
 		accessToken, ok := CurrentAccessToken()
 		if !ok {
 			return nil, nil, fmt.Errorf("GET /records page %d: no access token", page)
