@@ -1,5 +1,4 @@
 services:
-  # Keep in sync with the copy baked by secure-rads/csav/cloudformation.yaml UserData.
   registry-service:
     image: registry-service:latest
     ports:

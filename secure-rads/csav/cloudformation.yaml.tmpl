@@ -119,67 +119,8 @@ Resources:
       MetadataOptions:
         HttpPutResponseHopLimit: 2
       UserData:
-        Fn::Base64: !Sub |
-          #!/bin/bash
-          set -euo pipefail
-          dnf install -y docker
-          systemctl enable --now docker
-          usermod -aG docker ec2-user
-
-          # docker-compose-plugin isn't in the AL2023 default repo; standalone binary instead.
-          curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-aarch64 \
-            -o /usr/local/bin/docker-compose
-          chmod +x /usr/local/bin/docker-compose
-          ln -s /usr/local/bin/docker-compose /usr/libexec/docker/cli-plugins/docker-compose 2>/dev/null || \
-            (mkdir -p /usr/libexec/docker/cli-plugins && ln -s /usr/local/bin/docker-compose /usr/libexec/docker/cli-plugins/docker-compose)
-
-          # Compose file is baked at first boot (see secure-rads/csav/docker-compose.yml - keep in sync).
-          # ship only pushes the image tarball + .env; compose is no longer scp'd per deploy.
-          install -d -o ec2-user -g ec2-user /home/ec2-user/registry-service
-          cat > /home/ec2-user/registry-service/docker-compose.yml <<'COMPOSE'
-          services:
-            registry-service:
-              image: registry-service:latest
-              ports:
-                - "8080:8080"
-              environment:
-                - ARTIFACT_BUCKET=${!ARTIFACT_BUCKET}
-                - AWS_REGION=${!AWS_REGION}
-                - DYNAMO_TABLE=${!DYNAMO_TABLE}
-                - VERIFIER_URL=${!VERIFIER_URL}
-                - VERIFIER_PUBKEY_SHA256=${!VERIFIER_PUBKEY_SHA256}
-                - VERIFIER_HOST=${!VERIFIER_HOST}
-                - VERIFIER_HOST_PUBKEY_SHA256=${!VERIFIER_HOST_PUBKEY_SHA256}
-                - PDM_HOST=${!PDM_HOST}
-                - PDM_HOST_PUBKEY_SHA256=${!PDM_HOST_PUBKEY_SHA256}
-                - LOG_HOST=${!LOG_HOST}
-                - LOG_HOST_PUBKEY_SHA256=${!LOG_HOST_PUBKEY_SHA256}
-                - ENCLAVE_HOST_ROLE_ARN=${!ENCLAVE_HOST_ROLE_ARN}
-                - CSAV_ROLE_ARN=${!CSAV_ROLE_ARN}
-              restart: unless-stopped
-          COMPOSE
-          chown ec2-user:ec2-user /home/ec2-user/registry-service/docker-compose.yml
-
-          # Starts the stack when .env exists (after the first ship). Skips cleanly on first boot.
-          cat > /etc/systemd/system/csav-registry.service <<'UNIT'
-          [Unit]
-          Description: CSAV registry-service docker compose stack
-          After=docker.service
-          Requires=docker.service
-          ConditionPathExists=/home/ec2-user/registry-service/.env
-
-          [Service]
-          Type=oneshot
-          RemainAfterExit=yes
-          WorkingDirectory=/home/ec2-user/registry-service
-          ExecStart=/usr/local/bin/docker-compose up -d
-          ExecStop=/usr/local/bin/docker-compose down
-
-          [Install]
-          WantedBy=multi-user.target
-          UNIT
-          systemctl daemon-reload
-          systemctl enable csav-registry.service
+        Fn::Base64: |
+          @@USERDATA@@
       Tags:
         - Key: Name
           Value: secure-rads-csav
