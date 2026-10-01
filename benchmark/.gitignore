@@ -5,10 +5,3 @@ build/
 *.egg-info/
 dist/
 node_modules/
-
-# Generated sweep outputs (dirs kept via .gitkeep)
-results/sweep.csv
-results/raw/*
-!results/raw/.gitkeep
-results/figures/*
-!results/figures/.gitkeep

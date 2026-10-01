@@ -115,5 +115,5 @@ Failed reps (`error` set in the raw JSON, or a 500 from PDM) should be dropped o
 | `src/lib/trees/rads.py` / `secure_rads.py` | Per-tree Strategy concretes (`(TreeHarness)`) |
 | `src/lib/http.py` | Shared httpx helpers |
 | `src/paths.py` | Package / results / repo roots |
-| `results/` | Raw JSON, CSV, figures (gitignored outputs) |
+| `results/` | Raw JSON, CSV, figures |
 | `../seeding/` | Shared generate + BatchWrite seeders |
