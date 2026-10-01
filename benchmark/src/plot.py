@@ -46,9 +46,9 @@ def load() -> pd.DataFrame:
     return df
 
 
-def _save(fig: plt.Figure, name: str) -> None:
+def _save(fig: plt.Figure, name: str, *, tight: bool = True) -> None:
     out = FIG_DIR / name
-    fig.savefig(out, bbox_inches="tight", dpi=200)
+    fig.savefig(out, bbox_inches="tight" if tight else None, dpi=200)
     plt.close(fig)
     logger.info("wrote {}", out.relative_to(ROOT))
 
@@ -65,15 +65,24 @@ def phases_figure(df: pd.DataFrame) -> None:
     )
     plot_df = means.set_index("row")[list(PHASES)].rename(columns=PHASES)
 
-    fig, ax = plt.subplots(figsize=(11, max(4, 0.55 * len(plot_df) + 2)))
+    # Extra height + fixed bottom margin so legend and footnote do not collide under tight bbox.
+    fig, ax = plt.subplots(figsize=(11, max(5.5, 0.7 * len(plot_df) + 3.8)))
     plot_df.plot.barh(stacked=True, color=PHASE_COLORS, width=0.8, ax=ax, legend=False)
     ax.invert_yaxis()
     ax.set_xlabel("seconds (mean per run)")
     ax.set_ylabel("")
     ax.set_title("Where an execution's wall clock goes, by dataset size")
-    ax.legend(list(PHASES.values()), loc="upper center", bbox_to_anchor=(0.5, -0.12), ncol=4, frameon=False)
-    fig.text(0.5, -0.02, NOTE, ha="center", va="top", fontsize=8, color="#555555")
-    _save(fig, "sweep-phases.png")
+    fig.subplots_adjust(left=0.28, right=0.98, top=0.9, bottom=0.34)
+    ax.legend(
+        list(PHASES.values()),
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.22),
+        ncol=4,
+        frameon=False,
+        fontsize=8.5,
+    )
+    fig.text(0.5, 0.06, NOTE, ha="center", va="bottom", fontsize=8, color="#555555")
+    _save(fig, "sweep-phases.png", tight=False)
 
 
 def scaling_figure(df: pd.DataFrame) -> None:
