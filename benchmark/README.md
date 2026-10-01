@@ -1,16 +1,16 @@
 # Benchmark harness
 
-End-to-end Exp1/Exp2 sweep: `rads` (baseline CE) vs `secure-rads` (Sec-CE) on the trial-eligibility algorithm over the shared e-health dataset.
+End-to-end Exp1/Exp2 size sweep: `rads` (baseline) vs `secure-rads` (Nitro enclave) on the trial-eligibility algorithm over a shared e-health dataset.
 
-One algorithm id is reused across sizes. The harness generates the dataset once, BatchWrites the same JSON into both trees, then runs each size with a `size` limit on fetch.
+One algorithm id is reused across sizes. Setup generates the dataset once, uploads both algorithm images, BatchWrites the same JSON into both trees, then runs each size with a `size` limit on fetch. Sizes come from `TRIAL_SIZES` in `src/lib/config.py` (not a CLI override).
 
 ## Commands
 
 From `benchmark/` (or `make -C benchmark …` from the repo root):
 
 ```
-make execute      # full size matrix (generate + seed + execute)
-make report   # results/raw/ -> phase-timings.csv + figures/
+make execute   # generate + upload + seed + size sweep
+make report    # results/raw/ -> phase-timings.csv + figures/
 ```
 
 From the repo root:
@@ -41,34 +41,30 @@ make execute SKIP=1 REPS=3
 - Docker (arm64) to build the sample algorithm image on first run
 - `uv` (Python); `bun` only for `../seeding` generate/seed invoked by `make execute`
 
-Executors default to `c6g.large`. Keep rads and secure-rads on the same instance type when comparing.
+Executors default to `c6g.large`. Keep rads and secure-rads on the same instance type when comparing. Secure-rads enclave allocation on that size is 1 vCPU / 2048 MiB (parent keeps the other vCPU).
 
 ### Runtime cost
 
 Each rep launches a **fresh EC2 executor**, boots it (~70–90s), runs the job, then terminates it. Wall time is roughly:
 
-`sizes × trees × reps × ~100s`
-
-Examples:
+`len(TRIAL_SIZES) × trees × reps × ~100s`
 
 | Matrix | Launches | Rough wall clock |
 | --- | --- | --- |
-| 10K + 100K, 2 trees, 3 reps | 12 | ~10–15 min |
-| 10K + 100K, 2 trees, 10 reps | 40 | ~1–1.5 h |
-| 10K…100K (5 sizes), 2 trees, 10 reps | 100 | ~3 h |
-| 10K…100K (5 sizes), 2 trees, 3 reps | 30 | ~45–60 min |
+| 5 sizes, 2 trees, 3 reps | 30 | ~45–60 min |
+| 5 sizes, 2 trees, 10 reps | 100 | ~3 h |
 
-Use `make execute REPS=3` while iterating; reserve `REPS=10` for the paper Exp2 runs.
+Use `make execute REPS=3` while iterating; reserve `REPS=10` for paper Exp2 runs.
 
 ## Shared seed data
 
-`make execute` generates once and BatchWrites the **same** `ehealth.json` (100K records) into both trees (rads plaintext; secure-rads envelope-encrypted). Each execute passes `size` so the executor reads only the first N of those rows.
+`make execute` generates once and BatchWrites the **same** `ehealth.json` (100K records) into both trees (rads plaintext; secure-rads envelope-encrypted under a KMS-wrapped DEK). Each execute passes `size` so the executor reads only the first N of those rows.
 
 Use BatchWrite via `seed-rads` / `seed-secure-rads` only. Do not use DynamoDB ImportTable / S3 import for this harness.
 
 ## Run without Make
 
-Defaults in `src/lib/config.py`: sizes `10_000 25_000 50_000 75_000 100_000` (`TRIAL_SIZES`), `--reps 10`, both trees.
+Defaults in `src/lib/config.py`: `TRIAL_SIZES = [10_000, 25_000, 50_000, 75_000, 100_000]`, `--reps 10`, both trees.
 
 ```
 cd benchmark
@@ -85,7 +81,9 @@ uv run python -m execute --skip-generate --skip-seed --reps 3
 | `--skip-generate` | Reuse `seeding/datasets/` |
 | `--skip-seed` | Reuse PDM rows already BatchWritten |
 
-Each finished sweep writes `results/raw/sweep-<unix>.json`. Stdout logs client wall time per rep; phase timings come from the log-service export in `make report`.
+Setup resolves the service catalog once (API Gateway URLs + CSAV registry via live EC2 IP), then: generate (if needed) → parallel algorithm uploads → parallel seeds → serial size×tree×rep execute loop. Logging is loguru via richuru; execute/export loops show tqdm bars.
+
+Each finished sweep writes `results/raw/sweep-<unix>.json`. Phase timings come from the log-service export in `make report`.
 
 Stop early with Ctrl-C (and terminate any leftover `*-execution-service-run` EC2 instances if needed).
 
@@ -106,14 +104,15 @@ Failed reps (`error` set in the raw JSON, or a 500 from PDM) should be dropped o
 | Path | Role |
 | --- | --- |
 | `Makefile` | `execute` / `report` (export + plot) |
-| `src/execute.py` | Generate → upload → seed → execute size sweep |
-| `src/export.py` | Raw JSON + log-service → `results/phase-timings.csv` |
-| `src/plot.py` | CSV → phase / total figures |
-| `src/lib/config.py` | Sizes, algorithm id, CFN stack names |
-| `src/lib/trees/` | Strategy package: ABC + rads / secure-rads concretes |
-| `src/lib/trees/base.py` | `TreeHarness` ABC (shared execute / sample tar; abstract upload) |
-| `src/lib/trees/rads.py` / `secure_rads.py` | Per-tree Strategy concretes (`(TreeHarness)`) |
-| `src/lib/http.py` | Shared httpx helpers |
+| `src/execute.py` | Async setup + serial size sweep |
+| `src/export.py` | Raw JSON + log-service → `phase-timings.csv` |
+| `src/plot.py` | CSV → phase / scaling figures |
+| `src/lib/catalog.py` | Per-tree service catalog (`Service` / `ServiceKind`) |
+| `src/lib/config.py` | Trial constants + `resolve()` (URLs + CFN outputs) |
+| `src/lib/tree.py` | `Tree` StrEnum |
+| `src/lib/trees/` | `TreeHarness` ABC + rads / secure-rads strategies |
+| `src/lib/http.py` | Shared httpx helpers (sync + async) |
+| `src/lib/log.py` | loguru + richuru install |
 | `src/paths.py` | Package / results / repo roots |
-| `results/` | Raw JSON, CSV, figures |
+| `results/` | Raw JSON, `phase-timings.csv`, figures (tracked) |
 | `../seeding/` | Shared generate + BatchWrite seeders |
