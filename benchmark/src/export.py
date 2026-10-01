@@ -12,7 +12,7 @@ from tqdm import tqdm
 from lib import config, http
 from lib.log import logger
 from lib.trees import Tree
-from paths import RAW_DIR, SWEEP_CSV
+from paths import RAW_DIR, PHASE_TIMINGS_CSV
 
 # null endpoints = phase does not apply (rads has no enclave).
 Window = tuple[str | None, str | None]
@@ -125,8 +125,8 @@ def main() -> int:
         *[f"{event}_ts" for event in TIMESTAMP_EVENTS],
     ]
 
-    SWEEP_CSV.parent.mkdir(parents=True, exist_ok=True)
-    with SWEEP_CSV.open("w", newline="") as handle:
+    PHASE_TIMINGS_CSV.parent.mkdir(parents=True, exist_ok=True)
+    with PHASE_TIMINGS_CSV.open("w", newline="") as handle:
         writer = csv.writer(handle)
         writer.writerow(header)
         for row in tqdm(runs, desc="export", unit="run"):
@@ -135,7 +135,7 @@ def main() -> int:
             stamps = [by_event.get(event, "") for event in TIMESTAMP_EVENTS]
             writer.writerow([row["size"], row["tree"], row["rep"], row.get("status") or "", *phases, *stamps])
 
-    logger.info("wrote {} ({} runs)", SWEEP_CSV, len(runs))
+    logger.info("wrote {} ({} runs)", PHASE_TIMINGS_CSV, len(runs))
     return 0
 
 

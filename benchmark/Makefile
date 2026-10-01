@@ -18,7 +18,7 @@ endif
 help:
 	@echo "benchmark targets:"
 	@echo "  make execute     # Exp2 size sweep (override REPS= TREES= SKIP=1)"
-	@echo "  make report  # results/raw/ -> sweep.csv + figures/"
+	@echo "  make report  # results/raw/ -> phase-timings.csv + figures/"
 	@echo ""
 	@echo "examples:"
 	@echo "  make execute"
@@ -32,4 +32,4 @@ execute:
 report:
 	uv run python -m export
 	uv run python -m plot
-	@echo "wrote results/sweep.csv and results/figures/"
+	@echo "wrote results/phase-timings.csv and results/figures/"

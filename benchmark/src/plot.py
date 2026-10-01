@@ -12,7 +12,7 @@ import seaborn as sns
 
 from lib.log import logger
 from lib.tree import Tree
-from paths import FIG_DIR, ROOT, SWEEP_CSV
+from paths import FIG_DIR, PHASE_TIMINGS_CSV, ROOT
 
 PALETTE = {Tree.RADS: "#2E6F95", Tree.SECURE_RADS: "#C8542A"}
 LABELS = {Tree.RADS: "rads (baseline)", Tree.SECURE_RADS: "secure-rads (enclave)"}
@@ -35,10 +35,10 @@ NOTE = (
 
 
 def load() -> pd.DataFrame:
-    if not SWEEP_CSV.exists():
-        logger.error("no sweep CSV at {}; run `make report` (export step) first", SWEEP_CSV)
+    if not PHASE_TIMINGS_CSV.exists():
+        logger.error("no phase timings CSV at {}; run `make report` (export step) first", PHASE_TIMINGS_CSV)
         raise SystemExit(1)
-    df = pd.read_csv(SWEEP_CSV)
+    df = pd.read_csv(PHASE_TIMINGS_CSV)
     cols = [*PHASES, "total_s"]
     df[cols] = df[cols].apply(pd.to_numeric, errors="coerce")
     df["dataset_size"] = df["dataset_size"].astype(int)

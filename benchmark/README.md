@@ -10,7 +10,7 @@ From `benchmark/` (or `make -C benchmark …` from the repo root):
 
 ```
 make execute      # full size matrix (generate + seed + execute)
-make report   # results/raw/ -> sweep.csv + figures/
+make report   # results/raw/ -> phase-timings.csv + figures/
 ```
 
 From the repo root:
@@ -95,7 +95,7 @@ Stop early with Ctrl-C (and terminate any leftover `*-execution-service-run` EC2
 make report
 ```
 
-Writes `results/sweep.csv` plus `results/figures/sweep-phases.png` and `sweep-scaling.png`.
+Writes `results/phase-timings.csv` plus `results/figures/sweep-phases.png` and `sweep-scaling.png`.
 
 `python -m export` reads **every** `results/raw/sweep-*.json`. To export one sweep only, temporarily move the other raw files aside, run `make report`, then move them back.
 
@@ -107,7 +107,7 @@ Failed reps (`error` set in the raw JSON, or a 500 from PDM) should be dropped o
 | --- | --- |
 | `Makefile` | `execute` / `report` (export + plot) |
 | `src/execute.py` | Generate → upload → seed → execute size sweep |
-| `src/export.py` | Raw JSON + log-service → `results/sweep.csv` |
+| `src/export.py` | Raw JSON + log-service → `results/phase-timings.csv` |
 | `src/plot.py` | CSV → phase / total figures |
 | `src/lib/config.py` | Sizes, algorithm id, CFN stack names |
 | `src/lib/trees/` | Strategy package: ABC + rads / secure-rads concretes |
