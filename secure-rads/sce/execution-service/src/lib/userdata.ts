@@ -13,6 +13,7 @@ export interface UserDataValues {
   s3Key: string;
   verifierHost: string;
   queueUrl: string;
+  size?: number;
 }
 
 export function userData(values: UserDataValues): string {
@@ -27,6 +28,7 @@ export function userData(values: UserDataValues): string {
     RunId: values.runId,
     S3Bucket: values.s3Bucket,
     S3Key: values.s3Key,
+    Size: (values.size ?? 0).toString(),
     VerifierHost: values.verifierHost,
   };
 

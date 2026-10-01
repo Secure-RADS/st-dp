@@ -1,4 +1,5 @@
-.PHONY: up down status secure-rads rads logs csav-key csav-deploy csav-destroy csav-status csav-up csav-down csav-ssh
+.PHONY: up down status secure-rads rads logs csav-key csav-deploy csav-destroy csav-status csav-up csav-down csav-ssh \
+	benchmark benchmark-report benchmark-seed benchmark-run
 
 up:
 	$(MAKE) secure-rads-ready
@@ -16,6 +17,18 @@ secure-rads:
 
 rads:
 	$(MAKE) rads-all
+
+benchmark:
+	$(MAKE) -C benchmark all
+
+benchmark-report:
+	$(MAKE) -C benchmark report
+
+benchmark-seed:
+	$(MAKE) -C benchmark seed
+
+benchmark-run:
+	$(MAKE) -C benchmark run
 
 logs:
 	@set -u; \

@@ -228,6 +228,7 @@ const GENERATORS: Record<string, (index: number, count: number) => object> = {
 };
 
 mkdirSync(OUT_DIR, { recursive: true });
+
 for (const { name, algorithmId, count, seed } of DATASETS) {
   const gen = GENERATORS[name];
   faker.seed(seed);

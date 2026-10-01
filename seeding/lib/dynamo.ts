@@ -1,14 +1,25 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { BatchWriteCommand, DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+import { NodeHttpHandler } from "@smithy/node-http-handler";
 import pMap from "p-map";
 
 const BATCH_SIZE = 25;
-const MAX_RETRIES = 8;
-// Every dataset writes to one partition key, so keep concurrency low; throttled requests are retried below.
-const CONCURRENCY = 5;
+const MAX_RETRIES = 16;
+const CONCURRENCY = Math.max(1, Number(process.env.SEED_WRITE_CONCURRENCY ?? 40));
 
 export function documentClient(region: string): DynamoDBDocumentClient {
-  return DynamoDBDocumentClient.from(new DynamoDBClient({ region }));
+  return DynamoDBDocumentClient.from(
+    new DynamoDBClient({
+      region,
+      maxAttempts: 3,
+      requestHandler: new NodeHttpHandler({
+        connectionTimeout: 5_000,
+        requestTimeout: 30_000,
+        throwOnRequestTimeout: true,
+        socketTimeout: 30_000,
+      }),
+    }),
+  );
 }
 
 export function batch(items: Record<string, unknown>[]): Record<string, unknown>[][] {
@@ -22,28 +33,33 @@ export function batch(items: Record<string, unknown>[]): Record<string, unknown>
 export async function writeAll(
   client: DynamoDBDocumentClient,
   table: string,
-  name: string,
+  _name: string,
   batches: Record<string, unknown>[][],
-): Promise<void> {
-  const total = batches.reduce((n, b) => n + b.length, 0);
-  let written = 0;
-  let nextLog = 1000;
-  await pMap(
+): Promise<number> {
+  const counts = await pMap(
     batches,
     async (items) => {
       await writeBatch(client, table, items);
-      written += items.length;
-      if (written >= nextLog || written === total) {
-        console.log(`${name}: ${written}/${total}`);
-        nextLog = written + 1000;
-      }
+      return items.length;
     },
     { concurrency: CONCURRENCY },
   );
+  return counts.reduce((sum, n) => sum + n, 0);
 }
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryable(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return (
+    error.name === "ThrottlingException" ||
+    error.name === "ProvisionedThroughputExceededException" ||
+    error.name === "RequestLimitExceeded" ||
+    error.name === "TimeoutError" ||
+    /throughput|throttl|timeout/i.test(error.message)
+  );
 }
 
 async function writeBatch(
@@ -57,13 +73,13 @@ async function writeBatch(
       throw new Error(`giving up after ${MAX_RETRIES} retries with ${requests.length} unprocessed items`);
     }
     if (attempt > 0) {
-      await sleep(100 * 2 ** attempt);
+      await sleep(Math.min(2000, 40 * 2 ** attempt));
     }
     try {
       const out = await client.send(new BatchWriteCommand({ RequestItems: { [table]: requests } }));
       requests = (out.UnprocessedItems?.[table] ?? []) as typeof requests;
     } catch (error) {
-      if (error instanceof Error && error.name === "ThrottlingException") continue;
+      if (isRetryable(error)) continue;
       throw error;
     }
   }

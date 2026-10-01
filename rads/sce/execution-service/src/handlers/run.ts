@@ -5,6 +5,7 @@ import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { requiredEnv } from "../lib/env.js";
 import { logEvent } from "../lib/events.js";
+import { countAlgorithmRecords } from "../lib/pdmCount.js";
 import { userData } from "../lib/userdata.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -14,6 +15,7 @@ const runResultsTable = requiredEnv("RUN_RESULTS_TABLE");
 const runResultsQueueUrl = requiredEnv("RUN_RESULTS_QUEUE_URL");
 const logEventsQueueUrl = requiredEnv("LOG_EVENTS_QUEUE_URL");
 const pdmUrl = requiredEnv("PDM_URL");
+const pdmTable = requiredEnv("PDM_TABLE");
 const executorAmiId = requiredEnv("EXECUTOR_AMI_ID");
 const executorInstanceType = requiredEnv("EXECUTOR_INSTANCE_TYPE") as RunInstancesCommandInput["InstanceType"];
 const executorSecurityGroupId = requiredEnv("EXECUTOR_SECURITY_GROUP_ID");
@@ -22,6 +24,7 @@ const region = requiredEnv("AWS_REGION");
 
 interface RunRequest {
   algorithmId: string;
+  size?: number;
 }
 
 interface AlgorithmRecord {
@@ -47,8 +50,12 @@ function parseRunRequest(body: string | undefined): RunRequest | undefined {
   try {
     const parsed: unknown = JSON.parse(body ?? "");
     if (typeof parsed !== "object" || parsed === null) return undefined;
-    const algorithmId = (parsed as Record<string, unknown>).algorithmId;
-    return typeof algorithmId === "string" && algorithmId.length > 0 ? { algorithmId } : undefined;
+    const { algorithmId, size } = parsed as Record<string, unknown>;
+    if (typeof algorithmId !== "string" || algorithmId.length === 0) return undefined;
+    if (size !== undefined && (typeof size !== "number" || !Number.isInteger(size) || size <= 0)) {
+      return undefined;
+    }
+    return size === undefined ? { algorithmId } : { algorithmId, size };
   } catch {
     return undefined;
   }
@@ -65,6 +72,15 @@ export const create: APIGatewayProxyHandlerV2 = async (event) => {
     );
     const record = algorithm.Item as AlgorithmRecord | undefined;
     if (!record?.Bucket || !record.Key) return jsonResponse(404, { error: "algorithm not found" });
+
+    if (request.size !== undefined) {
+      const available = await countAlgorithmRecords(ddb, pdmTable, request.algorithmId);
+      if (request.size > available) {
+        return jsonResponse(400, {
+          error: `size ${request.size} exceeds seeded dataset (${available} records)`,
+        });
+      }
+    }
 
     runId = randomUUID();
     await logEvent(request.algorithmId, runId, "run-requested");
@@ -86,6 +102,7 @@ export const create: APIGatewayProxyHandlerV2 = async (event) => {
             runResultsQueueUrl,
             s3Bucket: record.Bucket,
             s3Key: record.Key,
+            size: request.size,
           }),
         ).toString("base64"),
         TagSpecifications: [

@@ -4,7 +4,7 @@ import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { requiredEnv } from "../lib/env.js";
 import { jsonResponse, parseBody } from "../lib/http.js";
-import { emitAlgorithmRegistered } from "../lib/log.js";
+import { emitAlgorithmRegistered, emitImageUploaded } from "../lib/log.js";
 import { algorithmRequestSchema } from "../lib/schema.js";
 
 const s3 = new S3Client({});
@@ -29,6 +29,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     throw error;
   }
 
+  await emitImageUploaded(algorithmId, bucket, key);
   await ddb.send(new PutCommand({ TableName: table, Item: { AlgorithmId: algorithmId, Bucket: bucket, Key: key } }));
   await emitAlgorithmRegistered(algorithmId, bucket, key);
 

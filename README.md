@@ -37,6 +37,7 @@ Sample assets:
 
 - [`secure-rads/samples/`](secure-rads/samples/README.md) - five reference Data Controller apps (one per context), each pinned to a fixed `algorithmId`.
 - [`seeding/`](seeding/README.md) - generates and seeds the five context datasets into the PDM table.
+- [`benchmark/`](benchmark/README.md) - Exp1/Exp2 size sweep (rads vs secure-rads). `make benchmark` / `make benchmark-report`; see that README for overrides.
 
 ## Working with an existing environment
 
@@ -59,6 +60,8 @@ make secure-rads-ready                     # start and verify the CSAV host
 make secure-rads-build-all                 # build and register all samples
 make secure-rads-seed                      # generate and seed all datasets
 make secure-rads-run-all                   # run all samples
+make benchmark                             # Exp2 size sweep (override REPS= SIZES= …)
+make benchmark-report                      # export sweep CSV + figures
 make logs                           # tail the CSAV host and all Lambda logs
 make registry-logs                  # tail the CSAV registry service
 make sce-logs                       # tail the execution-service Lambda

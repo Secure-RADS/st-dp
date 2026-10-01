@@ -23,6 +23,9 @@ provider:
             - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${param:algorithmTable}"
             - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${param:runResultsTable}"
         - Effect: Allow
+          Action: dynamodb:Query
+          Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${param:pdmTable}"
+        - Effect: Allow
           Action: ec2:RunInstances
           Resource:
             - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*"
@@ -48,9 +51,10 @@ provider:
     ENCLAVE_INSTANCE_TYPE: ${param:enclaveInstanceType, 'c6g.large'}
     ENCLAVE_SECURITY_GROUP_ID: !Ref EnclaveHostSecurityGroup
     ENCLAVE_INSTANCE_PROFILE_ARN: !GetAtt EnclaveHostInstanceProfile.Arn
-    VERIFIER_HOST: ${param:verifierHost, 'verifier-attest.secure-rads.org'}
-    PDM_HOST: ${param:pdmHost, 'pdm.secure-rads.org'}
-    LOG_HOST: ${param:logHost, 'log.secure-rads.org'}
+    VERIFIER_HOST: ${param:verifierHost, 'verifier-attest.sr.secure-rads.org'}
+    PDM_HOST: ${param:pdmHost, 'pdm.sr.secure-rads.org'}
+    PDM_TABLE: ${param:pdmTable}
+    LOG_HOST: ${param:logHost, 'log.sr.secure-rads.org'}
 
 functions:
   run:

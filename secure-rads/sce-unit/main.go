@@ -35,23 +35,25 @@ const (
 func main() {
 	log.Printf("sce-unit: starting up")
 
+	cfg, err := loadRunConfig()
+	if err != nil {
+		log.Fatalf("sce-unit: load run config: %v", err)
+	}
+	info := readRunInfo()
+	runID := info.RunID
+	logEvent(cfg, runID, eventEnclaveStarted, nil)
+
 	// Must run before any crypto/rand use (attestation, TLS) - see entropy.go.
 	if err := seedEntropy(); err != nil {
 		log.Printf("sce-unit: seed entropy: %v", err)
 	} else {
 		log.Printf("sce-unit: seeded kernel entropy from NSM")
 	}
-
-	cfg, err := loadRunConfig()
-	if err != nil {
-		log.Fatalf("sce-unit: load run config: %v", err)
-	}
-	runID := readRunID()
-	logEvent(cfg, runID, eventEnclaveStarted, nil)
+	logEvent(cfg, runID, eventUnitReady, nil)
 
 	// Attest and fetch the data before nsjail starts - the DC app can't run without its records, and starting
 	// the jail only to leave it blocked on a connection that never comes would hang the whole enclave.
-	payload, err := prepareDCPayload(cfg, runID)
+	payload, err := prepareDCPayload(cfg, runID, info.Size)
 	if err != nil {
 		log.Printf("sce-unit: %v", err)
 		logEvent(cfg, runID, eventRunFailed, map[string]any{"error": err.Error()})
@@ -107,7 +109,7 @@ func main() {
 
 // prepareDCPayload attests, fetches this algorithm's records from pdm-service, and returns the single JSON
 // line handed to the DC app over its socket.
-func prepareDCPayload(cfg runConfig, runID string) ([]byte, error) {
+func prepareDCPayload(cfg runConfig, runID string, limit int) ([]byte, error) {
 	tp, err := attest(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("attestation failed: %w", err)
@@ -122,7 +124,7 @@ func prepareDCPayload(cfg runConfig, runID string) ([]byte, error) {
 		return nil, fmt.Errorf("fetch AWS creds: %w", err)
 	}
 
-	records, encDataKey, err := fetchAllRecords(cfg, tp.AccessToken, runID)
+	records, encDataKey, err := fetchAllRecords(cfg, runID, limit)
 	if err != nil {
 		return nil, fmt.Errorf("fetch records: %w", err)
 	}
@@ -146,9 +148,10 @@ func prepareDCPayload(cfg runConfig, runID string) ([]byte, error) {
 		plainRecords = append(plainRecords, pdmRecord{RecordId: rec.RecordId, Data: plain})
 	}
 	log.Printf("sce-unit: decrypted %d records", len(plainRecords))
+	logEvent(cfg, runID, eventDataDecrypted, nil)
 
 	payload, err := json.Marshal(struct {
-		AlgorithmId string            `json:"algorithmId"`
+		AlgorithmId string      `json:"algorithmId"`
 		Records     []pdmRecord `json:"records"`
 	}{AlgorithmId: cfg.AlgorithmId, Records: plainRecords})
 	if err != nil {

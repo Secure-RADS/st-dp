@@ -21,6 +21,7 @@ export interface UserDataValues {
   runResultsQueueUrl: string;
   s3Bucket: string;
   s3Key: string;
+  size?: number;
 }
 
 export function userData(values: UserDataValues): string {
@@ -34,6 +35,7 @@ export function userData(values: UserDataValues): string {
     RunResultsQueueUrl: values.runResultsQueueUrl,
     S3Bucket: values.s3Bucket,
     S3Key: values.s3Key,
+    Size: values.size?.toString() ?? "",
   };
 
   return Object.entries(replacements).reduce(

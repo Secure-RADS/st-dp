@@ -37,35 +37,44 @@ cpu_count: {{.CPUCount}}
 EOF
 systemctl enable --now nitro-enclaves-allocator
 
+# Checkpoint: the host is provisioned (boot + nitro tooling), before the artifact is pulled.
+curl -sS -X POST "https://{{.LogHost}}/events" -H 'content-type: application/json' \
+  -d "{\"algorithmId\":\"{{.AlgorithmId}}\",\"runId\":\"{{.RunId}}\",\"event\":\"executor-ready\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" >/dev/null || true
+
 mkdir -p /opt/eif
 aws s3 cp "s3://{{.S3Bucket}}/{{.S3Key}}" /opt/eif/app.eif --region "{{.Region}}"
+
+# Checkpoint: the algorithm artifact (EIF) is now on the host, before the enclave is launched.
+curl -sS -X POST "https://{{.LogHost}}/events" -H 'content-type: application/json' \
+  -d "{\"algorithmId\":\"{{.AlgorithmId}}\",\"runId\":\"{{.RunId}}\",\"event\":\"artifact-retrieved\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" >/dev/null || true
 
 # sce-unit connects back to the parent (CID 3) on port 5000 and streams the DC app's output; one connection per run.
 python3 - <<'PYEOF' &
 import socket
 s = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
-s.settimeout(600)
+s.settimeout(3600)
 s.bind((socket.VMADDR_CID_ANY, 5000))
 s.listen(1)
 conn, _ = s.accept()
-conn.settimeout(600)
+conn.settimeout(3600)
 with open("/tmp/output.txt", "wb") as f:
     while chunk := conn.recv(65536):
         f.write(chunk)
 PYEOF
 OUTPUT_LISTENER_PID=$!
 
-# Serve this run's runId to the enclave on port 5001 - the enclave takes no user-data, so it has no other way
-# to learn the per-run id (the EIF only carries per-algorithm config).
+# Serve this run's id and record limit to the enclave on port 5001 - the enclave takes no user-data, so it
+# has no other way to learn the per-run id or how many records to read (the EIF carries per-algorithm config).
 python3 - <<'PYEOF' &
-import socket
+import json, socket
 s = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
 s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 s.bind((socket.VMADDR_CID_ANY, 5001))
 s.listen(5)
+body = json.dumps({"runId": "{{.RunId}}", "size": {{.Size}}}).encode()
 while True:
     conn, _ = s.accept()
-    conn.sendall(b"{{.RunId}}")
+    conn.sendall(body)
     conn.close()
 PYEOF
 

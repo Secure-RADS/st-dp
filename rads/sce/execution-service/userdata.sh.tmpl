@@ -11,6 +11,23 @@ REGION="{{.Region}}"
 PDM_URL="{{.PdmUrl}}"
 RUN_RESULTS_QUEUE="{{.RunResultsQueueUrl}}"
 LOG_EVENTS_QUEUE="{{.LogEventsQueueUrl}}"
+# Record count for this run; empty means the whole dataset.
+SIZE="{{.Size}}"
+
+# Emit one run-timeline checkpoint onto the log queue. Best-effort: logging must never fail the run.
+emit_event() {
+  python3 - "$ALGORITHM_ID" "$RUN_ID" "$1" > /tmp/checkpoint.json <<'PYEOF'
+import datetime, json, sys
+algorithm_id, run_id, event = sys.argv[1:4]
+print(json.dumps({
+    "algorithmId": algorithm_id,
+    "runId": run_id,
+    "event": event,
+    "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+}))
+PYEOF
+  aws sqs send-message --queue-url "$LOG_EVENTS_QUEUE" --message-body file:///tmp/checkpoint.json --region "$REGION" || true
+}
 
 # Host paths, bind-mounted into the container at /data.
 RUN_DIR=/opt/rads/run
@@ -40,14 +57,11 @@ trap finish EXIT
 dnf install -y docker awscli >/dev/null
 systemctl enable --now docker
 for attempt in 1 2 3 4 5 6; do docker info >/dev/null 2>&1 && break; sleep 5; done
+emit_event executor-ready
 
 mkdir -p "$RUN_DIR"
 
-# Download the algorithm's full record set before the app starts, so the DC app reads a local file.
-python3 - "$PDM_URL" "$ALGORITHM_ID" "$RECORDS_FILE" "$RUN_ID" <<'PYEOF'
-{{.FetchRecordsScript}}
-PYEOF
-
+# Pull the algorithm artifact first, so the run steps follow the same order as secure-rads (artifact, data, compute).
 aws s3 cp "s3://$S3_BUCKET/$S3_KEY" /tmp/app.tar --region "$REGION"
 docker load < /tmp/app.tar > "$DOCKER_LOAD_LOG"
 IMAGE=$(tail -n 1 "$DOCKER_LOAD_LOG" | sed -n 's/^Loaded image: //p')
@@ -55,6 +69,14 @@ if [ -z "$IMAGE" ]; then
   echo "could not determine loaded image" >&2
   exit 1
 fi
+emit_event artifact-retrieved
+
+# Download the algorithm's full record set before the app starts, so the DC app reads a local file.
+python3 - "$PDM_URL" "$ALGORITHM_ID" "$RECORDS_FILE" "$RUN_ID" "$SIZE" <<'PYEOF'
+{{.FetchRecordsScript}}
+PYEOF
+emit_event records-fetched
 
 # The app reads /data/records.json and writes /data/result.json; stdout is the diagnostic fallback.
 docker run --rm -v "$RUN_DIR:/data" -e RECORDS_PATH=/data/records.json -e RESULT_PATH=/data/result.json "$IMAGE" > "$OUTPUT_FILE"
+emit_event compute-completed

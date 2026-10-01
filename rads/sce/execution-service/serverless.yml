@@ -13,7 +13,7 @@ package:
 
 provider:
   name: aws
-  runtime: nodejs20.x
+  runtime: nodejs24.x
   region: ${param:region, 'ap-southeast-2'}
   iam:
     role:
@@ -23,6 +23,9 @@ provider:
           Resource:
             - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${param:algorithmTable}"
             - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${param:runResultsTable}"
+        - Effect: Allow
+          Action: dynamodb:Query
+          Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${param:pdmTable}"
         - Effect: Allow
           Action: ec2:RunInstances
           Resource:
@@ -50,6 +53,7 @@ provider:
     RUN_RESULTS_QUEUE_URL: ${param:runResultsQueueUrl}
     LOG_EVENTS_QUEUE_URL: ${param:logEventsQueueUrl}
     PDM_URL: ${param:pdmUrl}
+    PDM_TABLE: ${param:pdmTable}
     EXECUTOR_AMI_ID: ${param:amiId}
     EXECUTOR_INSTANCE_TYPE: ${param:instanceType, 'c6g.large'}
     EXECUTOR_SECURITY_GROUP_ID: !Ref ExecutorSecurityGroup

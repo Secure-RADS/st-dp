@@ -8,13 +8,11 @@ Each app is pinned to the fixed `algorithmId` its dataset is seeded under (see `
 | --- | --- | --- | --- | --- |
 | `health-risk-python` | Python (stdlib) | health / wearable | health | `662fa378-dc53-425d-9225-a187b11ea7dc` |
 | `spend-analysis-go` | Go (stdlib) | finance / banking | finance | `c7cc14fa-e962-4548-aff4-a54148798cd8` |
-| `product-trends-bun` | TypeScript (Bun) | e-commerce | ecommerce | `3b8bba4a-8106-4309-9446-7bce99a1453a` |
+| `product-trends-node` | Node (`node:fs`) | e-commerce | ecommerce | `3b8bba4a-8106-4309-9446-7bce99a1453a` |
 | `audience-segments-rust` | Rust (serde_json) | social media | social | `e4082659-08d6-4f0a-9e60-327e9410c710` |
 | `trial-eligibility-python` | Python (pydantic) | e-health / records | ehealth | `e587067e-47dc-4835-8f87-5e66fc979adf` |
 
 Each app's own README documents its exact input shape and the report it returns.
-
-`registry-oci/` is not part of the fleet: it is a diagnostic image that reports its own runtime permissions inside the jail (used to verify the nsjail sandbox), not bound to any dataset.
 
 ## Build one
 

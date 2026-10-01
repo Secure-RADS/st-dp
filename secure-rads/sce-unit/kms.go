@@ -75,6 +75,7 @@ func vsockKMSHTTPClient(region string) *http.Client {
 	endpoint := fmt.Sprintf("kms.%s.amazonaws.com", region)
 	return &http.Client{
 		Transport: &http.Transport{
+			DisableKeepAlives: true,
 			DialTLSContext: func(ctx context.Context, _ string, _ string) (net.Conn, error) {
 				conn, err := dialVsock(ctx, hostCID, kmsProxyPort)
 				if err != nil {
