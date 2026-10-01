@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import subprocess
 
-from lib.catalog import CATALOG, Service, ServiceKind
+from lib.catalog import ApiGatewayService, CATALOG, Ec2HttpService, ServiceKind
 from lib.tree import Tree
 
 REGION = "ap-southeast-2"
@@ -58,7 +58,7 @@ def _api_gateway_url(outputs: dict[str, str]) -> str:
     return f"https://{domain}"
 
 
-def _ec2_http_url(service: Service, outputs: dict[str, str]) -> str:
+def _ec2_http_url(service: Ec2HttpService, outputs: dict[str, str]) -> str:
     # Stack public-IP output goes stale across stop/start; read the instance itself.
     instance_id = outputs.get(service.instance_id_key, "")
     if not instance_id:
@@ -82,7 +82,7 @@ def _ec2_http_url(service: Service, outputs: dict[str, str]) -> str:
     return f"{service.scheme}://{ip}:{service.port}"
 
 
-def _service_url(service: Service, outputs: dict[str, str]) -> str:
+def _service_url(service: ApiGatewayService | Ec2HttpService, outputs: dict[str, str]) -> str:
     if service.kind is ServiceKind.API_GATEWAY:
         return _api_gateway_url(outputs)
     if service.kind is ServiceKind.EC2_HTTP:

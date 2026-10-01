@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from lib.tree import Tree
 
@@ -12,34 +13,49 @@ class ServiceKind(StrEnum):
     EC2_HTTP = "ec2_http"
 
 
-class Service(BaseModel):
+class ApiGatewayService(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    kind: ServiceKind
+    kind: Literal[ServiceKind.API_GATEWAY] = ServiceKind.API_GATEWAY
     stack: str
-    # EC2_HTTP: CFN output that holds the instance id; URL is built from the live public IP.
-    instance_id_key: str = "CsavInstanceId"
-    port: int = 8080
-    scheme: str = "http"
     # False for stacks that only expose CFN outputs (e.g. Dynamo table names), not an HTTP API.
     has_url: bool = True
 
 
+class Ec2HttpService(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    kind: Literal[ServiceKind.EC2_HTTP] = ServiceKind.EC2_HTTP
+    stack: str
+    # CFN output that holds the instance id; URL is built from the live public IP.
+    instance_id_key: str
+    port: int
+    scheme: str
+    has_url: bool = True
+
+
+Service = Annotated[ApiGatewayService | Ec2HttpService, Field(discriminator="kind")]
+
+
 # Per-tree service catalog. Resolve once at flow start; no one-off include_* flags.
-CATALOG: dict[Tree, dict[str, Service]] = {
+CATALOG: dict[Tree, dict[str, ApiGatewayService | Ec2HttpService]] = {
     Tree.RADS: {
-        "registry": Service(kind=ServiceKind.API_GATEWAY, stack="rads-registry-service-dev"),
-        "pdm": Service(kind=ServiceKind.API_GATEWAY, stack="rads-pdm-service-dev"),
-        "execution": Service(kind=ServiceKind.API_GATEWAY, stack="rads-execution-service-dev"),
-        "log": Service(kind=ServiceKind.API_GATEWAY, stack="rads-log-service-dev"),
+        "registry": ApiGatewayService(stack="rads-registry-service-dev"),
+        "pdm": ApiGatewayService(stack="rads-pdm-service-dev"),
+        "execution": ApiGatewayService(stack="rads-execution-service-dev"),
+        "log": ApiGatewayService(stack="rads-log-service-dev"),
     },
     Tree.SECURE_RADS: {
-        "registry": Service(kind=ServiceKind.EC2_HTTP, stack="secure-rads-csav"),
-        "pdm": Service(kind=ServiceKind.API_GATEWAY, stack="secure-rads-pdm-service-dev"),
-        "execution": Service(kind=ServiceKind.API_GATEWAY, stack="secure-rads-execution-service-dev"),
-        "log": Service(kind=ServiceKind.API_GATEWAY, stack="secure-rads-log-service-dev"),
-        "registry_storage": Service(
-            kind=ServiceKind.API_GATEWAY,
+        "registry": Ec2HttpService(
+            stack="secure-rads-csav",
+            instance_id_key="CsavInstanceId",
+            port=8080,
+            scheme="http",
+        ),
+        "pdm": ApiGatewayService(stack="secure-rads-pdm-service-dev"),
+        "execution": ApiGatewayService(stack="secure-rads-execution-service-dev"),
+        "log": ApiGatewayService(stack="secure-rads-log-service-dev"),
+        "registry_storage": ApiGatewayService(
             stack="secure-rads-registry-service-storage",
             has_url=False,
         ),
