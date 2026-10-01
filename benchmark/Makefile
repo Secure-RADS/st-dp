@@ -36,5 +36,5 @@ run:
 
 report:
 	uv run python -m export
-	uv run python -m sweep
+	uv run python -m plot
 	@echo "wrote results/sweep.csv and results/figures/"

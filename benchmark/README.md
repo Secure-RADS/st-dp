@@ -113,7 +113,7 @@ Failed reps (`error` set in the raw JSON, or a 500 from PDM) should be dropped o
 | `Makefile` | `run` / `report` |
 | `src/run.py` | Generate → upload algorithm → seed → execute sweep |
 | `src/export.py` | Raw JSON + log-service → `results/sweep.csv` |
-| `src/sweep.py` | CSV → phase / total figures |
+| `src/plot.py` | CSV → phase / total figures |
 | `src/lib/config.py` | Sizes, algorithm id, CFN stack names |
 | `src/lib/trees/` | Strategy package: ABC + rads / secure-rads concretes |
 | `src/lib/trees/base.py` | `TreeHarness` ABC (shared build/execute; abstract upload) |
