@@ -115,9 +115,10 @@ Failed reps (`error` set in the raw JSON, or a 500 from PDM) should be dropped o
 | `src/export.py` | Raw JSON + log-service → `results/sweep.csv` |
 | `src/sweep.py` | CSV → phase / total figures |
 | `src/lib/config.py` | Sizes, algorithm id, CFN stack names |
-| `src/lib/trees.py` | Strategy Protocol + factory (`harness_for`) |
-| `src/lib/rads.py` / `secure_rads.py` | Per-tree Strategy concretes |
-| `src/lib/sample_tar.py` | Shared docker build/save for sample tars |
+| `src/lib/trees/` | Strategy package: ABC + rads / secure-rads concretes |
+| `src/lib/trees/base.py` | `TreeHarness` ABC (shared build/execute; abstract upload) |
+| `src/lib/trees/rads.py` / `secure_rads.py` | Per-tree Strategy concretes (`(TreeHarness)`) |
+| `src/lib/trees/sample_tar.py` | Shared docker build/save for sample tars |
 | `src/lib/http.py` | Shared HTTP + execute poll |
 | `src/paths.py` | Package / results / repo roots |
 | `results/` | Raw JSON, CSV, figures (gitignored outputs) |

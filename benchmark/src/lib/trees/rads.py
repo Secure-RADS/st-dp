@@ -1,26 +1,19 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from lib import http
-from lib.sample_tar import build_sample_tar
+from lib.trees.base import TreeHarness
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 
-class RadsHarness:
+class RadsHarness(TreeHarness):
     """Strategy concrete: classic RADS registry (presign + register) + execution."""
 
-    name = "rads"
-
-    def __init__(self, registry_url: str, execution_url: str) -> None:
-        self._registry = registry_url
-        self._execution = execution_url
-
-    def build_tar(self) -> Path:
-        return build_sample_tar(self.name)
+    name: ClassVar[str] = "rads"
 
     def upload(self, algorithm_id: str, tar_path: Path) -> None:
         status, body = http.request(
@@ -47,6 +40,3 @@ class RadsHarness:
             headers={"Content-Type": "application/json"},
         )
         http.require(status, http.HTTP_OK, "/register", body)
-
-    def execute(self, algorithm_id: str, size: int) -> tuple[str, str, str]:
-        return http.execute_run(self._execution, algorithm_id, size)

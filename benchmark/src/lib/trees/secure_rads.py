@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from lib import http
-from lib.sample_tar import build_sample_tar
+from lib.trees.base import TreeHarness
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -11,17 +11,10 @@ if TYPE_CHECKING:
 MULTIPART_BOUNDARY = "----benchmarkboundary7d9f3a"
 
 
-class SecureRadsHarness:
+class SecureRadsHarness(TreeHarness):
     """Strategy concrete: CSAV registry multipart upload + secure-rads execution."""
 
-    name = "secure-rads"
-
-    def __init__(self, registry_url: str, execution_url: str) -> None:
-        self._registry = registry_url
-        self._execution = execution_url
-
-    def build_tar(self) -> Path:
-        return build_sample_tar(self.name)
+    name: ClassVar[str] = "secure-rads"
 
     def upload(self, algorithm_id: str, tar_path: Path) -> None:
         head = (
@@ -41,6 +34,3 @@ class SecureRadsHarness:
             headers={"Content-Type": f"multipart/form-data; boundary={MULTIPART_BOUNDARY}"},
         )
         http.require(status, http.HTTP_OK, "/upload", body)
-
-    def execute(self, algorithm_id: str, size: int) -> tuple[str, str, str]:
-        return http.execute_run(self._execution, algorithm_id, size)
