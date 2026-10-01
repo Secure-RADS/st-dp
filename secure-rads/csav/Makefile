@@ -44,7 +44,7 @@ key:
 
 # Inject docker-compose.yml + csav-registry.service into UserData (single source of truth).
 render-cfn:
-	python3 render_cfn.py --out $(RENDERED_CFN)
+	python3 scripts/render_cfn.py --out $(RENDERED_CFN)
 
 deploy: render-cfn
 	aws cloudformation deploy \

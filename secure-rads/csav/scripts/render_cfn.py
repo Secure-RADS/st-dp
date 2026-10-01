@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""Render cloudformation.yaml with UserData from userdata.sh.tmpl + repo compose/unit files."""
 
 from __future__ import annotations
 
 import argparse
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parent
+HERE = Path(__file__).resolve().parent.parent
+
 PLACEHOLDER = "          @@USERDATA@@"
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser()
     parser.add_argument(
         "--out",
         type=Path,

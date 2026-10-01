@@ -11,7 +11,7 @@ chmod +x /usr/local/bin/docker-compose
 ln -s /usr/local/bin/docker-compose /usr/libexec/docker/cli-plugins/docker-compose 2>/dev/null || \
   (mkdir -p /usr/libexec/docker/cli-plugins && ln -s /usr/local/bin/docker-compose /usr/libexec/docker/cli-plugins/docker-compose)
 
-# Compose + unit are injected at `make deploy` from repo files (see render_cfn.py).
+# Compose + unit are injected at `make deploy` from repo files (see scripts/render_cfn.py).
 install -d -o ec2-user -g ec2-user /home/ec2-user/registry-service
 cat > /home/ec2-user/registry-service/docker-compose.yml <<'COMPOSE'
 @@DOCKER_COMPOSE@@
