@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import subprocess
 
-from lib.catalog import ApiGatewayService, CATALOG, Ec2HttpService, ServiceKind
+from lib.catalog import CATALOG, ApiGatewayService, Ec2HttpService, ServiceKind
 from lib.tree import Tree
 
 REGION = "ap-southeast-2"
