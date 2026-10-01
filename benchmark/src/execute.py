@@ -3,18 +3,22 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import os
 import subprocess
 import time
 
+import httpx
 from pydantic import BaseModel
 from tqdm import tqdm
 
-from lib import config
+from lib import config, http
 from lib.log import logger
 from lib.trees import Tree, TreeHarness, harness_for
 from paths import RAW_DIR, REPO_ROOT
+
+SeedOutputs = dict[Tree, dict[str, dict[str, str]]]
 
 
 class Result(BaseModel):
@@ -35,21 +39,23 @@ def generate() -> None:
     subprocess.run(["bun", "run", "generate"], check=True, cwd=REPO_ROOT / "seeding")
 
 
-def seed(tree: Tree, dataset: str) -> None:
-    env = {
-        "RADS_PDM_TABLE": config.stack_outputs(config.STACKS[Tree.RADS]["pdm"]).get("PersonalDataTableName", ""),
-        "PDM_TABLE": config.stack_outputs(config.STACKS[Tree.SECURE_RADS]["pdm"]).get("PersonalDataTableName", ""),
-        "DATA_KEY_TABLE": config.stack_outputs(config.STACKS[Tree.SECURE_RADS]["pdm"]).get("DataKeyTableName", ""),
-        "ALGORITHM_TABLE": config.stack_outputs("secure-rads-registry-service-storage").get("AlgorithmTableName", ""),
-        "AWS_REGION": config.REGION,
-        "SEED_DATASET": dataset,
-    }
-    subprocess.run(["bun", "install"], check=True, cwd=REPO_ROOT / "seeding")
+def _seed_env(tree: Tree, outputs: SeedOutputs, dataset: str) -> dict[str, str]:
+    env = {"AWS_REGION": config.REGION, "SEED_DATASET": dataset}
+    if tree is Tree.RADS:
+        env["RADS_PDM_TABLE"] = outputs[Tree.RADS]["pdm"].get("PersonalDataTableName", "")
+        return env
+    env["PDM_TABLE"] = outputs[Tree.SECURE_RADS]["pdm"].get("PersonalDataTableName", "")
+    env["DATA_KEY_TABLE"] = outputs[Tree.SECURE_RADS]["pdm"].get("DataKeyTableName", "")
+    env["ALGORITHM_TABLE"] = outputs[Tree.SECURE_RADS]["registry_storage"].get("AlgorithmTableName", "")
+    return env
+
+
+def seed(tree: Tree, dataset: str, outputs: SeedOutputs) -> None:
     subprocess.run(
         ["bun", "run", "seed-rads" if tree is Tree.RADS else "seed-secure-rads"],
         check=True,
         cwd=REPO_ROOT / "seeding",
-        env={**os.environ, **env},
+        env={**os.environ, **_seed_env(tree, outputs, dataset)},
     )
 
 
@@ -90,35 +96,74 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--reps", type=int, default=10)
     parser.add_argument("--trees", nargs="+", type=Tree, choices=list(Tree), default=list(Tree))
-    parser.add_argument("--sizes", nargs="+", type=int, default=config.TRIAL_SIZES)
     parser.add_argument("--skip-generate", action="store_true")
     parser.add_argument("--skip-seed", action="store_true")
     return parser.parse_args()
 
 
-def main() -> int:
+async def _upload_one(client: httpx.AsyncClient, harness: TreeHarness) -> None:
+    logger.info("upload: {}/{}", harness.name, config.TRIAL_SAMPLE)
+    await harness.upload(client, config.TRIAL_ALGORITHM_ID)
+
+
+async def _seed_one(harness: TreeHarness, dataset: str, outputs: SeedOutputs) -> None:
+    logger.info("seed: {} <- seeding/datasets/{}.json", harness.name, dataset)
+    await asyncio.to_thread(seed, harness.name, dataset, outputs)
+
+
+async def setup(
+    harnesses: list[TreeHarness],
+    *,
+    dataset: str,
+    outputs: SeedOutputs,
+    skip_generate: bool,
+    skip_seed: bool,
+) -> None:
+    if not skip_generate:
+        await asyncio.to_thread(generate)
+        logger.info("generated shared dataset {} (same file seeded to every tree)", dataset)
+
+    timeout = httpx.Timeout(http.HTTP_TIMEOUT_SECONDS)
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        await asyncio.gather(*[_upload_one(client, harness) for harness in harnesses])
+
+    if skip_seed:
+        logger.info("skip-seed: using existing {}", dataset)
+        return
+
+    await asyncio.to_thread(
+        subprocess.run,
+        ["bun", "install"],
+        check=True,
+        cwd=REPO_ROOT / "seeding",
+    )
+    await asyncio.gather(*[_seed_one(harness, dataset, outputs) for harness in harnesses])
+
+
+async def amain() -> int:
     args = parse_args()
-    sizes = sorted(args.sizes)
+    sizes = config.TRIAL_SIZES
     dataset = config.TRIAL_DATASET
-    endpoints = config.resolve_endpoints(include_secure_registry=True)
-    if Tree.SECURE_RADS in args.trees and not endpoints[Tree.SECURE_RADS].get("registry"):
-        logger.error("secure-rads registry URL not configured (is the CSAV host running?)")
+
+    try:
+        urls, outputs = await asyncio.to_thread(config.resolve, args.trees)
+    except Exception as err:  # noqa: BLE001 - surface resolve failures as CLI errors
+        logger.error("failed to resolve service catalog: {}", err)
         return 1
 
-    harnesses = [harness_for(tree, endpoints[tree]) for tree in args.trees]
+    for tree in args.trees:
+        if "registry" not in urls.get(tree, {}):
+            logger.error("{} registry URL not resolved (is the service / CSAV host running?)", tree)
+            return 1
 
-    if not args.skip_generate:
-        generate()
-        logger.info("generated shared dataset {} (same file seeded to every tree)", dataset)
-    for harness in harnesses:
-        logger.info("upload: {}/{}", harness.name, config.TRIAL_SAMPLE)
-        harness.upload(config.TRIAL_ALGORITHM_ID)
-    if not args.skip_seed:
-        for harness in harnesses:
-            logger.info("seed: {} <- seeding/datasets/{}.json", harness.name, dataset)
-            seed(harness.name, dataset)
-    else:
-        logger.info("skip-seed: using existing {}", dataset)
+    harnesses = [harness_for(tree, urls[tree]) for tree in args.trees]
+    await setup(
+        harnesses,
+        dataset=dataset,
+        outputs=outputs,
+        skip_generate=args.skip_generate,
+        skip_seed=args.skip_seed,
+    )
 
     results: list[Result] = []
     jobs = [
@@ -146,6 +191,10 @@ def main() -> int:
     out.write_text(json.dumps([result.model_dump() for result in results], indent=2))
     logger.info("wrote {} ({} rows)", out, len(results))
     return 0
+
+
+def main() -> int:
+    return asyncio.run(amain())
 
 
 if __name__ == "__main__":

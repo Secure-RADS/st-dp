@@ -25,13 +25,11 @@ Overrides for `make execute`:
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `REPS` | `10` | Repetitions per size × tree |
-| `SIZES` | (config default) | e.g. `SIZES='10000 100000'` |
 | `TREES` | `rads secure-rads` | Which trees to run |
 | `SKIP` | empty | `SKIP=1` → reuse datasets + already-seeded PDM rows |
 
 ```
 make execute REPS=3
-make execute SIZES='10000 100000' REPS=10
 make execute SKIP=1 REPS=3
 ```
 
@@ -70,19 +68,18 @@ Use BatchWrite via `seed-rads` / `seed-secure-rads` only. Do not use DynamoDB Im
 
 ## Run without Make
 
-Defaults in `src/lib/config.py`: sizes `10_000 25_000 50_000 75_000 100_000`, `--reps 10`, both trees.
+Defaults in `src/lib/config.py`: sizes `10_000 25_000 50_000 75_000 100_000` (`TRIAL_SIZES`), `--reps 10`, both trees.
 
 ```
 cd benchmark
 export PYTHONPATH=src
 uv run python -m execute
-uv run python -m execute --sizes 10000 100000 --reps 3
+uv run python -m execute --reps 3
 uv run python -m execute --skip-generate --skip-seed --reps 3
 ```
 
 | Flag | Meaning |
 | --- | --- |
-| `--sizes 10000 100000` | Subset of sizes |
 | `--reps N` | Repetitions per size × tree (default 10) |
 | `--trees rads secure-rads` | Which trees to run |
 | `--skip-generate` | Reuse `seeding/datasets/` |

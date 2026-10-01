@@ -11,7 +11,9 @@ from paths import BUILD_DIR, REPO_ROOT
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from lib.trees.tree import Tree
+    import httpx
+
+    from lib.tree import Tree
 
 
 class TreeHarness(ABC):
@@ -62,4 +64,4 @@ class TreeHarness(ABC):
         raise http.FlowError(msg)
 
     @abstractmethod
-    def upload(self, algorithm_id: str) -> None: ...
+    async def upload(self, client: httpx.AsyncClient, algorithm_id: str) -> None: ...

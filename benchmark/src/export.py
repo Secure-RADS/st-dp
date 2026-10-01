@@ -4,22 +4,15 @@ from __future__ import annotations
 
 import csv
 import json
-import subprocess
 from datetime import datetime
 from typing import Any
 
 from tqdm import tqdm
 
-from lib import http
+from lib import config, http
 from lib.log import logger
+from lib.trees import Tree
 from paths import RAW_DIR, SWEEP_CSV
-
-REGION = "ap-southeast-2"
-
-LOG_STACKS = {
-    "rads": "rads-log-service-dev",
-    "secure-rads": "secure-rads-log-service-dev",
-}
 
 # null endpoints = phase does not apply (rads has no enclave).
 Window = tuple[str | None, str | None]
@@ -71,29 +64,6 @@ TIMESTAMP_EVENTS = [
 ]
 
 
-def _aws(*args: str) -> str:
-    out = subprocess.run(["aws", *args], capture_output=True, text=True, check=False)
-    if out.returncode != 0:
-        msg = f"aws {' '.join(args)} failed: {out.stderr.strip()}"
-        raise RuntimeError(msg)
-    return out.stdout.strip()
-
-
-def log_url(stack: str) -> str:
-    return _aws(
-        "cloudformation",
-        "describe-stacks",
-        "--stack-name",
-        stack,
-        "--region",
-        REGION,
-        "--query",
-        "Stacks[0].Outputs[?OutputKey=='HttpApiUrl'].OutputValue",
-        "--output",
-        "text",
-    )
-
-
 def load_runs() -> list[dict[str, Any]]:
     if not RAW_DIR.is_dir():
         return []
@@ -139,7 +109,13 @@ def main() -> int:
         logger.error("no sweep rows in {}; run `make execute` first", RAW_DIR)
         return 1
 
-    urls = {tree: log_url(stack) for tree, stack in LOG_STACKS.items()}
+    try:
+        resolved, _ = config.resolve()
+    except Exception as err:  # noqa: BLE001 - surface resolve failures as CLI errors
+        logger.error("failed to resolve service catalog: {}", err)
+        return 1
+    urls = {tree: resolved[tree]["log"] for tree in Tree}
+
     header = [
         "dataset_size",
         "tree",
@@ -154,7 +130,7 @@ def main() -> int:
         writer = csv.writer(handle)
         writer.writerow(header)
         for row in tqdm(runs, desc="export", unit="run"):
-            by_event = fetch_events(urls[row["tree"]], row["algorithm_id"], row["run_id"])
+            by_event = fetch_events(urls[Tree(row["tree"])], row["algorithm_id"], row["run_id"])
             phases = [window_seconds(by_event, PHASES[row["tree"]][column]) for column in COLUMNS]
             stamps = [by_event.get(event, "") for event in TIMESTAMP_EVENTS]
             writer.writerow([row["size"], row["tree"], row["rep"], row.get("status") or "", *phases, *stamps])

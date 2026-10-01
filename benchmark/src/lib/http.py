@@ -34,6 +34,16 @@ def request(method: str, url: str, *, timeout: float = HTTP_TIMEOUT_SECONDS, **k
     return response.status_code, response.content
 
 
+async def arequest(
+    client: httpx.AsyncClient,
+    method: str,
+    url: str,
+    **kwargs: Any,
+) -> tuple[int, bytes]:
+    response = await client.request(method, url, **kwargs)
+    return response.status_code, response.content
+
+
 def parse_json(body: bytes) -> dict[str, Any]:
     try:
         return json.loads(body)

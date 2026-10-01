@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+from lib.tree import Tree
 from lib.trees.base import TreeHarness
 from lib.trees.rads import RadsHarness
 from lib.trees.secure_rads import SecureRadsHarness
-from lib.trees.tree import Tree
 
 __all__ = ["RadsHarness", "SecureRadsHarness", "Tree", "TreeHarness", "harness_for"]
 

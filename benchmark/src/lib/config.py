@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import subprocess
 
-from lib.trees.tree import Tree
+from lib.catalog import CATALOG, Service, ServiceKind
+from lib.tree import Tree
 
 REGION = "ap-southeast-2"
 OUTPUT_PAIR_FIELDS = 2
@@ -14,18 +15,6 @@ TRIAL_DATASET = "ehealth"
 TRIAL_SIZES = [10_000, 25_000, 50_000, 75_000, 100_000]
 
 TREES = tuple(Tree)
-
-STACKS: dict[Tree, dict[str, str]] = {
-    Tree.RADS: {
-        "registry": "rads-registry-service-dev",
-        "pdm": "rads-pdm-service-dev",
-        "execution": "rads-execution-service-dev",
-    },
-    Tree.SECURE_RADS: {
-        "pdm": "secure-rads-pdm-service-dev",
-        "execution": "secure-rads-execution-service-dev",
-    },
-}
 
 
 def _aws(*args: str) -> str:
@@ -59,11 +48,21 @@ def stack_outputs(stack: str) -> dict[str, str]:
     return outputs
 
 
-def csav_registry_url() -> str:
+def _api_gateway_url(outputs: dict[str, str]) -> str:
+    if url := outputs.get("HttpApiUrl"):
+        return url
+    domain = outputs.get("ApiRegionalDomainName")
+    if not domain:
+        msg = "stack outputs missing HttpApiUrl and ApiRegionalDomainName"
+        raise RuntimeError(msg)
+    return f"https://{domain}"
+
+
+def _ec2_http_url(service: Service, outputs: dict[str, str]) -> str:
     # Stack public-IP output goes stale across stop/start; read the instance itself.
-    instance_id = stack_outputs("secure-rads-csav").get("CsavInstanceId", "")
+    instance_id = outputs.get(service.instance_id_key, "")
     if not instance_id:
-        msg = "secure-rads-csav stack has no CsavInstanceId output"
+        msg = f"{service.stack} has no {service.instance_id_key} output"
         raise RuntimeError(msg)
     ip = _aws(
         "ec2",
@@ -80,16 +79,31 @@ def csav_registry_url() -> str:
     if not ip or ip == "None":
         msg = f"CSAV instance {instance_id} has no public IP (is it running?)"
         raise RuntimeError(msg)
-    return f"http://{ip}:8080"
+    return f"{service.scheme}://{ip}:{service.port}"
 
 
-def resolve_endpoints(*, include_secure_registry: bool = True) -> dict[Tree, dict[str, str]]:
-    endpoints: dict[Tree, dict[str, str]] = {}
-    for tree, stacks in STACKS.items():
-        endpoints[tree] = {}
-        for service, stack in stacks.items():
-            outputs = stack_outputs(stack)
-            endpoints[tree][service] = outputs.get("HttpApiUrl") or f"https://{outputs['ApiRegionalDomainName']}"
-    if include_secure_registry:
-        endpoints[Tree.SECURE_RADS]["registry"] = csav_registry_url()
-    return endpoints
+def _service_url(service: Service, outputs: dict[str, str]) -> str:
+    if service.kind is ServiceKind.API_GATEWAY:
+        return _api_gateway_url(outputs)
+    if service.kind is ServiceKind.EC2_HTTP:
+        return _ec2_http_url(service, outputs)
+    msg = f"unknown service kind {service.kind!r}"
+    raise ValueError(msg)
+
+
+def resolve(
+    trees: tuple[Tree, ...] | list[Tree] | None = None,
+) -> tuple[dict[Tree, dict[str, str]], dict[Tree, dict[str, dict[str, str]]]]:
+    """Resolve catalog entries once. Returns (urls_by_tree, outputs_by_tree_service)."""
+    selected = tuple(trees) if trees is not None else TREES
+    urls: dict[Tree, dict[str, str]] = {}
+    outputs: dict[Tree, dict[str, dict[str, str]]] = {}
+    for tree in selected:
+        urls[tree] = {}
+        outputs[tree] = {}
+        for name, service in CATALOG[tree].items():
+            stack_out = stack_outputs(service.stack)
+            outputs[tree][name] = stack_out
+            if service.has_url:
+                urls[tree][name] = _service_url(service, stack_out)
+    return urls, outputs

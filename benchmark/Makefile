@@ -4,15 +4,11 @@ export AWS_DEFAULT_REGION ?= $(REGION)
 export PYTHONPATH := src
 
 REPS ?= 10
-SIZES ?=
 TREES ?= rads secure-rads
 # Set SKIP=1 to reuse generated datasets and already-seeded PDM rows.
 SKIP ?=
 
 RUN_FLAGS := --reps $(REPS) --trees $(TREES)
-ifneq ($(strip $(SIZES)),)
-RUN_FLAGS += --sizes $(SIZES)
-endif
 ifeq ($(SKIP),1)
 RUN_FLAGS += --skip-generate --skip-seed
 endif
@@ -21,13 +17,12 @@ endif
 
 help:
 	@echo "benchmark targets:"
-	@echo "  make execute     # Exp2 size sweep (override REPS= SIZES= TREES= SKIP=1)"
+	@echo "  make execute     # Exp2 size sweep (override REPS= TREES= SKIP=1)"
 	@echo "  make report  # results/raw/ -> sweep.csv + figures/"
 	@echo ""
 	@echo "examples:"
 	@echo "  make execute"
 	@echo "  make execute REPS=3"
-	@echo "  make execute SIZES='10000 100000' REPS=10"
 	@echo "  make execute SKIP=1 REPS=3"
 	@echo "  make report"
 
