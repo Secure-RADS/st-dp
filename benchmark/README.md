@@ -46,7 +46,7 @@ make run TREES=rads REPS=2
 - Both trees deployed (PDM, execution, log, result-consumer; secure-rads also needs CSAV registry + verifier)
 - CSAV host running so the secure registry is reachable (`make up` / `make secure-rads-ready` from the repo root)
 - Docker (arm64) to build the sample algorithm image on first run
-- `uv` (Python); `bun` only for `../seeding` generate/seed invoked by `make execute`
+- `uv` (Python); `bun` only for `../seeding` generate/seed invoked by `make seed` / `make all`
 
 Executors default to `c6g.large`. Keep rads and secure-rads on the same instance type when comparing. Secure-rads enclave allocation on that size is 1 vCPU / 2048 MiB (parent keeps the other vCPU).
 
@@ -76,13 +76,15 @@ Defaults in `src/lib/config.py`: `TRIAL_SIZES = [10_000, 25_000, 50_000, 75_000,
 ```
 cd benchmark
 export PYTHONPATH=src
-uv run python -m execute
-uv run python -m execute --reps 3
-uv run python -m execute --skip-generate --skip-seed --reps 3
+uv run python -m execute --setup-only
+uv run python -m execute --skip-generate --skip-seed --reps 1
+uv run python -m export
+uv run python -m plot
 ```
 
 | Flag | Meaning |
 | --- | --- |
+| `--setup-only` | generate + upload + seed; no size sweep |
 | `--reps N` | Repetitions per size × tree (default 10) |
 | `--trees rads secure-rads` | Which trees to run |
 | `--skip-generate` | Reuse `seeding/datasets/` |
