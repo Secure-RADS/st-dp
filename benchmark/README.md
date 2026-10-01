@@ -61,11 +61,11 @@ Each rep launches a **fresh EC2 executor**, boots it (~70–90s), runs the job, 
 | 5 sizes, 2 trees, 3 reps | 30 | ~45–60 min |
 | 5 sizes, 2 trees, 10 reps | 100 | ~3 h |
 
-Use `make execute REPS=3` while iterating; reserve `REPS=10` for paper Exp2 runs.
+Use `make run REPS=3` while iterating; reserve `REPS=10` for paper Exp2 runs.
 
 ## Shared seed data
 
-`make execute` generates once and BatchWrites the **same** `ehealth.json` (100K records) into both trees (rads plaintext; secure-rads envelope-encrypted under a KMS-wrapped DEK). Each execute passes `size` so the executor reads only the first N of those rows.
+`make seed` generates once and BatchWrites the **same** `ehealth.json` (100K records) into both trees (rads plaintext; secure-rads envelope-encrypted under a KMS-wrapped DEK). Each `make run` passes `size` so the executor reads only the first N of those rows.
 
 Use BatchWrite via `seed-rads` / `seed-secure-rads` only. Do not use DynamoDB ImportTable / S3 import for this harness.
 
