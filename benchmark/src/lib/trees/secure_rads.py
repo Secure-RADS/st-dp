@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, ClassVar
 
 from lib import http
 from lib.trees.base import TreeHarness
+from lib.trees.tree import Tree
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -14,7 +15,7 @@ MULTIPART_BOUNDARY = "----benchmarkboundary7d9f3a"
 class SecureRadsHarness(TreeHarness):
     """Strategy concrete: CSAV registry multipart upload + secure-rads execution."""
 
-    name: ClassVar[str] = "secure-rads"
+    name: ClassVar[Tree] = Tree.SECURE_RADS
 
     def upload(self, algorithm_id: str, tar_path: Path) -> None:
         head = (

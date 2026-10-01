@@ -12,12 +12,12 @@ import time
 from pydantic import BaseModel
 
 from lib import config
-from lib.trees import TreeHarness, harness_for
+from lib.trees import Tree, TreeHarness, harness_for
 from paths import RAW_DIR, REPO_ROOT
 
 
 class Result(BaseModel):
-    tree: str
+    tree: Tree
     dataset: str
     algorithm_id: str
     rep: int
@@ -34,18 +34,18 @@ def generate() -> None:
     subprocess.run(["bun", "run", "generate"], check=True, cwd=REPO_ROOT / "seeding")
 
 
-def seed(tree: str, dataset: str) -> None:
+def seed(tree: Tree, dataset: str) -> None:
     env = {
-        "RADS_PDM_TABLE": config.stack_outputs(config.STACKS["rads"]["pdm"]).get("PersonalDataTableName", ""),
-        "PDM_TABLE": config.stack_outputs(config.STACKS["secure-rads"]["pdm"]).get("PersonalDataTableName", ""),
-        "DATA_KEY_TABLE": config.stack_outputs(config.STACKS["secure-rads"]["pdm"]).get("DataKeyTableName", ""),
+        "RADS_PDM_TABLE": config.stack_outputs(config.STACKS[Tree.RADS]["pdm"]).get("PersonalDataTableName", ""),
+        "PDM_TABLE": config.stack_outputs(config.STACKS[Tree.SECURE_RADS]["pdm"]).get("PersonalDataTableName", ""),
+        "DATA_KEY_TABLE": config.stack_outputs(config.STACKS[Tree.SECURE_RADS]["pdm"]).get("DataKeyTableName", ""),
         "ALGORITHM_TABLE": config.stack_outputs("secure-rads-registry-service-storage").get("AlgorithmTableName", ""),
         "AWS_REGION": config.REGION,
         "SEED_DATASET": dataset,
     }
     subprocess.run(["bun", "install"], check=True, cwd=REPO_ROOT / "seeding")
     subprocess.run(
-        ["bun", "run", "seed-rads" if tree == "rads" else "seed-secure-rads"],
+        ["bun", "run", "seed-rads" if tree is Tree.RADS else "seed-secure-rads"],
         check=True,
         cwd=REPO_ROOT / "seeding",
         env={**os.environ, **env},
@@ -88,7 +88,7 @@ def run_once(harness: TreeHarness, dataset: str, size: int, rep: int) -> Result:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--reps", type=int, default=10)
-    parser.add_argument("--trees", nargs="+", choices=config.TREES, default=list(config.TREES))
+    parser.add_argument("--trees", nargs="+", type=Tree, choices=list(Tree), default=list(Tree))
     parser.add_argument("--sizes", nargs="+", type=int, default=config.TRIAL_SIZES)
     parser.add_argument("--skip-generate", action="store_true")
     parser.add_argument("--skip-seed", action="store_true")
@@ -100,7 +100,7 @@ def main() -> int:
     sizes = sorted(args.sizes)
     dataset = config.TRIAL_DATASET
     endpoints = config.resolve_endpoints(include_secure_registry=True)
-    if "secure-rads" in args.trees and not endpoints["secure-rads"].get("registry"):
+    if Tree.SECURE_RADS in args.trees and not endpoints[Tree.SECURE_RADS].get("registry"):
         print("secure-rads registry URL not configured (is the CSAV host running?)", file=sys.stderr)
         return 1
 

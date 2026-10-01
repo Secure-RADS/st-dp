@@ -12,11 +12,12 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 
+from lib.trees import Tree
 from paths import FIG_DIR, ROOT, SWEEP_CSV
 
-TREES = ["rads", "secure-rads"]
-PALETTE = {"rads": "#2E6F95", "secure-rads": "#C8542A"}
-LABELS = {"rads": "rads (baseline)", "secure-rads": "secure-rads (enclave)"}
+TREES = list(Tree)
+PALETTE = {Tree.RADS: "#2E6F95", Tree.SECURE_RADS: "#C8542A"}
+LABELS = {Tree.RADS: "rads (baseline)", Tree.SECURE_RADS: "secure-rads (enclave)"}
 
 PHASES = [
     ("algorithm_retrieval_s", "algorithm retrieval"),

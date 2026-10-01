@@ -9,11 +9,13 @@ from lib.trees.sample_tar import build_sample_tar
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from lib.trees.tree import Tree
+
 
 class TreeHarness(ABC):
     """Strategy base: shared build/execute; subclasses implement tree-specific upload."""
 
-    name: ClassVar[str]
+    name: ClassVar[Tree]
 
     def __init__(self, registry_url: str, execution_url: str) -> None:
         self._registry = registry_url

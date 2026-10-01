@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, ClassVar
 
 from lib import http
 from lib.trees.base import TreeHarness
+from lib.trees.tree import Tree
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -13,7 +14,7 @@ if TYPE_CHECKING:
 class RadsHarness(TreeHarness):
     """Strategy concrete: classic RADS registry (presign + register) + execution."""
 
-    name: ClassVar[str] = "rads"
+    name: ClassVar[Tree] = Tree.RADS
 
     def upload(self, algorithm_id: str, tar_path: Path) -> None:
         status, body = http.request(

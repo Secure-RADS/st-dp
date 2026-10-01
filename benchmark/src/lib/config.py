@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import subprocess
 
+from lib.trees.tree import Tree
+
 REGION = "ap-southeast-2"
 OUTPUT_PAIR_FIELDS = 2
 
@@ -11,15 +13,15 @@ TRIAL_ALGORITHM_ID = "e587067e-47dc-4835-8f87-5e66fc979adf"
 TRIAL_DATASET = "ehealth"
 TRIAL_SIZES = [10_000, 25_000, 50_000, 75_000, 100_000]
 
-TREES = ("rads", "secure-rads")
+TREES = tuple(Tree)
 
-STACKS = {
-    "rads": {
+STACKS: dict[Tree, dict[str, str]] = {
+    Tree.RADS: {
         "registry": "rads-registry-service-dev",
         "pdm": "rads-pdm-service-dev",
         "execution": "rads-execution-service-dev",
     },
-    "secure-rads": {
+    Tree.SECURE_RADS: {
         "pdm": "secure-rads-pdm-service-dev",
         "execution": "secure-rads-execution-service-dev",
     },
@@ -81,13 +83,13 @@ def csav_registry_url() -> str:
     return f"http://{ip}:8080"
 
 
-def resolve_endpoints(*, include_secure_registry: bool = True) -> dict[str, dict[str, str]]:
-    endpoints: dict[str, dict[str, str]] = {}
+def resolve_endpoints(*, include_secure_registry: bool = True) -> dict[Tree, dict[str, str]]:
+    endpoints: dict[Tree, dict[str, str]] = {}
     for tree, stacks in STACKS.items():
         endpoints[tree] = {}
         for service, stack in stacks.items():
             outputs = stack_outputs(stack)
             endpoints[tree][service] = outputs.get("HttpApiUrl") or f"https://{outputs['ApiRegionalDomainName']}"
     if include_secure_registry:
-        endpoints["secure-rads"]["registry"] = csav_registry_url()
+        endpoints[Tree.SECURE_RADS]["registry"] = csav_registry_url()
     return endpoints
