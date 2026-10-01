@@ -4,7 +4,6 @@ from typing import ClassVar
 
 from lib import http
 from lib.trees.base import TreeHarness
-from lib.trees.sample_tar import build_sample_tar
 from lib.trees.tree import Tree
 
 
@@ -14,7 +13,7 @@ class RadsHarness(TreeHarness):
     name: ClassVar[Tree] = Tree.RADS
 
     def upload(self, algorithm_id: str) -> None:
-        tar_path = build_sample_tar(self.name)
+        tar_path = self.build_sample_tar(self.name)
         status, body = http.request(
             "POST",
             f"{self._registry}/upload",

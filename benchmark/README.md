@@ -114,9 +114,8 @@ Failed reps (`error` set in the raw JSON, or a 500 from PDM) should be dropped o
 | `src/plot.py` | CSV → phase / total figures |
 | `src/lib/config.py` | Sizes, algorithm id, CFN stack names |
 | `src/lib/trees/` | Strategy package: ABC + rads / secure-rads concretes |
-| `src/lib/trees/base.py` | `TreeHarness` ABC (shared execute; abstract upload) |
+| `src/lib/trees/base.py` | `TreeHarness` ABC (shared execute / sample tar; abstract upload) |
 | `src/lib/trees/rads.py` / `secure_rads.py` | Per-tree Strategy concretes (`(TreeHarness)`) |
-| `src/lib/trees/sample_tar.py` | Docker build/save for sample image tars (used by each tree's upload) |
 | `src/lib/http.py` | Shared httpx helpers |
 | `src/paths.py` | Package / results / repo roots |
 | `results/` | Raw JSON, CSV, figures (gitignored outputs) |

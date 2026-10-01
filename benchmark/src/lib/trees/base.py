@@ -1,23 +1,43 @@
 from __future__ import annotations
 
+import subprocess
 import time
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, ClassVar
 
-from lib import http
+from lib import config, http
+from paths import BUILD_DIR, REPO_ROOT
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from lib.trees.tree import Tree
 
 
 class TreeHarness(ABC):
-    """Strategy base: shared execute; subclasses implement tree-specific upload."""
+    """Strategy base: shared execute / sample tar; subclasses implement tree-specific upload."""
 
     name: ClassVar[Tree]
 
     def __init__(self, registry_url: str, execution_url: str) -> None:
         self._registry = registry_url
         self._execution = execution_url
+
+    @staticmethod
+    def build_sample_tar(tree: Tree) -> Path:
+        tar_path = BUILD_DIR / f"{tree}-{config.TRIAL_SAMPLE}.tar"
+        if tar_path.exists():
+            return tar_path
+        BUILD_DIR.mkdir(parents=True, exist_ok=True)
+        tag = f"bench-{tree}-{config.TRIAL_SAMPLE}:local"
+        context = REPO_ROOT / str(tree) / "samples" / config.TRIAL_SAMPLE
+        subprocess.run(
+            ["docker", "build", "--platform", "linux/arm64", "-t", tag, str(context)],
+            check=True,
+            cwd=REPO_ROOT,
+        )
+        subprocess.run(["docker", "save", tag, "-o", str(tar_path)], check=True)
+        return tar_path
 
     def execute(self, algorithm_id: str, size: int) -> tuple[str, str, str]:
         status, body = http.request(
