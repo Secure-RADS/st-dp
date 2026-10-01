@@ -19,7 +19,6 @@ export interface UserDataValues {
 export function userData(values: UserDataValues): string {
   const replacements: Record<string, string> = {
     AlgorithmId: values.algorithmId,
-    // Fits c6g.large (4 GiB): leave ~2 GiB for the parent Nitro host.
     CPUCount: "1",
     LogHost: values.logHost,
     MemoryMiB: "2048",
