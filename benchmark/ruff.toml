@@ -1,5 +1,3 @@
-# Based on prdai/research-navigator ruff.toml, with a scoped exception noted below.
-
 # --- Core Settings ---
 
 # Set line length to 120 characters
