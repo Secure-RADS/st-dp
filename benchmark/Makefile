@@ -17,22 +17,22 @@ ifeq ($(SKIP),1)
 RUN_FLAGS += --skip-generate --skip-seed
 endif
 
-.PHONY: help run report
+.PHONY: help execute report
 
 help:
 	@echo "benchmark targets:"
-	@echo "  make run     # Exp2 size sweep (override REPS= SIZES= TREES= SKIP=1)"
+	@echo "  make execute     # Exp2 size sweep (override REPS= SIZES= TREES= SKIP=1)"
 	@echo "  make report  # results/raw/ -> sweep.csv + figures/"
 	@echo ""
 	@echo "examples:"
-	@echo "  make run"
-	@echo "  make run REPS=3"
-	@echo "  make run SIZES='10000 100000' REPS=10"
-	@echo "  make run SKIP=1 REPS=3"
+	@echo "  make execute"
+	@echo "  make execute REPS=3"
+	@echo "  make execute SIZES='10000 100000' REPS=10"
+	@echo "  make execute SKIP=1 REPS=3"
 	@echo "  make report"
 
-run:
-	uv run python -m run $(RUN_FLAGS)
+execute:
+	uv run python -m execute $(RUN_FLAGS)
 
 report:
 	uv run python -m export

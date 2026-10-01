@@ -92,7 +92,7 @@ unfixable = []
 # --- Rule-Specific Configurations ---
 
 [lint.isort]
-known-first-party = ["lib", "paths", "run", "export", "plot"]
+known-first-party = ["lib", "paths", "execute", "export", "plot"]
 [lint.mccabe]
 # Set max complexity threshold (C90 rules are now enabled)
 max-complexity = 10
@@ -116,7 +116,7 @@ convention = "google"
 ]
 
 # Entry points print to stdout (T201); no copyright-header convention (CPY001).
-"src/run.py" = ["T201", "CPY001"]
+"src/execute.py" = ["T201", "CPY001"]
 "src/plot.py" = ["T201", "CPY001"]
 "src/export.py" = ["T201", "CPY001"]
 "src/lib/*.py" = ["CPY001"]

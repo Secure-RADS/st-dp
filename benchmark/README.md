@@ -9,18 +9,18 @@ One algorithm id is reused across sizes. The harness generates the dataset once,
 From `benchmark/` (or `make -C benchmark …` from the repo root):
 
 ```
-make run      # full size matrix (generate + seed + execute)
+make execute      # full size matrix (generate + seed + execute)
 make report   # results/raw/ -> sweep.csv + figures/
 ```
 
 From the repo root:
 
 ```
-make benchmark          # same as: make -C benchmark run
+make benchmark          # same as: make -C benchmark execute
 make benchmark-report   # same as: make -C benchmark report
 ```
 
-Overrides for `make run`:
+Overrides for `make execute`:
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
@@ -30,9 +30,9 @@ Overrides for `make run`:
 | `SKIP` | empty | `SKIP=1` → reuse datasets + already-seeded PDM rows |
 
 ```
-make run REPS=3
-make run SIZES='10000 100000' REPS=10
-make run SKIP=1 REPS=3
+make execute REPS=3
+make execute SIZES='10000 100000' REPS=10
+make execute SKIP=1 REPS=3
 ```
 
 ## Prerequisites
@@ -41,7 +41,7 @@ make run SKIP=1 REPS=3
 - Both trees deployed (PDM, execution, log, result-consumer; secure-rads also needs CSAV registry + verifier)
 - CSAV host running so the secure registry is reachable (`make up` / `make secure-rads-ready` from the repo root)
 - Docker (arm64) to build the sample algorithm image on first run
-- `uv` (Python); `bun` only for `../seeding` generate/seed invoked by `make run`
+- `uv` (Python); `bun` only for `../seeding` generate/seed invoked by `make execute`
 
 Executors default to `c6g.large`. Keep rads and secure-rads on the same instance type when comparing.
 
@@ -60,11 +60,11 @@ Examples:
 | 10K…100K (5 sizes), 2 trees, 10 reps | 100 | ~3 h |
 | 10K…100K (5 sizes), 2 trees, 3 reps | 30 | ~45–60 min |
 
-Use `make run REPS=3` while iterating; reserve `REPS=10` for the paper Exp2 runs.
+Use `make execute REPS=3` while iterating; reserve `REPS=10` for the paper Exp2 runs.
 
 ## Shared seed data
 
-`make run` generates once and BatchWrites the **same** `ehealth.json` (100K records) into both trees (rads plaintext; secure-rads envelope-encrypted). Each execute passes `size` so the executor reads only the first N of those rows.
+`make execute` generates once and BatchWrites the **same** `ehealth.json` (100K records) into both trees (rads plaintext; secure-rads envelope-encrypted). Each execute passes `size` so the executor reads only the first N of those rows.
 
 Use BatchWrite via `seed-rads` / `seed-secure-rads` only. Do not use DynamoDB ImportTable / S3 import for this harness.
 
@@ -75,9 +75,9 @@ Defaults in `src/lib/config.py`: sizes `10_000 25_000 50_000 75_000 100_000`, `-
 ```
 cd benchmark
 export PYTHONPATH=src
-uv run python -m run
-uv run python -m run --sizes 10000 100000 --reps 3
-uv run python -m run --skip-generate --skip-seed --reps 3
+uv run python -m execute
+uv run python -m execute --sizes 10000 100000 --reps 3
+uv run python -m execute --skip-generate --skip-seed --reps 3
 ```
 
 | Flag | Meaning |
@@ -108,8 +108,8 @@ Failed reps (`error` set in the raw JSON, or a 500 from PDM) should be dropped o
 
 | Path | Role |
 | --- | --- |
-| `Makefile` | `run` / `report` |
-| `src/run.py` | Generate → upload algorithm → seed → execute sweep |
+| `Makefile` | `execute` / `report` (export + plot) |
+| `src/execute.py` | Generate → upload → seed → execute size sweep |
 | `src/export.py` | Raw JSON + log-service → `results/sweep.csv` |
 | `src/plot.py` | CSV → phase / total figures |
 | `src/lib/config.py` | Sizes, algorithm id, CFN stack names |

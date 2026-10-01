@@ -140,7 +140,7 @@ def window_seconds(by_event: dict[str, str], window: Window) -> str:
 def main() -> int:
     runs = load_runs()
     if not runs:
-        print(f"no sweep rows in {RAW_DIR}; run `make run` first", file=sys.stderr)
+        print(f"no sweep rows in {RAW_DIR}; run `make execute` first", file=sys.stderr)
         return 1
 
     urls = {tree: log_url(stack) for tree, stack in LOG_STACKS.items()}
