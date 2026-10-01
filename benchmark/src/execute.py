@@ -98,6 +98,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--trees", nargs="+", type=Tree, choices=list(Tree), default=list(Tree))
     parser.add_argument("--skip-generate", action="store_true")
     parser.add_argument("--skip-seed", action="store_true")
+    parser.add_argument("--setup-only", action="store_true", help="generate, upload, and seed; skip the size sweep")
     return parser.parse_args()
 
 
@@ -164,6 +165,9 @@ async def amain() -> int:
         skip_generate=args.skip_generate,
         skip_seed=args.skip_seed,
     )
+    if args.setup_only:
+        logger.info("setup-only: skipping size sweep")
+        return 0
 
     results: list[Result] = []
     jobs = [

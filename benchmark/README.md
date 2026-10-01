@@ -9,28 +9,35 @@ One algorithm id is reused across sizes. Setup generates the dataset once, uploa
 From `benchmark/` (or `make -C benchmark …` from the repo root):
 
 ```
-make execute   # generate + upload + seed + size sweep
-make report    # results/raw/ -> phase-timings.csv + figures/
+make seed      # generate + upload + BatchWrite PDM
+make run       # size sweep only (needs seed first, or prior data)
+make export    # results/raw/ -> phase-timings.csv
+make plot      # phase-timings.csv -> figures/  (alias: make graph)
+make report    # export + plot
+make all       # seed + run + report
 ```
 
 From the repo root:
 
 ```
-make benchmark          # same as: make -C benchmark execute
-make benchmark-report   # same as: make -C benchmark report
+make benchmark          # same as: make -C benchmark all
+make benchmark-seed     # setup only
+make benchmark-run      # size sweep only
+make benchmark-report   # export + plot
 ```
 
-Overrides for `make execute`:
+Overrides for `make seed` / `make run` / `make all`:
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `REPS` | `10` | Repetitions per size × tree |
+| `REPS` | `10` | Repetitions per size × tree (`run` / `all` only) |
 | `TREES` | `rads secure-rads` | Which trees to run |
-| `SKIP` | empty | `SKIP=1` → reuse datasets + already-seeded PDM rows |
 
 ```
-make execute REPS=3
-make execute SKIP=1 REPS=3
+make seed
+make run REPS=1
+make all REPS=3
+make run TREES=rads REPS=2
 ```
 
 ## Prerequisites
@@ -103,8 +110,8 @@ Failed reps (`error` set in the raw JSON, or a 500 from PDM) should be dropped o
 
 | Path | Role |
 | --- | --- |
-| `Makefile` | `execute` / `report` (export + plot) |
-| `src/execute.py` | Async setup + serial size sweep |
+| `Makefile` | `seed` / `run` / `export` / `plot` / `report` / `all` |
+| `src/execute.py` | Setup (generate/upload/seed) + size sweep |
 | `src/export.py` | Raw JSON + log-service → `phase-timings.csv` |
 | `src/plot.py` | CSV → phase / scaling figures |
 | `src/lib/catalog.py` | Per-tree service catalog (`Service` / `ServiceKind`) |
