@@ -119,18 +119,8 @@ Resources:
       MetadataOptions:
         HttpPutResponseHopLimit: 2
       UserData:
-        Fn::Base64: !Sub |
-          #!/bin/bash
-          dnf install -y docker
-          systemctl enable --now docker
-          usermod -aG docker ec2-user
-
-          # docker-compose-plugin isn't in the AL2023 default repo; standalone binary instead.
-          curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-aarch64 \
-            -o /usr/local/bin/docker-compose
-          chmod +x /usr/local/bin/docker-compose
-          ln -s /usr/local/bin/docker-compose /usr/libexec/docker/cli-plugins/docker-compose 2>/dev/null || \
-            (mkdir -p /usr/libexec/docker/cli-plugins && ln -s /usr/local/bin/docker-compose /usr/libexec/docker/cli-plugins/docker-compose)
+        Fn::Base64: |
+          @@USERDATA@@
       Tags:
         - Key: Name
           Value: secure-rads-csav

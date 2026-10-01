@@ -3,6 +3,7 @@ KEY_NAME := csav-key
 KEY_PATH := $(abspath ../../.ssh/$(KEY_NAME).pem)
 REGION ?= ap-southeast-2
 INSTANCE_TYPE ?= t4g.small
+RENDERED_CFN := /tmp/secure-rads-csav-cloudformation.yaml
 
 # Lazily resolved (only hits AWS when a target that uses it actually runs).
 INSTANCE_ID = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
@@ -21,7 +22,7 @@ ALGORITHM_TABLE = $(shell aws cloudformation describe-stacks --stack-name secure
 ARTIFACT_BUCKET_KMS_KEY_ARN = $(shell aws cloudformation describe-stacks --stack-name secure-rads-registry-service-storage --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='ArtifactBucketKmsKeyArn'].OutputValue" --output text)
 
-.PHONY: build test run clean key deploy destroy up down status ssh logs
+.PHONY: build test run clean key render-cfn deploy destroy up down status ssh logs
 
 build:
 	@echo "not implemented yet"
@@ -33,7 +34,7 @@ run:
 	@echo "not implemented yet"
 
 clean:
-	@echo "not implemented yet"
+	rm -f $(RENDERED_CFN)
 
 key:
 	mkdir -p $(dir $(KEY_PATH))
@@ -41,9 +42,13 @@ key:
 		--query 'KeyMaterial' --output text > $(KEY_PATH)
 	chmod 400 $(KEY_PATH)
 
-deploy:
+# Inject docker-compose.yml + csav-registry.service into UserData (single source of truth).
+render-cfn:
+	python3 scripts/render_cfn.py --out $(RENDERED_CFN)
+
+deploy: render-cfn
 	aws cloudformation deploy \
-		--template-file cloudformation.yaml \
+		--template-file $(RENDERED_CFN) \
 		--stack-name $(STACK_NAME) \
 		--region $(REGION) \
 		--capabilities CAPABILITY_IAM \

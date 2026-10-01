@@ -1,0 +1,15 @@
+[Unit]
+Description: CSAV registry-service docker compose stack
+After=docker.service
+Requires=docker.service
+ConditionPathExists=/home/ec2-user/registry-service/.env
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/home/ec2-user/registry-service
+ExecStart=/usr/local/bin/docker-compose up -d
+ExecStop=/usr/local/bin/docker-compose down
+
+[Install]
+WantedBy=multi-user.target

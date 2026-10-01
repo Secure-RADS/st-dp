@@ -35,5 +35,6 @@ flowchart TD
 - Registry Service (as part of CSAV) owns the build — DC only ever produces an OCI image, never the EIF, which is what makes attestation measurements meaningful.
 - nsjail + image composition together are the privilege story: layout says where things live, nsjail says what they can do.
 - The DC jail's seccomp policy is an **allowlist** (`DEFAULT KILL_PROCESS`), sized for the shipped samples and restricted to AF_UNIX sockets. Resource limits (`rlimit_*`, `time_limit`) stay deliberately loose so large in-memory workloads are not capped by the jail config — further rlimit tightening is out of scope until measured per algorithm.
+- `docker-compose.yml` and `csav-registry.service` live in this directory. `make deploy` runs `scripts/render_cfn.py` to bake them into EC2 UserData (no copies inside the CloudFormation template). `make ship` only pushes the image tarball + `.env`.
 - Trust material baked in at build time, not configurable at runtime.
 - TLS: public key pinning for the PoC; CA cert verification is a later step.
