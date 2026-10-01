@@ -18,7 +18,6 @@ secure-rads:
 rads:
 	$(MAKE) rads-all
 
-# Exp1/Exp2 size sweep (rads vs secure-rads). See benchmark/README.md.
 benchmark:
 	$(MAKE) -C benchmark all
 
