@@ -17,20 +17,19 @@ from paths import FIG_DIR, PHASE_TIMINGS_CSV, ROOT
 PALETTE = {Tree.RADS: "#2E6F95", Tree.SECURE_RADS: "#C8542A"}
 LABELS = {Tree.RADS: "rads (baseline)", Tree.SECURE_RADS: "secure-rads (enclave)"}
 PHASES = {
+    "host_provisioning_s": "host provisioning",
     "algorithm_retrieval_s": "algorithm retrieval",
-    "enclave_initialization_s": "enclave init",
     "sce_unit_s": "sce unit",
     "attestation_s": "attestation",
     "data_retrieval_s": "data retrieval",
-    "data_decryption_s": "data decryption",
     "algorithm_processing_s": "algorithm processing",
     "result_delivery_s": "result delivery",
 }
-PHASE_COLORS = ["#4C9BE8", "#1F4E79", "#6FBF73", "#F2C14E", "#E8873C", "#C0392B", "#8E44AD", "#7F8C8D"]
+PHASE_COLORS = ["#1F4E79", "#4C9BE8", "#6FBF73", "#F2C14E", "#E8873C", "#8E44AD", "#7F8C8D"]
 NOTE = (
-    "enclave init = per-run instance boot + tooling install (size-independent); "
-    "data retrieval is the PDM fetch, which grows with the dataset.\n"
-    "rads has no enclave, so attestation / sce unit / data decryption are blank for it."
+    "host provisioning = per-run instance boot + tooling install (size-independent); "
+    "data retrieval is fetch through records.json write (secure-rads includes decrypt).\n"
+    "rads has no enclave, so attestation / sce unit are blank for it."
 )
 
 

@@ -50,8 +50,8 @@ SCE-UNIT(a, cfg)
 9  emit records-fetched
 10 DEK ← KMS-DECRYPT(encDEK, attestation)
 11 plaintext ← DECRYPT(records, DEK)
-12 emit data-decrypted
-13 write {algorithmId, records} to /data/records.json
+12 write {algorithmId, records} to /data/records.json
+13 emit data-decrypted
 14 START nsjail                         // RECORDS_PATH, RESULT_PATH
 15 wait for nsjail exit
 16 output ← read /data/result.json

@@ -13,21 +13,9 @@ RUN_RESULTS_QUEUE="{{.RunResultsQueueUrl}}"
 LOG_EVENTS_QUEUE="{{.LogEventsQueueUrl}}"
 # Record count for this run; empty means the whole dataset.
 SIZE="{{.Size}}"
-
-# Emit one run-timeline checkpoint onto the log queue. Best-effort: logging must never fail the run.
-emit_event() {
-  python3 - "$ALGORITHM_ID" "$RUN_ID" "$1" > /tmp/checkpoint.json <<'PYEOF'
-import datetime, json, sys
-algorithm_id, run_id, event = sys.argv[1:4]
-print(json.dumps({
-    "algorithmId": algorithm_id,
-    "runId": run_id,
-    "event": event,
-    "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-}))
-PYEOF
-  aws sqs send-message --queue-url "$LOG_EVENTS_QUEUE" --message-body file:///tmp/checkpoint.json --region "$REGION" || true
-}
+# Fixed key in the images bucket; make ship uploads the linux/arm64 helper binary here.
+TOOLS_S3_KEY="executor/rads-host-tools"
+TOOLS_BIN=/opt/rads/bin/rads-host-tools
 
 # Host paths, bind-mounted into the container at /data.
 RUN_DIR=/opt/rads/run
@@ -36,30 +24,35 @@ RESULT_FILE="$RUN_DIR/result.json"
 OUTPUT_FILE="$RUN_DIR/output.txt"
 DOCKER_LOAD_LOG="$RUN_DIR/docker-load.log"
 
+# Emit one run-timeline checkpoint onto the log queue. Best-effort: logging must never fail the run.
+emit_event() {
+  "$TOOLS_BIN" checkpoint "$ALGORITHM_ID" "$RUN_ID" "$1" > /tmp/checkpoint.json
+  aws sqs send-message --queue-url "$LOG_EVENTS_QUEUE" --message-body file:///tmp/checkpoint.json --region "$REGION" || true
+}
+
 # Publish the run outcome, log the terminal event, and terminate the instance.
 finish() {
   STATUS=$?
   TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
   INSTANCE_ID=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-id)
-  python3 - "$STATUS" "$INSTANCE_ID" "$RESULT_FILE" "$OUTPUT_FILE" "$DOCKER_LOAD_LOG" "$RUN_ID" "$ALGORITHM_ID" > /tmp/result.json <<'PYEOF'
-{{.RunResultScript}}
-PYEOF
-  python3 - "$STATUS" "$INSTANCE_ID" "$ALGORITHM_ID" "$RUN_ID" > /tmp/log-event.json <<'PYEOF'
-{{.LogEventScript}}
-PYEOF
+  "$TOOLS_BIN" run-result "$STATUS" "$INSTANCE_ID" "$RESULT_FILE" "$OUTPUT_FILE" "$DOCKER_LOAD_LOG" "$RUN_ID" "$ALGORITHM_ID" > /tmp/result.json
+  "$TOOLS_BIN" executor-finished "$STATUS" "$INSTANCE_ID" "$ALGORITHM_ID" "$RUN_ID" > /tmp/log-event.json
   aws sqs send-message --queue-url "$RUN_RESULTS_QUEUE" --message-body file:///tmp/result.json --region "$REGION" || true
   aws sqs send-message --queue-url "$LOG_EVENTS_QUEUE" --message-body file:///tmp/log-event.json --region "$REGION" || true
   aws ec2 terminate-instances --instance-ids "$INSTANCE_ID" --region "$REGION" || true
 }
-trap finish EXIT
 
 # Docker on Amazon Linux 2023; awscli covers the S3 pull and SQS publishes.
 dnf install -y docker awscli >/dev/null
 systemctl enable --now docker
 for attempt in 1 2 3 4 5 6; do docker info >/dev/null 2>&1 && break; sleep 5; done
-emit_event executor-ready
 
-mkdir -p "$RUN_DIR"
+# Pull host helpers before executor-ready so the download sits in host provisioning, not data retrieval.
+mkdir -p /opt/rads/bin "$RUN_DIR"
+aws s3 cp "s3://$S3_BUCKET/$TOOLS_S3_KEY" "$TOOLS_BIN" --region "$REGION"
+chmod +x "$TOOLS_BIN"
+trap finish EXIT
+emit_event executor-ready
 
 # Pull the algorithm artifact first, so the run steps follow the same order as secure-rads (artifact, data, compute).
 aws s3 cp "s3://$S3_BUCKET/$S3_KEY" /tmp/app.tar --region "$REGION"
@@ -72,9 +65,7 @@ fi
 emit_event artifact-retrieved
 
 # Download the algorithm's full record set before the app starts, so the DC app reads a local file.
-python3 - "$PDM_URL" "$ALGORITHM_ID" "$RECORDS_FILE" "$RUN_ID" "$SIZE" <<'PYEOF'
-{{.FetchRecordsScript}}
-PYEOF
+"$TOOLS_BIN" fetch-records "$PDM_URL" "$ALGORITHM_ID" "$RECORDS_FILE" "$RUN_ID" "$SIZE"
 emit_event records-fetched
 
 # The app reads /data/records.json and writes /data/result.json; stdout is the diagnostic fallback.

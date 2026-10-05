@@ -17,26 +17,25 @@ from paths import RAW_DIR, PHASE_TIMINGS_CSV
 # null endpoints = phase does not apply (rads has no enclave).
 Window = tuple[str | None, str | None]
 
+# Column order is chronological wall time for both trees (host boot first).
 PHASES: dict[str, dict[str, Window]] = {
     "secure-rads": {
+        "host_provisioning": ("enclave-launched", "executor-ready"),
         "algorithm_retrieval": ("executor-ready", "artifact-retrieved"),
-        # Launch → executor-ready = host boot + tooling; enclave-started would nest algorithm retrieval.
-        "enclave_initialization": ("enclave-launched", "executor-ready"),
-        "attestation": ("unit-ready", "attested"),
         "sce_unit": ("enclave-started", "unit-ready"),
-        "data_retrieval": ("attested", "records-fetched"),
-        "data_decryption": ("records-fetched", "data-decrypted"),
+        "attestation": ("unit-ready", "attested"),
+        # Fetch + decrypt + write records.json (data-decrypted is emitted after the write).
+        "data_retrieval": ("attested", "data-decrypted"),
         "algorithm_processing": ("data-decrypted", "dc-app-completed"),
         "result_delivery": ("output-sent", "result-persisted"),
         "total": ("run-requested", "result-persisted"),
     },
     "rads": {
+        "host_provisioning": ("executor-launched", "executor-ready"),
         "algorithm_retrieval": ("executor-ready", "artifact-retrieved"),
-        "enclave_initialization": ("executor-launched", "executor-ready"),
-        "attestation": (None, None),
         "sce_unit": (None, None),
+        "attestation": (None, None),
         "data_retrieval": ("artifact-retrieved", "records-fetched"),
-        "data_decryption": (None, None),
         "algorithm_processing": ("records-fetched", "compute-completed"),
         "result_delivery": ("compute-completed", "executor-finished"),
         "total": ("run-requested", "executor-finished"),

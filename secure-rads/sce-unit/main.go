@@ -143,7 +143,6 @@ func prepareRecordsFile(cfg runConfig, runID string, limit int) error {
 		plainRecords = append(plainRecords, pdmRecord{RecordId: rec.RecordId, Data: plain})
 	}
 	log.Printf("sce-unit: decrypted %d records", len(plainRecords))
-	logEvent(cfg, runID, eventDataDecrypted, nil)
 
 	body, err := json.Marshal(struct {
 		AlgorithmId string      `json:"algorithmId"`
@@ -161,6 +160,8 @@ func prepareRecordsFile(cfg runConfig, runID string, limit int) error {
 		return fmt.Errorf("write %s: %w", recordsFileHost, err)
 	}
 	log.Printf("sce-unit: wrote %d bytes to %s", len(body), recordsFileHost)
+	// End of data retrieval for benchmarks: fetch + decrypt + write (see export.py data_retrieval).
+	logEvent(cfg, runID, eventDataDecrypted, nil)
 	return nil
 }
 

@@ -9,11 +9,11 @@ run it, and returns immediately. Results come back asynchronously through the sh
 `rads-algorithms` DynamoDB table (PK `AlgorithmId`), and — when `size` is set — rejects the request if that
 count exceeds the rows already seeded for the algorithm in PDM. It then launches a per-run EC2 executor, and returns
 `202 {runId, algorithmId, instanceId, status: "pending"}`. The executor installs AWS CLI + Docker, downloads
-every PDM record for the algorithm to `/opt/rads/run/records.json`, `aws s3 cp`s the image tar into place,
-`docker load`s it, then `docker run`s the image with that directory bind-mounted at `/data` and
-`RECORDS_PATH=/data/records.json` / `RESULT_PATH=/data/result.json` set. The app reads the records file and
-writes its result file; the executor ships that file as the output, falling back to the container's stdout
-for diagnostics. On exit it publishes
+`rads-host-tools` from `s3://<images-bucket>/executor/rads-host-tools`, pulls every PDM record for the algorithm
+to `/opt/rads/run/records.json`, `aws s3 cp`s the image tar into place, `docker load`s it, then `docker run`s the
+image with that directory bind-mounted at `/data` and `RECORDS_PATH=/data/records.json` / `RESULT_PATH=/data/result.json`
+set. The app reads the records file and writes its result file; the executor ships that file as the output, falling
+back to the container's stdout for diagnostics. On exit it publishes
 `{runId, instanceId, algorithmId, status, output, diag?}` to the `rads-run-results` queue (a consumer Lambda
 persists it to the `rads-run-results` table, PK `RunId`) and terminates itself.
 
@@ -44,6 +44,13 @@ bunx serverless deploy \
   --param="vpcId=<VPC id>"
 ```
 
+Ship the executor host helpers (linux/arm64 static binary) to the images bucket before the first run after a tools change:
+
+```
+make -C rads/sce/execution-service ship
+```
+
+That uploads `dist/rads-host-tools` to `s3://rads-images/executor/rads-host-tools`. Userdata downloads it during host provisioning.
 `instanceType` defaults to `c6g.large` (arm64, matching the arm64 algorithm images); set it to match the image
 architecture you run. `region` defaults to `ap-southeast-2`. The security group, instance role, and instance
 profile are created by this stack; the queue URLs/ARNs and the tables/bucket/AMI/VPC already exist.
