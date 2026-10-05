@@ -1,0 +1,35 @@
+RADS-BUILD(a, tar)
+1  store tar in S3 under a
+2  emit image-uploaded
+3  write a ↦ S3-path to DynamoDB
+4  emit algorithm-registered
+
+
+RADS-RUN(a, n)
+1  runId ← NEW-ID()
+2  emit run-requested
+3  key ← LOOKUP-S3(a)
+4  RunInstances(userdata ← ⟨a, runId, n, key⟩)
+5  emit executor-launched
+6  return runId
+
+
+RADS-EXECUTOR(a, runId, n, key)
+1  install docker, awscli
+2  start docker
+3  emit executor-ready
+4  pull key from S3
+5  DOCKER-LOAD(tar)
+6  emit artifact-retrieved
+7  records ← FETCH-PDM(a, limit ← n)
+8  write records to records.json
+9  emit records-fetched
+10 DOCKER-RUN(image, bind ← /data/records.json)
+11 emit compute-completed
+12 publish result to SQS
+13 emit executor-finished
+14 terminate instance
+
+
+RADS-RESULT-CONSUMER(result)
+1  persist result to DynamoDB
