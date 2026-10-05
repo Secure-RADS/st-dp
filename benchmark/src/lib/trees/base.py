@@ -28,11 +28,18 @@ class TreeHarness(ABC):
     @staticmethod
     def build_sample_tar(tree: Tree) -> Path:
         tar_path = BUILD_DIR / f"{tree}-{config.TRIAL_SAMPLE}.tar"
+        context = REPO_ROOT / str(tree) / "samples" / config.TRIAL_SAMPLE
+        # Rebuild when source is newer than the cached tar (stale cache overwrote a good EIF once).
         if tar_path.exists():
-            return tar_path
+            tar_mtime = tar_path.stat().st_mtime
+            newest_src = max(
+                (p.stat().st_mtime for p in context.rglob("*") if p.is_file()),
+                default=0.0,
+            )
+            if newest_src <= tar_mtime:
+                return tar_path
         BUILD_DIR.mkdir(parents=True, exist_ok=True)
         tag = f"bench-{tree}-{config.TRIAL_SAMPLE}:local"
-        context = REPO_ROOT / str(tree) / "samples" / config.TRIAL_SAMPLE
         subprocess.run(
             ["docker", "build", "--platform", "linux/arm64", "-t", tag, str(context)],
             check=True,
