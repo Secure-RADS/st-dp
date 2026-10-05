@@ -1,6 +1,6 @@
 # End-to-end run flows (RADS and Secure-RADS)
 
-High-level pseudocode for the build and execution paths, with every run-timeline event callout. Rendered with GitHub math (`$...$` / ```` ```math ````); GitHub does not run LaTeX algorithm packages, so the listings are math-aligned text, not `algorithm2e`.
+High-level pseudocode for the build and execution paths, with every run-timeline event callout. Rendered with GitHub math (`$...$` and fenced `math` blocks); GitHub does not run LaTeX algorithm packages, so the listings are math-aligned text, not `algorithm2e`.
 
 Canonical event names live in each tree's log-service (`RUN_EVENTS`). Anything else is rejected at ingest. Producers mirror that list.
 
