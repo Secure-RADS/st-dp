@@ -9,7 +9,7 @@ exactly one JSON object.
 {"algorithmId": "3b8bba4a-8106-4309-9446-7bce99a1453a", "userCount": 2500, "totalRevenueCents": 2004647586, "totalOrders": 26264, "topCategoriesByAgeBand": {}}
 ```
 
-Build and run (same `{"algorithmId", "pages", "records"}` file sce-unit writes):
+Build and run (same `{"algorithmId", "records"}` file sce-unit writes):
 
 ```
 docker build --platform linux/arm64 -t product-trends-node .

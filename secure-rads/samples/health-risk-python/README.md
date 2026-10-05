@@ -9,7 +9,7 @@ exactly one JSON object.
 {"algorithmId": "662fa378-dc53-425d-9225-a187b11ea7dc", "userCount": 250, "avgRestingHeartRate": 66.79, "avgDailySteps": 7620.37, "avgSleepHours": 7.26, "riskFlaggedCount": 28, "riskFlaggedPct": 11.2, "byActivityLevel": {"sedentary": 52, "moderate": 138, "active": 60}}
 ```
 
-Build and run (same `{"algorithmId", "pages", "records"}` file sce-unit writes):
+Build and run (same `{"algorithmId", "records"}` file sce-unit writes):
 
 ```
 docker build --platform linux/arm64 -t health-risk-python .

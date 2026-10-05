@@ -9,7 +9,7 @@ exactly one JSON object.
 {"algorithmId": "c7cc14fa-e962-4548-aff4-a54148798cd8", "userCount": 1000, "totalSpendByCategory": {"dining": 697211.38}, "avgMonthlySpendPerUser": 1199.77, "anomalies": [], "anomalyUserCount": 969}
 ```
 
-Build and run (same `{"algorithmId", "pages", "records"}` file sce-unit writes):
+Build and run (same `{"algorithmId", "records"}` file sce-unit writes):
 
 ```
 docker build --platform linux/arm64 -t spend-analysis-go .

@@ -20,10 +20,9 @@ type pdmRecord struct {
 
 // fetchAllRecords pulls personal-data records for this enclave's algorithm from the PDM service, following
 // pagination cursors until the dataset ends or `limit` records have been read (limit 0 = the whole dataset).
-// pages is the number of HTTP responses read (same metadata rads writes into records.json).
 // The bearer token is all pdm-service needs - it derives the algorithmId from the token's attestation
 // session via verifier-service, never from us.
-func fetchAllRecords(cfg runConfig, runID string, limit int) ([]pdmRecord, []byte, int, error) {
+func fetchAllRecords(cfg runConfig, runID string, limit int) ([]pdmRecord, []byte, error) {
 	client := cfg.pdm().client()
 
 	var records []pdmRecord
@@ -33,7 +32,7 @@ func fetchAllRecords(cfg runConfig, runID string, limit int) ([]pdmRecord, []byt
 		// Always read the live access token; refreshLoop refreshes before expiry — never reuse the attest-time string.
 		accessToken, ok := CurrentAccessToken()
 		if !ok {
-			return nil, nil, 0, fmt.Errorf("GET /records page %d: no access token", page)
+			return nil, nil, fmt.Errorf("GET /records page %d: no access token", page)
 		}
 
 		endpoint := "https://" + cfg.PdmHost + "/records"
@@ -45,7 +44,7 @@ func fetchAllRecords(cfg runConfig, runID string, limit int) ([]pdmRecord, []byt
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 		if err != nil {
 			cancel()
-			return nil, nil, 0, err
+			return nil, nil, err
 		}
 		req.Header.Set("Authorization", "Bearer "+accessToken)
 		req.Header.Set("X-Run-Id", runID)
@@ -53,14 +52,14 @@ func fetchAllRecords(cfg runConfig, runID string, limit int) ([]pdmRecord, []byt
 		resp, err := client.Do(req)
 		if err != nil {
 			cancel()
-			return nil, nil, 0, fmt.Errorf("GET /records page %d: %w", page, err)
+			return nil, nil, fmt.Errorf("GET /records page %d: %w", page, err)
 		}
 
 		if resp.StatusCode != http.StatusOK {
 			respBody, _ := io.ReadAll(resp.Body)
 			resp.Body.Close()
 			cancel()
-			return nil, nil, 0, fmt.Errorf("pdm-service returned %s: %s", resp.Status, respBody)
+			return nil, nil, fmt.Errorf("pdm-service returned %s: %s", resp.Status, respBody)
 		}
 
 		var body struct {
@@ -72,22 +71,22 @@ func fetchAllRecords(cfg runConfig, runID string, limit int) ([]pdmRecord, []byt
 		resp.Body.Close()
 		cancel()
 		if err != nil {
-			return nil, nil, 0, fmt.Errorf("decode /records page %d: %w", page, err)
+			return nil, nil, fmt.Errorf("decode /records page %d: %w", page, err)
 		}
 
 		records = append(records, body.Records...)
 		if body.DataKey != nil {
 			decoded, derr := base64.StdEncoding.DecodeString(*body.DataKey)
 			if derr != nil {
-				return nil, nil, 0, fmt.Errorf("decode data key: %w", derr)
+				return nil, nil, fmt.Errorf("decode data key: %w", derr)
 			}
 			dataKey = decoded
 		}
 		if limit > 0 && len(records) >= limit {
-			return records[:limit], dataKey, page, nil
+			return records[:limit], dataKey, nil
 		}
 		if body.NextCursor == nil || *body.NextCursor == "" {
-			return records, dataKey, page, nil
+			return records, dataKey, nil
 		}
 		cursor = *body.NextCursor
 	}

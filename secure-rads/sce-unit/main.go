@@ -115,12 +115,12 @@ func prepareRecordsFile(cfg runConfig, runID string, limit int) error {
 		return fmt.Errorf("fetch AWS creds: %w", err)
 	}
 
-	records, encDataKey, pages, err := fetchAllRecords(cfg, runID, limit)
+	records, encDataKey, err := fetchAllRecords(cfg, runID, limit)
 	if err != nil {
 		return fmt.Errorf("fetch records: %w", err)
 	}
-	log.Printf("sce-unit: fetched %d records from pdm-service (%d page(s))", len(records), pages)
-	logEvent(cfg, runID, eventRecordsFetched, map[string]any{"count": len(records), "pages": pages})
+	log.Printf("sce-unit: fetched %d records from pdm-service", len(records))
+	logEvent(cfg, runID, eventRecordsFetched, map[string]any{"count": len(records)})
 
 	// pdm-service only ever returns ciphertext; the data key that unwraps it is obtained from KMS under
 	// this enclave's attestation. Only the measured image can do this - see the per-algorithm key policy.
@@ -143,9 +143,8 @@ func prepareRecordsFile(cfg runConfig, runID string, limit int) error {
 
 	body, err := json.Marshal(struct {
 		AlgorithmId string      `json:"algorithmId"`
-		Pages       int         `json:"pages"`
 		Records     []pdmRecord `json:"records"`
-	}{AlgorithmId: cfg.AlgorithmId, Pages: pages, Records: plainRecords})
+	}{AlgorithmId: cfg.AlgorithmId, Records: plainRecords})
 	if err != nil {
 		return fmt.Errorf("marshal records file: %w", err)
 	}

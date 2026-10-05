@@ -46,12 +46,12 @@ SCE-UNIT(a, cfg)
 5  token ← ATTEST(Verifier)
 6  emit attested
 7  creds ← FETCH-AWS-CREDS()
-8  ⟨records, encDEK, pages⟩ ← FETCH-PDM(a, token, limit ← n)
+8  ⟨records, encDEK⟩ ← FETCH-PDM(a, token, limit ← n)
 9  emit records-fetched
 10 DEK ← KMS-DECRYPT(encDEK, attestation)
 11 plaintext ← DECRYPT(records, DEK)
 12 emit data-decrypted
-13 write {algorithmId, pages, records} to /data/records.json
+13 write {algorithmId, records} to /data/records.json
 14 START nsjail                         // RECORDS_PATH, RESULT_PATH
 15 wait for nsjail exit
 16 output ← read /data/result.json
