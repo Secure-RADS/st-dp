@@ -61,12 +61,15 @@ provider:
 functions:
   run:
     handler: src/handlers/run.create
+    # PDM size check pages the full algorithm partition before RunInstances.
+    timeout: 60
     events:
       - httpApi:
           method: POST
           path: /run
   result:
     handler: src/handlers/run.result
+    timeout: 10
     events:
       - httpApi:
           method: GET
