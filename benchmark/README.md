@@ -70,6 +70,8 @@ Each rep launches a **fresh EC2 executor**, boots (~70–90s), runs, then termin
 
 Seed overwrites matching `(AlgorithmId, RecordId)` keys; it does not delete orphan rows from an older larger seed. Use BatchWrite via `seed-rads` / `seed-secure-rads` only — not DynamoDB ImportTable / S3 import.
 
+Sample image tarballs are cached under `benchmark/build/`. The cache is invalidated when any file under the sample directory is newer than the tar; delete `benchmark/build/*.tar` manually if a rebuild is needed without a source mtime change.
+
 ## Run without Make
 
 ```

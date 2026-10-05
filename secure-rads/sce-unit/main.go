@@ -76,7 +76,8 @@ func main() {
 	output, readErr := os.ReadFile(resultFileHost)
 	logEvent(cfg, runID, eventDCAppCompleted, map[string]any{"outputBytes": len(output)})
 
-	if readErr != nil || len(output) == 0 {
+	failed := readErr != nil || len(output) == 0
+	if failed {
 		// The enclave console is lost when the host terminates, so deliver the failure and the jailed app's own output.
 		log.Printf("sce-unit: result missing or empty: readErr=%v bytes=%d waitErr=%v", readErr, len(output), waitErr)
 		failure, _ := json.Marshal(struct {
@@ -96,6 +97,9 @@ func main() {
 		log.Printf("sce-unit: send output to host failed: %v", err)
 	}
 	logEvent(cfg, runID, eventOutputSent, nil)
+	if failed {
+		os.Exit(1)
+	}
 }
 
 // prepareRecordsFile attests, fetches ciphertext from pdm-service, decrypts, and writes the rads-shaped
@@ -151,6 +155,8 @@ func prepareRecordsFile(cfg runConfig, runID string, limit int) error {
 	if err := os.MkdirAll(dataDirHost, 0o755); err != nil {
 		return fmt.Errorf("create %s: %w", dataDirHost, err)
 	}
+	// Drop a leftover result from a prior attempt in this rootfs (fresh EIFs are clean; defensive).
+	_ = os.Remove(resultFileHost)
 	if err := os.WriteFile(recordsFileHost, body, 0o644); err != nil {
 		return fmt.Errorf("write %s: %w", recordsFileHost, err)
 	}

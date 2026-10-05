@@ -70,7 +70,11 @@ def load_runs() -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for path in sorted(RAW_DIR.glob("sweep-*.json")):
         parsed = json.loads(path.read_text())
-        rows.extend(row for row in parsed if row.get("run_id") and row.get("size") is not None)
+        rows.extend(
+            row
+            for row in parsed
+            if row.get("run_id") and row.get("size") is not None and not row.get("error")
+        )
     return rows
 
 
