@@ -1,6 +1,6 @@
 # End-to-end run flows (RADS and Secure-RADS)
 
-High-level pseudocode for the build and execution paths, with every run-timeline event callout. Rendered with GitHub math (`$...$` and fenced `math` blocks); GitHub does not run LaTeX algorithm packages, so the listings are math-aligned text, not `algorithm2e`.
+High-level pseudocode for the build and execution paths, with every run-timeline event callout. Rendered with GitHub math (`$...$` and fenced `math` blocks); GitHub's KaTeX does not run LaTeX algorithm packages (`algorithm2e`, `\textsc`, nested `\text` inside `\textbf`), so the listings stay on supported macros only.
 
 Canonical event names live in each tree's log-service (`RUN_EVENTS`). Anything else is rejected at ingest. Producers mirror that list.
 
@@ -62,13 +62,13 @@ Caller uploads a Docker image tarball, then registers an `algorithmId`. No EIF, 
 
 ```math
 \begin{aligned}
-&\textbf{RADS Build} \\[0.4em]
-&1:\ \textbf{procedure}\ \textsc{Register}(a,\ \textit{tar}) \\
-&2:\ \quad \text{store tar in S3 under } a \\
-&3:\ \quad \textbf{emit}\ \texttt{image-uploaded} \\
-&4:\ \quad \text{write } a \mapsto \text{S3 path in DynamoDB} \\
-&5:\ \quad \textbf{emit}\ \texttt{algorithm-registered} \\
-&6:\ \quad \textbf{return}
+& \text{RADS Build} \\[0.4em]
+& 1:\ \textbf{procedure}\ \mathrm{Register}(a,\ \mathit{tar}) \\
+& 2:\ \quad \text{store tar in S3 under } a \\
+& 3:\ \quad \textbf{emit}\ \texttt{image-uploaded} \\
+& 4:\ \quad \text{write } a \mapsto \text{S3 path in DynamoDB} \\
+& 5:\ \quad \textbf{emit}\ \texttt{algorithm-registered} \\
+& 6:\ \quad \textbf{return}
 \end{aligned}
 ```
 
@@ -80,26 +80,26 @@ Plain EC2 + Docker. The host fetches plaintext records from PDM and bind-mounts 
 
 ```math
 \begin{aligned}
-&\textbf{RADS Execution} \\[0.4em]
-&1:\ \textbf{procedure}\ \textsc{Run}(a,\ n) \\
-&2:\ \quad \textit{runId} \leftarrow \text{new id} \\
-&3:\ \quad \textbf{emit}\ \texttt{run-requested} \\
-&4:\ \quad \text{look up S3 artifact for } a \\
-&5:\ \quad \text{RunInstances(userdata with } a,\ \textit{runId},\ n\text{)} \\
-&6:\ \quad \textbf{emit}\ \texttt{executor-launched} \\
-&7:\ \quad \textbf{return}\ \textit{runId}\ \text{(caller polls later)} \\[0.6em]
-&\textbf{on EC2 (userdata):} \\
-&8:\ \quad \text{install docker + awscli; start docker} \\
-&9:\ \quad \textbf{emit}\ \texttt{executor-ready} \\
-&10:\ \quad \text{S3 pull tar; docker load} \\
-&11:\ \quad \textbf{emit}\ \texttt{artifact-retrieved} \\
-&12:\ \quad \text{GET PDM pages for } a\ \text{(limit } n\text{); write } \textit{records.json} \\
-&13:\ \quad \textbf{emit}\ \texttt{records-fetched} \\
-&14:\ \quad \text{docker run with } /data/\textit{records.json}\ \text{bind-mount} \\
-&15:\ \quad \textbf{emit}\ \texttt{compute-completed} \\
-&16:\ \quad \textbf{on exit:}\ \text{SQS result + }\textbf{emit}\ \texttt{executor-finished}\text{; terminate} \\[0.6em]
-&\textbf{result-consumer:} \\
-&17:\ \quad \text{persist result to DynamoDB (no timeline event)}
+& \text{RADS Execution} \\[0.4em]
+& 1:\ \textbf{procedure}\ \mathrm{Run}(a,\ n) \\
+& 2:\ \quad \mathit{runId} \leftarrow \text{new id} \\
+& 3:\ \quad \textbf{emit}\ \texttt{run-requested} \\
+& 4:\ \quad \text{look up S3 artifact for } a \\
+& 5:\ \quad \text{RunInstances(userdata with } a,\ \mathit{runId},\ n\text{)} \\
+& 6:\ \quad \textbf{emit}\ \texttt{executor-launched} \\
+& 7:\ \quad \textbf{return}\ \mathit{runId}\ \text{ (caller polls later)} \\[0.6em]
+& \text{on EC2 (userdata):} \\
+& 8:\ \quad \text{install docker + awscli; start docker} \\
+& 9:\ \quad \textbf{emit}\ \texttt{executor-ready} \\
+& 10:\ \quad \text{S3 pull tar; docker load} \\
+& 11:\ \quad \textbf{emit}\ \texttt{artifact-retrieved} \\
+& 12:\ \quad \text{GET PDM pages for } a \text{ (limit } n\text{); write records.json} \\
+& 13:\ \quad \textbf{emit}\ \texttt{records-fetched} \\
+& 14:\ \quad \text{docker run with /data/records.json bind-mount} \\
+& 15:\ \quad \textbf{emit}\ \texttt{compute-completed} \\
+& 16:\ \quad \text{on exit: SQS result + emit executor-finished; terminate} \\[0.6em]
+& \text{result-consumer:} \\
+& 17:\ \quad \text{persist result to DynamoDB (no timeline event)}
 \end{aligned}
 ```
 
@@ -124,22 +124,22 @@ registry-service on the CSAV host: unpack OCI image, layer sce-unit + nsjail, bu
 
 ```math
 \begin{aligned}
-&\textbf{Secure\text{-}RADS Build} \\[0.4em]
-&1:\ \textbf{procedure}\ \textsc{Build}(a,\ \textit{oci}) \\
-&2:\ \quad \textit{buildId} \leftarrow \text{new id} \\
-&3:\ \quad \textbf{emit}\ \texttt{build-started} \\
-&4:\ \quad \text{skopeo + umoci unpack; layer sce-unit + nsjail} \\
-&5:\ \quad \text{eif\_build} \rightarrow \textit{EIF},\ \textit{PCRs} \\
-&6:\ \quad \textbf{emit}\ \texttt{eif-built} \\
-&7:\ \quad \text{upload EIF to S3} \\
-&8:\ \quad \textbf{emit}\ \texttt{image-uploaded} \\
-&9:\ \quad \text{register PCRs for } a\ \text{with verifier (mTLS)} \\
-&10:\ \quad \textbf{emit}\ \texttt{pcrs-registered} \\
-&11:\ \quad \text{create or reuse per-algorithm KMS key} \\
-&12:\ \quad \textbf{emit}\ \texttt{kms-key-provisioned} \\
-&13:\ \quad \text{write } a \mapsto \text{S3 path (+ KMS ARN) in DynamoDB} \\
-&14:\ \quad \textbf{emit}\ \texttt{build-completed}\ \text{(or }\texttt{build-failed}\text{)} \\
-&15:\ \quad \textbf{return}
+& \text{Secure-RADS Build} \\[0.4em]
+& 1:\ \textbf{procedure}\ \mathrm{Build}(a,\ \mathit{oci}) \\
+& 2:\ \quad \mathit{buildId} \leftarrow \text{new id} \\
+& 3:\ \quad \textbf{emit}\ \texttt{build-started} \\
+& 4:\ \quad \text{skopeo + umoci unpack; layer sce-unit + nsjail} \\
+& 5:\ \quad \texttt{eif\_build} \rightarrow \mathit{EIF},\ \mathit{PCRs} \\
+& 6:\ \quad \textbf{emit}\ \texttt{eif-built} \\
+& 7:\ \quad \text{upload EIF to S3} \\
+& 8:\ \quad \textbf{emit}\ \texttt{image-uploaded} \\
+& 9:\ \quad \text{register PCRs for } a \text{ with verifier (mTLS)} \\
+& 10:\ \quad \textbf{emit}\ \texttt{pcrs-registered} \\
+& 11:\ \quad \text{create or reuse per-algorithm KMS key} \\
+& 12:\ \quad \textbf{emit}\ \texttt{kms-key-provisioned} \\
+& 13:\ \quad \text{write } a \mapsto \text{S3 path (+ KMS ARN) in DynamoDB} \\
+& 14:\ \quad \textbf{emit}\ \texttt{build-completed} \text{ (or build-failed)} \\
+& 15:\ \quad \textbf{return}
 \end{aligned}
 ```
 
@@ -153,42 +153,42 @@ Control plane launches a Nitro parent EC2. Host pulls the EIF and starts the enc
 
 ```math
 \begin{aligned}
-&\textbf{Secure\text{-}RADS Execution} \\[0.4em]
-&1:\ \textbf{procedure}\ \textsc{Run}(a,\ n) \\
-&2:\ \quad \textit{runId} \leftarrow \text{new id} \\
-&3:\ \quad \textbf{emit}\ \texttt{run-requested} \\
-&4:\ \quad \text{look up EIF S3 path for } a \\
-&5:\ \quad \text{RunInstances(Nitro parent + userdata)} \\
-&6:\ \quad \textbf{emit}\ \texttt{enclave-launched} \\
-&7:\ \quad \textbf{return}\ \textit{runId} \\[0.6em]
-&\textbf{on parent EC2 (userdata):} \\
-&8:\ \quad \text{install nitro-cli; configure allocator} \\
-&9:\ \quad \textbf{emit}\ \texttt{executor-ready} \\
-&10:\ \quad \text{S3 pull EIF} \\
-&11:\ \quad \textbf{emit}\ \texttt{artifact-retrieved} \\
-&12:\ \quad \text{start vsock listeners (output :5000, runInfo :5001)} \\
-&13:\ \quad \text{nitro-cli run-enclave} \\[0.6em]
-&\textbf{inside enclave (sce-unit):} \\
-&14:\ \quad \text{read } \{\textit{runId},\ n\}\ \text{from host :5001} \\
-&15:\ \quad \textbf{emit}\ \texttt{enclave-started} \\
-&16:\ \quad \text{seed entropy from NSM} \\
-&17:\ \quad \textbf{emit}\ \texttt{unit-ready} \\
-&18:\ \quad \text{attest to verifier} \rightarrow \text{access token} \\
-&19:\ \quad \textbf{emit}\ \texttt{attested} \\
-&20:\ \quad \text{fetch AWS creds; GET PDM ciphertext for } a \\
-&21:\ \quad \textbf{emit}\ \texttt{records-fetched} \\
-&22:\ \quad \text{KMS Decrypt(encDEK) under attestation; decrypt records} \\
-&23:\ \quad \textbf{emit}\ \texttt{data-decrypted} \\
-&24:\ \quad \text{start nsjail; relay payload on unix socket} \\
-&25:\ \quad \textbf{emit}\ \texttt{dc-app-completed} \\
-&26:\ \quad \text{stream output to parent vsock :5000} \\
-&27:\ \quad \textbf{emit}\ \texttt{output-sent} \\
-&28:\ \quad \text{(on failure earlier: }\textbf{emit}\ \texttt{run-failed}\text{)} \\[0.6em]
-&\textbf{on parent exit:} \\
-&29:\ \quad \text{SQS result message; terminate instance} \\[0.4em]
-&\textbf{result-consumer:} \\
-&30:\ \quad \text{write RunResults} \\
-&31:\ \quad \textbf{emit}\ \texttt{result-persisted}
+& \text{Secure-RADS Execution} \\[0.4em]
+& 1:\ \textbf{procedure}\ \mathrm{Run}(a,\ n) \\
+& 2:\ \quad \mathit{runId} \leftarrow \text{new id} \\
+& 3:\ \quad \textbf{emit}\ \texttt{run-requested} \\
+& 4:\ \quad \text{look up EIF S3 path for } a \\
+& 5:\ \quad \text{RunInstances(Nitro parent + userdata)} \\
+& 6:\ \quad \textbf{emit}\ \texttt{enclave-launched} \\
+& 7:\ \quad \textbf{return}\ \mathit{runId} \\[0.6em]
+& \text{on parent EC2 (userdata):} \\
+& 8:\ \quad \text{install nitro-cli; configure allocator} \\
+& 9:\ \quad \textbf{emit}\ \texttt{executor-ready} \\
+& 10:\ \quad \text{S3 pull EIF} \\
+& 11:\ \quad \textbf{emit}\ \texttt{artifact-retrieved} \\
+& 12:\ \quad \text{start vsock listeners (output :5000, runInfo :5001)} \\
+& 13:\ \quad \text{nitro-cli run-enclave} \\[0.6em]
+& \text{inside enclave (sce-unit):} \\
+& 14:\ \quad \text{read } \{\mathit{runId},\ n\} \text{ from host :5001} \\
+& 15:\ \quad \textbf{emit}\ \texttt{enclave-started} \\
+& 16:\ \quad \text{seed entropy from NSM} \\
+& 17:\ \quad \textbf{emit}\ \texttt{unit-ready} \\
+& 18:\ \quad \text{attest to verifier} \rightarrow \text{access token} \\
+& 19:\ \quad \textbf{emit}\ \texttt{attested} \\
+& 20:\ \quad \text{fetch AWS creds; GET PDM ciphertext for } a \\
+& 21:\ \quad \textbf{emit}\ \texttt{records-fetched} \\
+& 22:\ \quad \text{KMS Decrypt(encDEK) under attestation; decrypt records} \\
+& 23:\ \quad \textbf{emit}\ \texttt{data-decrypted} \\
+& 24:\ \quad \text{start nsjail; relay payload on unix socket} \\
+& 25:\ \quad \textbf{emit}\ \texttt{dc-app-completed} \\
+& 26:\ \quad \text{stream output to parent vsock :5000} \\
+& 27:\ \quad \textbf{emit}\ \texttt{output-sent} \\
+& 28:\ \quad \text{(on failure earlier: emit run-failed)} \\[0.6em]
+& \text{on parent exit:} \\
+& 29:\ \quad \text{SQS result message; terminate instance} \\[0.4em]
+& \text{result-consumer:} \\
+& 30:\ \quad \text{write RunResults} \\
+& 31:\ \quad \textbf{emit}\ \texttt{result-persisted}
 \end{aligned}
 ```
 
@@ -214,19 +214,19 @@ Note: host boot + nitro tooling sit in `enclave_initialization`. EIF download is
 
 ```math
 \begin{aligned}
-&\underline{\textbf{RADS}} &&\underline{\textbf{Secure\text{-}RADS}} \\
-&\texttt{run-requested} &&\texttt{run-requested} \\
-&\texttt{executor-launched} &&\texttt{enclave-launched} \\
-&\texttt{executor-ready} &&\texttt{executor-ready} \\
-&\texttt{artifact-retrieved} &&\texttt{artifact-retrieved} \\
-& &&\texttt{enclave-started} \\
-& &&\texttt{unit-ready} \\
-& &&\texttt{attested} \\
-&\texttt{records-fetched} &&\texttt{records-fetched} \\
-& &&\texttt{data-decrypted} \\
-&\texttt{compute-completed} &&\texttt{dc-app-completed} \\
-& &&\texttt{output-sent} \\
-&\texttt{executor-finished} &&\texttt{result-persisted}
+& \underline{\text{RADS}} && \underline{\text{Secure-RADS}} \\
+& \texttt{run-requested} && \texttt{run-requested} \\
+& \texttt{executor-launched} && \texttt{enclave-launched} \\
+& \texttt{executor-ready} && \texttt{executor-ready} \\
+& \texttt{artifact-retrieved} && \texttt{artifact-retrieved} \\
+& && \texttt{enclave-started} \\
+& && \texttt{unit-ready} \\
+& && \texttt{attested} \\
+& \texttt{records-fetched} && \texttt{records-fetched} \\
+& && \texttt{data-decrypted} \\
+& \texttt{compute-completed} && \texttt{dc-app-completed} \\
+& && \texttt{output-sent} \\
+& \texttt{executor-finished} && \texttt{result-persisted}
 \end{aligned}
 ```
 
