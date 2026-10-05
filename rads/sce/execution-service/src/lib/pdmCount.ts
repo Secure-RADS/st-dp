@@ -4,6 +4,8 @@ export async function countAlgorithmRecords(
   ddb: DynamoDBDocumentClient,
   table: string,
   algorithmId: string,
+  // Stop once we know at least this many rows exist (size checks only need a lower bound).
+  atLeast?: number,
 ): Promise<number> {
   let total = 0;
   let exclusiveStartKey: Record<string, unknown> | undefined;
@@ -18,6 +20,7 @@ export async function countAlgorithmRecords(
       }),
     );
     total += page.Count ?? 0;
+    if (atLeast !== undefined && total >= atLeast) return total;
     exclusiveStartKey = page.LastEvaluatedKey as Record<string, unknown> | undefined;
   } while (exclusiveStartKey);
   return total;
