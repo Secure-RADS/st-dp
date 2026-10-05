@@ -1,0 +1,155 @@
+End-to-end flow: Secure-RADS
+============================
+
+Plaintext pseudocode. Events are the canonical RUN_EVENTS from
+secure-rads/log-service. Emitters: registry-service, execution-service Lambda,
+EC2 userdata, sce-unit, result-consumer. Transport: HTTPS POST /events.
+
+
+Event catalog
+-------------
+Build
+  image-uploaded              registry-service
+  build-started               registry-service
+  eif-built                   registry-service
+  pcrs-registered             registry-service
+  kms-key-provisioned         registry-service
+  build-completed             registry-service
+  build-failed                registry-service
+
+Exec (control plane)
+  run-requested               execution-service Lambda
+  enclave-launched            execution-service Lambda
+  launch-failed               execution-service Lambda
+
+Exec (host)
+  executor-ready              userdata
+  artifact-retrieved          userdata
+
+Exec (enclave / sce-unit)
+  enclave-started             sce-unit
+  unit-ready                  sce-unit
+  attested                    sce-unit
+  records-fetched             sce-unit
+  data-decrypted              sce-unit
+  dc-app-completed            sce-unit
+  output-sent                 sce-unit
+  run-failed                  sce-unit
+
+Result
+  result-persisted            result-consumer
+
+
+Algorithm 3: Secure-RADS Build (CSAV)
+------------------------------------
+registry-service on the CSAV host: unpack OCI image, layer sce-unit + nsjail,
+build EIF, register PCRs with the verifier, provision (or reuse) the
+per-algorithm KMS key, store the EIF.
+
+ 1: procedure Build(a, oci)
+ 2:   buildId <- new id
+ 3:   emit build-started
+ 4:   skopeo + umoci unpack; layer sce-unit + nsjail
+ 5:   eif_build -> EIF, PCRs
+ 6:   emit eif-built
+ 7:   upload EIF to S3
+ 8:   emit image-uploaded
+ 9:   register PCRs for a with verifier (mTLS)
+10:   emit pcrs-registered
+11:   create or reuse per-algorithm KMS key
+12:   emit kms-key-provisioned
+13:   write a |-> S3 path (+ KMS ARN) in DynamoDB
+14:   emit build-completed                # or build-failed
+15:   return
+
+Seeding encrypts dataset rows under that algorithm's KMS key after
+registration (see seeding/).
+
+
+Algorithm 4: Secure-RADS Execution
+----------------------------------
+Control plane launches a Nitro parent EC2. Host pulls the EIF and starts the
+enclave. sce-unit attests, fetches ciphertext from PDM, unwraps the DEK via
+KMS under attestation, decrypts in-enclave, relays plaintext to the jailed
+DC app over a unix socket, then streams output to the parent over vsock.
+Host publishes the result to SQS; result-consumer persists and emits
+result-persisted.
+
+ 1: procedure Run(a, n)
+ 2:   runId <- new id
+ 3:   emit run-requested
+ 4:   look up EIF S3 path for a
+ 5:   RunInstances(Nitro parent + userdata)
+ 6:   emit enclave-launched
+ 7:   return runId
+
+    --- on parent EC2 (userdata) ---
+ 8:   install nitro-cli; configure allocator
+ 9:   emit executor-ready
+10:   S3 pull EIF
+11:   emit artifact-retrieved
+12:   start vsock listeners (output :5000, runInfo :5001)
+13:   nitro-cli run-enclave
+
+    --- inside enclave (sce-unit) ---
+14:   read {runId, n} from host :5001
+15:   emit enclave-started
+16:   seed entropy from NSM
+17:   emit unit-ready
+18:   attest to verifier -> access token
+19:   emit attested
+20:   fetch AWS creds; GET PDM ciphertext for a
+21:   emit records-fetched
+22:   KMS Decrypt(encDEK) under attestation; decrypt records
+23:   emit data-decrypted
+24:   start nsjail; relay payload on unix socket
+25:   emit dc-app-completed
+26:   stream output to parent vsock :5000
+27:   emit output-sent
+28:   (on failure earlier: emit run-failed)
+
+    --- on parent exit ---
+29:   SQS result message; terminate instance
+
+    --- result-consumer ---
+30:   write RunResults
+31:   emit result-persisted
+
+
+Benchmark phase windows (benchmark/src/export.py)
+-------------------------------------------------
+  enclave_initialization   enclave-launched   ->  executor-ready
+  algorithm_retrieval      executor-ready     ->  artifact-retrieved
+  sce_unit                 enclave-started    ->  unit-ready
+  attestation              unit-ready         ->  attested
+  data_retrieval           attested           ->  records-fetched
+  data_decryption          records-fetched    ->  data-decrypted
+  algorithm_processing     data-decrypted     ->  dc-app-completed
+  result_delivery          output-sent        ->  result-persisted
+  total                    run-requested      ->  result-persisted
+
+Notes:
+  - Host boot + nitro tooling sit in enclave_initialization.
+  - EIF download is algorithm_retrieval.
+  - Unix-socket handoff of plaintext into the DC app is inside
+    algorithm_processing (after data-decrypted), not data_retrieval.
+  - Ciphertext stays in memory until decrypt; unlike RADS there is no
+    disk dump before records-fetched.
+
+
+Side-by-side execution events
+-----------------------------
+  RADS                      Secure-RADS
+  ------------------------  ------------------------
+  run-requested             run-requested
+  executor-launched         enclave-launched
+  executor-ready            executor-ready
+  artifact-retrieved        artifact-retrieved
+                            enclave-started
+                            unit-ready
+                            attested
+  records-fetched           records-fetched
+                            data-decrypted
+  compute-completed         dc-app-completed
+                            output-sent
+  executor-finished         result-persisted

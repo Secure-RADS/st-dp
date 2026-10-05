@@ -1,0 +1,84 @@
+End-to-end flow: RADS
+=====================
+
+Plaintext pseudocode. Events are the canonical RUN_EVENTS from rads/log-service.
+Emitters: registry-service, execution-service Lambda, EC2 userdata, result-consumer
+(no timeline event). Transport: SQS -> log-service worker.
+
+
+Event catalog
+-------------
+Build
+  image-uploaded              registry-service
+  algorithm-registered        registry-service
+
+Exec (control plane)
+  run-requested               execution-service Lambda
+  executor-launched           execution-service Lambda
+  launch-failed               execution-service Lambda
+
+Exec (EC2)
+  executor-ready              userdata
+  artifact-retrieved          userdata
+  records-fetched             userdata
+  compute-completed           userdata
+  executor-finished           userdata finish()
+
+No enclave, attestation, decrypt, or result-persisted events.
+
+
+Algorithm 1: RADS Build
+-----------------------
+Caller uploads a Docker image tarball, then registers an algorithmId.
+No EIF, PCR, or KMS step.
+
+ 1: procedure Register(a, tar)
+ 2:   store tar in S3 under a
+ 3:   emit image-uploaded
+ 4:   write a |-> S3 path in DynamoDB
+ 5:   emit algorithm-registered
+ 6:   return
+
+
+Algorithm 2: RADS Execution
+---------------------------
+Plain EC2 + Docker. Host fetches plaintext records from PDM and bind-mounts
+them into the container. Result goes to SQS; consumer Lambda writes RunResults.
+Terminal timeline event is executor-finished (not result-persisted).
+
+ 1: procedure Run(a, n)
+ 2:   runId <- new id
+ 3:   emit run-requested
+ 4:   look up S3 artifact for a
+ 5:   RunInstances(userdata with a, runId, n)
+ 6:   emit executor-launched
+ 7:   return runId                    # caller polls later
+
+    --- on EC2 (userdata) ---
+ 8:   install docker + awscli; start docker
+ 9:   emit executor-ready
+10:   S3 pull tar; docker load
+11:   emit artifact-retrieved
+12:   GET PDM pages for a (limit n); write records.json
+13:   emit records-fetched
+14:   docker run with /data/records.json bind-mount
+15:   emit compute-completed
+16:   on exit: SQS result + emit executor-finished; terminate
+
+    --- result-consumer ---
+17:   persist result to DynamoDB (no timeline event)
+
+
+Benchmark phase windows (benchmark/src/export.py)
+-------------------------------------------------
+  enclave_initialization   executor-launched  ->  executor-ready
+  algorithm_retrieval      executor-ready     ->  artifact-retrieved
+  data_retrieval           artifact-retrieved ->  records-fetched
+  algorithm_processing     records-fetched    ->  compute-completed
+  result_delivery          compute-completed  ->  executor-finished
+  total                    run-requested      ->  executor-finished
+
+  attestation, sce_unit, data_decryption = N/A
+
+Note: data_retrieval includes writing the full JSON dataset to disk before
+records-fetched.
