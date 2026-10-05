@@ -2,10 +2,10 @@ SECURE-RADS-BUILD(a, oci)
 1  buildId ← NEW-ID()
 2  emit build-started
 3  rootfs ← UNPACK(oci)                 // skopeo + umoci
-4  layer sce-unit, nsjail onto rootfs
+4  LAYER sce-unit, nsjail onto rootfs
 5  ⟨EIF, PCRs⟩ ← EIF-BUILD(rootfs)
 6  emit eif-built
-7  upload EIF to S3
+7  UPLOAD EIF to S3
 8  emit image-uploaded
 9  REGISTER-PCRS(a, PCRs)               // mTLS to Verifier
 10 emit pcrs-registered
@@ -31,7 +31,7 @@ SECURE-RADS-HOST(a, runId, n, key)
 3  emit executor-ready
 4  pull EIF from S3
 5  emit artifact-retrieved
-6  start vsock listeners                // :5000 output, :5001 runInfo
+6  start vsock listeners                // output :5000, runInfo :5001
 7  RUN-ENCLAVE(EIF)
 8  wait for enclave exit
 9  publish result to SQS
@@ -46,17 +46,19 @@ SCE-UNIT(a, cfg)
 5  token ← ATTEST(Verifier)
 6  emit attested
 7  creds ← FETCH-AWS-CREDS()
-8  ⟨records, encDEK⟩ ← FETCH-PDM(a, token, limit ← n)
+8  ⟨records, encDEK, pages⟩ ← FETCH-PDM(a, token, limit ← n)
 9  emit records-fetched
 10 DEK ← KMS-DECRYPT(encDEK, attestation)
 11 plaintext ← DECRYPT(records, DEK)
 12 emit data-decrypted
-13 start nsjail
-14 RELAY(plaintext)                     // unix socket to DC app
-15 emit dc-app-completed
-16 STREAM(output) to parent             // vsock :5000
-17 emit output-sent
-18 // on failure: emit run-failed
+13 write {algorithmId, pages, records} to /data/records.json
+14 START nsjail                         // RECORDS_PATH, RESULT_PATH
+15 wait for nsjail exit
+16 output ← read /data/result.json
+17 emit dc-app-completed
+18 STREAM output to parent              // vsock :5000
+19 emit output-sent
+20 // on failure: emit run-failed
 
 
 SECURE-RADS-RESULT-CONSUMER(result)

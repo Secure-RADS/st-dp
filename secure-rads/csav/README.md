@@ -25,7 +25,7 @@ flowchart TD
     C --> G["opt/controller/rootfs/ (the DC app)"]
 ```
 
-- **nsjail**: enforces the privilege boundary at runtime — DC algorithm gets its rootfs and a socket to the SCE Unit, nothing else.
+- **nsjail**: enforces the privilege boundary at runtime — DC algorithm gets its rootfs and `RECORDS_PATH` / `RESULT_PATH` files under `/data`, nothing else.
 - **Trust material**: public key pin or CA cert injected into the EIF at build time, so the enclave can verify the Verifier Service, Personal Data Management Service, KMS, and Log Service later.
 - **Storage**: final EIF goes to S3, `AlgorithmId` -> S3 path goes to DynamoDB. Registry Service also generates PCR values and sends them to the Verifier Service.
 - **KMS keys**: one PCR-bound key per algorithm, created on first build and reused on rebuild (its policy is rewritten to the new measurements), so a build never orphans the previous key.
@@ -34,7 +34,7 @@ flowchart TD
 
 - Registry Service (as part of CSAV) owns the build — DC only ever produces an OCI image, never the EIF, which is what makes attestation measurements meaningful.
 - nsjail + image composition together are the privilege story: layout says where things live, nsjail says what they can do.
-- The DC jail's seccomp policy is an **allowlist** (`DEFAULT KILL_PROCESS`), sized for the shipped samples and restricted to AF_UNIX sockets. Resource limits (`rlimit_*`, `time_limit`) stay deliberately loose so large in-memory workloads are not capped by the jail config — further rlimit tightening is out of scope until measured per algorithm.
+- The DC jail's seccomp policy is an **allowlist** (`DEFAULT KILL_PROCESS`), sized for the shipped samples (file I/O; AF_UNIX still allowed for apps that open sockets). Resource limits (`rlimit_*`, `time_limit`) stay deliberately loose so large workloads are not capped by the jail config — further rlimit tightening is out of scope until measured per algorithm.
 - `docker-compose.yml` and `csav-registry.service` live in this directory. `make deploy` runs `scripts/render_cfn.py` to bake them into EC2 UserData (no copies inside the CloudFormation template). `make ship` only pushes the image tarball + `.env`.
 - Trust material baked in at build time, not configurable at runtime.
 - TLS: public key pinning for the PoC; CA cert verification is a later step.

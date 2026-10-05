@@ -1,18 +1,20 @@
 # trial-eligibility-python
 
-Sample Data Controller app (Python, pydantic models). Listens on
-`/run/sce/dc.sock`, receives one JSON line of health records (per-user PII,
-demographics, conditions, medications, and lab values), and screens for a
-synthetic type-2-diabetes trial: eligible iff age 40-75, HbA1c 7.0-10.0,
-eGFR >= 45, no "ckd" condition, and BMI 25-40. Reports eligible count and
-percentage, a per-criterion exclusion breakdown (each failed criterion
-counted independently), and the first 50 eligible record ids. PII fields
-are ignored by the computation.
+Sample Data Controller app (Python, pydantic). Reads the records file at
+`RECORDS_PATH`, aggregates every record for that algorithm, and writes a single
+JSON summary to `RESULT_PATH`. Progress lines go to stderr so the result holds
+exactly one JSON object.
 
-`SCE_SOCKET_PATH` overrides the socket path for local testing.
+```json
+{"algorithmId": "e587067e-47dc-4835-8f87-5e66fc979adf", "userCount": 10000, "eligibleCount": 282, "eligiblePct": 2.82, "exclusionBreakdown": {"age": 5093, "hba1c": 8628, "egfr": 1590, "ckd": 2545, "bmi": 4378}, "eligibleRecordIds": ["user-000019", "user-000023", "..."]}
+```
 
-Build:
+Build and run (same `{"algorithmId", "pages", "records"}` file sce-unit writes):
 
 ```
-docker build --platform linux/arm64 -t trial-eligibility-python sample/trial-eligibility-python
+docker build --platform linux/arm64 -t trial-eligibility-python .
+docker run --rm -v /tmp/sce-run:/data \
+                 -e RECORDS_PATH=/data/records.json \
+                 -e RESULT_PATH=/data/result.json \
+                 trial-eligibility-python
 ```

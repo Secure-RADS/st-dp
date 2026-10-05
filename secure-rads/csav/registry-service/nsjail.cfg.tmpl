@@ -2,10 +2,9 @@
 # exec_bin is generated per-build from the uploaded image's own
 # ENTRYPOINT/CMD - no universal binary path across arbitrary DC images.
 #
-# /run/sce is a shared socket dir, not a single socket file: nsjail's
-# mounts run before the DC app exists to create its socket, so the dir
-# gets bind-mounted (visible on both sides once the app creates the file)
-# instead - see socketDir in sce-unit/main.go.
+# Records/results live under /data in the DC rootfs (sce-unit writes
+# records.json there before start; the app writes result.json). Same
+# RECORDS_PATH / RESULT_PATH contract as rads.
 
 name: "data-controller-application-jail"
 
@@ -17,11 +16,14 @@ mount_proc: true
 
 # nsjail strips env vars by default; PATH here is sourced from the DC's own image (see pathFromEnv in build.go).
 envar: "PATH={{.PathEnv}}"
+envar: "RECORDS_PATH=/data/records.json"
+envar: "RESULT_PATH=/data/result.json"
 
 # rlimits left deliberately loose — lockdown is the seccomp allowlist below (see csav/README.md).
+# fsize raised so large records.json dumps (size sweeps) fit on disk inside the jail.
 rlimit_as: 2048
 rlimit_cpu: 3600
-rlimit_fsize: 1024
+rlimit_fsize: 8192
 rlimit_nofile: 64
 rlimit_nproc: 16
 
@@ -43,17 +45,7 @@ mount {
 	nodev: true
 }
 
-mount {
-	src: "/opt/dc-app/rootfs/run/sce"
-	dst: "/run/sce"
-	is_bind: true
-	is_dir: true
-	rw: true
-	nosuid: true
-	nodev: true
-}
-
-# Allowlist for shipped samples (AF_UNIX only); arbitrary DC images need per-image tuning.
+# Allowlist for shipped samples (file I/O + process); AF_UNIX kept for DC apps that still open sockets.
 seccomp_string: "ALLOW {"
 seccomp_string: "	read, write, close, lseek, pread64, pwrite64, readv, writev,"
 seccomp_string: "	openat, newfstatat, newfstat, statx, getdents64, faccessat, faccessat2,"

@@ -1,7 +1,5 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::io::{BufRead, BufReader, Write};
-use std::os::unix::net::UnixListener;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -32,7 +30,7 @@ struct Record {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct Request {
+struct RecordsFile {
     algorithm_id: String,
     records: Vec<Record>,
 }
@@ -59,13 +57,13 @@ fn round2(v: f64) -> f64 {
     (v * 100.0).round() / 100.0
 }
 
-fn analyze(req: Request) -> Output {
+fn analyze(algorithm_id: &str, records: &[Record]) -> Output {
     let mut per_interest: HashMap<&str, (usize, f64)> = HashMap::new();
     let mut tiers: HashMap<String, usize> =
         [("low", 0), ("medium", 0), ("high", 0)].map(|(k, v)| (k.to_string(), v)).into();
     let mut connections_sum = 0usize;
 
-    for rec in &req.records {
+    for rec in records {
         let weeks = rec.data.engagement.len().max(1) as f64;
         let mean_minutes =
             rec.data.engagement.iter().map(|e| e.minutes_active).sum::<f64>() / weeks;
@@ -96,9 +94,9 @@ fn analyze(req: Request) -> Output {
     segments.sort_by(|a, b| b.users.cmp(&a.users).then(a.interest.cmp(&b.interest)));
     segments.truncate(10);
 
-    let n = req.records.len();
+    let n = records.len();
     Output {
-        algorithm_id: req.algorithm_id,
+        algorithm_id: algorithm_id.to_string(),
         user_count: n,
         segments,
         engagement_tiers: tiers,
@@ -106,28 +104,32 @@ fn analyze(req: Request) -> Output {
     }
 }
 
+fn load_records(path: &str) -> Result<(String, Vec<Record>), String> {
+    let body = std::fs::read_to_string(path).map_err(|e| format!("read {path} failed: {e}"))?;
+    let file: RecordsFile =
+        serde_json::from_str(&body).map_err(|e| format!("parse {path} failed: {e}"))?;
+    Ok((file.algorithm_id, file.records))
+}
+
+fn write_result(result: &Output) -> Result<(), String> {
+    let out =
+        serde_json::to_string(result).map_err(|e| format!("serialize result failed: {e}"))?;
+    match std::env::var("RESULT_PATH") {
+        Ok(path) if !path.is_empty() => {
+            std::fs::write(&path, out).map_err(|e| format!("write {path} failed: {e}"))
+        }
+        _ => {
+            println!("{out}");
+            Ok(())
+        }
+    }
+}
+
 fn main() {
-    eprintln!("audience-segments-rust starting");
-    let socket_path =
-        std::env::var("SCE_SOCKET_PATH").unwrap_or_else(|_| "/run/sce/dc.sock".into());
-    let _ = std::fs::remove_file(&socket_path);
+    let records_path = std::env::var("RECORDS_PATH").expect("RECORDS_PATH is required");
 
-    let listener = UnixListener::bind(&socket_path).expect("bind");
-    eprintln!("listening on {}", socket_path);
+    let (algorithm_id, records) = load_records(&records_path).expect("load records");
+    eprintln!("loaded {} records from {records_path}", records.len());
 
-    let (stream, _) = listener.accept().expect("accept");
-    eprintln!("sce-unit connected");
-
-    let mut reader = BufReader::with_capacity(1 << 20, &stream);
-    let mut line = String::new();
-    reader.read_line(&mut line).expect("read");
-
-    let req: Request = serde_json::from_str(&line).expect("parse");
-    eprintln!("received {} records", req.records.len());
-
-    let out = serde_json::to_string(&analyze(req)).expect("serialize");
-    let mut writer = &stream;
-    writer.write_all(out.as_bytes()).expect("write");
-    writer.write_all(b"\n").expect("write");
-    eprintln!("result sent");
+    write_result(&analyze(&algorithm_id, &records)).expect("write result");
 }

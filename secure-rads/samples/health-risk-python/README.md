@@ -1,16 +1,20 @@
 # health-risk-python
 
-Sample Data Controller app (Python, stdlib only). Listens on
-`/run/sce/dc.sock`, receives one JSON line of wearable records (per-user
-demographics plus 14 days of steps, heart rate, and sleep), and returns a
-cohort health-risk report: mean resting HR, mean daily steps, mean sleep,
-activity-level breakdown, and the share of users flagged at risk (BMI >= 30,
-mean resting HR >= 80, or mean sleep < 6h).
+Sample Data Controller app (Python, pydantic). Reads the records file at
+`RECORDS_PATH`, aggregates every record for that algorithm, and writes a single
+JSON summary to `RESULT_PATH`. Progress lines go to stderr so the result holds
+exactly one JSON object.
 
-`SCE_SOCKET_PATH` overrides the socket path for local testing.
+```json
+{"algorithmId": "662fa378-dc53-425d-9225-a187b11ea7dc", "userCount": 250, "avgRestingHeartRate": 66.79, "avgDailySteps": 7620.37, "avgSleepHours": 7.26, "riskFlaggedCount": 28, "riskFlaggedPct": 11.2, "byActivityLevel": {"sedentary": 52, "moderate": 138, "active": 60}}
+```
 
-Build:
+Build and run (same `{"algorithmId", "pages", "records"}` file sce-unit writes):
 
 ```
-docker build --platform linux/arm64 -t health-risk-python sample/health-risk-python
+docker build --platform linux/arm64 -t health-risk-python .
+docker run --rm -v /tmp/sce-run:/data \
+                 -e RECORDS_PATH=/data/records.json \
+                 -e RESULT_PATH=/data/result.json \
+                 health-risk-python
 ```
