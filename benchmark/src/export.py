@@ -17,14 +17,12 @@ from paths import RAW_DIR, PHASE_TIMINGS_CSV
 # null endpoints = phase does not apply (rads has no enclave).
 Window = tuple[str | None, str | None]
 
-# Column order is chronological wall time for both trees (host boot first).
 PHASES: dict[str, dict[str, Window]] = {
     "secure-rads": {
         "host_provisioning": ("enclave-launched", "executor-ready"),
         "algorithm_retrieval": ("executor-ready", "artifact-retrieved"),
         "sce_unit": ("enclave-started", "unit-ready"),
         "attestation": ("unit-ready", "attested"),
-        # Fetch + decrypt + write records.json (data-decrypted is emitted after the write).
         "data_retrieval": ("attested", "data-decrypted"),
         "algorithm_processing": ("data-decrypted", "dc-app-completed"),
         "result_delivery": ("output-sent", "result-persisted"),
