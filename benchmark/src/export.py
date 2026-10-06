@@ -19,24 +19,21 @@ Window = tuple[str | None, str | None]
 
 PHASES: dict[str, dict[str, Window]] = {
     "secure-rads": {
+        "host_provisioning": ("enclave-launched", "executor-ready"),
         "algorithm_retrieval": ("executor-ready", "artifact-retrieved"),
-        # Launch → executor-ready = host boot + tooling; enclave-started would nest algorithm retrieval.
-        "enclave_initialization": ("enclave-launched", "executor-ready"),
-        "attestation": ("unit-ready", "attested"),
         "sce_unit": ("enclave-started", "unit-ready"),
-        "data_retrieval": ("attested", "records-fetched"),
-        "data_decryption": ("records-fetched", "data-decrypted"),
+        "attestation": ("unit-ready", "attested"),
+        "data_retrieval": ("attested", "data-decrypted"),
         "algorithm_processing": ("data-decrypted", "dc-app-completed"),
         "result_delivery": ("output-sent", "result-persisted"),
         "total": ("run-requested", "result-persisted"),
     },
     "rads": {
+        "host_provisioning": ("executor-launched", "executor-ready"),
         "algorithm_retrieval": ("executor-ready", "artifact-retrieved"),
-        "enclave_initialization": ("executor-launched", "executor-ready"),
-        "attestation": (None, None),
         "sce_unit": (None, None),
+        "attestation": (None, None),
         "data_retrieval": ("artifact-retrieved", "records-fetched"),
-        "data_decryption": (None, None),
         "algorithm_processing": ("records-fetched", "compute-completed"),
         "result_delivery": ("compute-completed", "executor-finished"),
         "total": ("run-requested", "executor-finished"),
@@ -70,7 +67,11 @@ def load_runs() -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for path in sorted(RAW_DIR.glob("sweep-*.json")):
         parsed = json.loads(path.read_text())
-        rows.extend(row for row in parsed if row.get("run_id") and row.get("size") is not None)
+        rows.extend(
+            row
+            for row in parsed
+            if row.get("run_id") and row.get("size") is not None and not row.get("error")
+        )
     return rows
 
 

@@ -1,7 +1,5 @@
-import * as net from "node:net";
-import * as fs from "node:fs";
+const fs = require("node:fs");
 
-const SOCKET_PATH = process.env.SCE_SOCKET_PATH ?? "/run/sce/dc.sock";
 const AGE_BANDS = ["18-29", "30-44", "45-59", "60+"];
 
 function ageBand(age) {
@@ -11,13 +9,13 @@ function ageBand(age) {
   return "60+";
 }
 
-function analyze(request) {
+function analyze(algorithmId, records) {
   const byBand = {};
   for (const band of AGE_BANDS) byBand[band] = new Map();
   let totalRevenueCents = 0;
   let totalOrders = 0;
 
-  for (const record of request.records) {
+  for (const record of records) {
     const revenues = byBand[ageBand(record.data.age)];
     for (const order of record.data.orders) {
       totalOrders++;
@@ -38,35 +36,34 @@ function analyze(request) {
   }
 
   return {
-    algorithmId: request.algorithmId,
-    userCount: request.records.length,
+    algorithmId,
+    userCount: records.length,
     totalRevenueCents,
     totalOrders,
     topCategoriesByAgeBand,
   };
 }
 
+function loadRecords(path) {
+  const body = JSON.parse(fs.readFileSync(path, "utf8"));
+  return { algorithmId: body.algorithmId, records: body.records };
+}
+
+function writeResult(result) {
+  const payload = JSON.stringify(result);
+  if (process.env.RESULT_PATH) {
+    fs.writeFileSync(process.env.RESULT_PATH, payload);
+  } else {
+    console.log(payload);
+  }
+}
+
 function main() {
-  console.error("product-trends-node starting");
-  if (fs.existsSync(SOCKET_PATH)) fs.unlinkSync(SOCKET_PATH);
-
-  const server = net.createServer((conn) => {
-    console.error("sce-unit connected");
-    const chunks = [];
-    conn.on("data", (chunk) => {
-      chunks.push(chunk);
-      if (!chunk.includes(0x0a)) return;
-      const line = Buffer.concat(chunks).toString("utf8").split("\n", 1)[0];
-      const request = JSON.parse(line);
-      console.error(`received ${request.records.length} records`);
-      conn.end(JSON.stringify(analyze(request)) + "\n", () => {
-        console.error("result sent");
-        server.close();
-      });
-    });
-  });
-
-  server.listen(SOCKET_PATH, () => console.error(`listening on ${SOCKET_PATH}`));
+  const recordsPath = process.env.RECORDS_PATH;
+  if (!recordsPath) throw new Error("RECORDS_PATH is required");
+  const { algorithmId, records } = loadRecords(recordsPath);
+  console.error(`loaded ${records.length} records from ${recordsPath}`);
+  writeResult(analyze(algorithmId, records));
 }
 
 main();

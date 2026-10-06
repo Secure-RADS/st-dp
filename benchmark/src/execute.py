@@ -170,25 +170,24 @@ async def amain() -> int:
         return 0
 
     results: list[Result] = []
-    jobs = [
-        (size, harness, rep)
-        for size in sizes
-        for harness in harnesses
-        for rep in range(1, args.reps + 1)
-    ]
-    for size, harness, rep in tqdm(jobs, desc="execute", unit="run"):
-        result = run_once(harness, dataset, size, rep)
-        results.append(result)
-        logger.info(
-            "execute {}/{} size={} rep={} {:.1f}s status={} err={}",
-            harness.name,
-            dataset,
-            size,
-            rep,
-            result.seconds,
-            result.status,
-            result.error,
+    # One wave per (size, rep): all trees in parallel (separate PDM/execution stacks).
+    waves = [(size, rep) for size in sizes for rep in range(1, args.reps + 1)]
+    for size, rep in tqdm(waves, desc="execute", unit="wave"):
+        batch = await asyncio.gather(
+            *[asyncio.to_thread(run_once, harness, dataset, size, rep) for harness in harnesses],
         )
+        for result in batch:
+            results.append(result)
+            logger.info(
+                "execute {}/{} size={} rep={} {:.1f}s status={} err={}",
+                result.tree,
+                dataset,
+                size,
+                rep,
+                result.seconds,
+                result.status,
+                result.error,
+            )
 
     RAW_DIR.mkdir(parents=True, exist_ok=True)
     out = RAW_DIR / f"sweep-{int(time.time())}.json"

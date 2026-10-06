@@ -1,21 +1,24 @@
-import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
 import { RegistryEvent, type RegistryEventName } from "./events.js";
 
-const sqs = new SQSClient({});
-const queueUrl = process.env.LOG_EVENTS_QUEUE_URL;
+const logHost = process.env.LOG_HOST;
+const logEventsUrl = logHost ? `https://${logHost}/events` : undefined;
 
-// Best-effort: a logging failure must never fail the registration, and an unset queue URL is a no-op.
+// Best-effort: a logging failure must never fail the registration, and an unset LOG_HOST is a no-op.
 async function emitEvent(event: RegistryEventName, algorithmId: string, bucket: string, key: string): Promise<void> {
-  if (!queueUrl) return;
-  const body = JSON.stringify({
-    algorithmId,
-    runId: null,
-    event,
-    timestamp: new Date().toISOString(),
-    detail: { bucket, key },
-  });
+  if (!logEventsUrl) return;
   try {
-    await sqs.send(new SendMessageCommand({ QueueUrl: queueUrl, MessageBody: body }));
+    await fetch(logEventsUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        algorithmId,
+        runId: null,
+        event,
+        timestamp: new Date().toISOString(),
+        detail: { bucket, key },
+      }),
+      signal: AbortSignal.timeout(5_000),
+    });
   } catch (err) {
     console.error("log event failed", event, err);
   }

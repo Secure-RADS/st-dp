@@ -1,8 +1,6 @@
-import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
 import { requiredEnv } from "./env.js";
 
-const sqs = new SQSClient({});
-const logEventsQueueUrl = requiredEnv("LOG_EVENTS_QUEUE_URL");
+const logEventsUrl = `https://${requiredEnv("LOG_HOST")}/events`;
 
 export type RunEvent =
   | "run-requested"
@@ -14,7 +12,6 @@ export type RunEvent =
   | "compute-completed"
   | "executor-finished";
 
-// Fire-and-forget one lifecycle event onto the rads-log-events queue; the log-service worker persists it.
 export async function logEvent(
   algorithmId: string,
   runId: string,
@@ -22,12 +19,12 @@ export async function logEvent(
   detail?: Record<string, unknown>,
 ): Promise<void> {
   try {
-    await sqs.send(
-      new SendMessageCommand({
-        QueueUrl: logEventsQueueUrl,
-        MessageBody: JSON.stringify({ algorithmId, runId, event, timestamp: new Date().toISOString(), detail }),
-      }),
-    );
+    await fetch(logEventsUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ algorithmId, runId, event, timestamp: new Date().toISOString(), detail }),
+      signal: AbortSignal.timeout(5_000),
+    });
   } catch (error) {
     console.error(`log event ${event} failed`, error);
   }

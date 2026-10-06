@@ -9,7 +9,6 @@ build:
 package:
   patterns:
     - userdata.sh.tmpl
-    - scripts/*.py
 
 provider:
   name: aws
@@ -44,14 +43,11 @@ provider:
         - Effect: Allow
           Action: iam:PassRole
           Resource: !GetAtt ExecutorInstanceRole.Arn
-        - Effect: Allow
-          Action: sqs:SendMessage
-          Resource: ${param:logEventsQueueArn}
   environment:
     ALGORITHM_TABLE: ${param:algorithmTable}
     RUN_RESULTS_TABLE: ${param:runResultsTable}
     RUN_RESULTS_QUEUE_URL: ${param:runResultsQueueUrl}
-    LOG_EVENTS_QUEUE_URL: ${param:logEventsQueueUrl}
+    LOG_HOST: ${param:logHost, 'log.r.secure-rads.org'}
     PDM_URL: ${param:pdmUrl}
     PDM_TABLE: ${param:pdmTable}
     EXECUTOR_AMI_ID: ${param:amiId}
@@ -62,12 +58,14 @@ provider:
 functions:
   run:
     handler: src/handlers/run.create
+    timeout: 29
     events:
       - httpApi:
           method: POST
           path: /run
   result:
     handler: src/handlers/run.result
+    timeout: 10
     events:
       - httpApi:
           method: GET
@@ -123,13 +121,6 @@ resources:
                 - Effect: Allow
                   Action: sqs:SendMessage
                   Resource: ${param:runResultsQueueArn}
-          - PolicyName: SendLogEvent
-            PolicyDocument:
-              Version: "2012-10-17"
-              Statement:
-                - Effect: Allow
-                  Action: sqs:SendMessage
-                  Resource: ${param:logEventsQueueArn}
           - PolicyName: SelfTerminate
             PolicyDocument:
               Version: "2012-10-17"

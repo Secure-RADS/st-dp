@@ -9,20 +9,21 @@ run it, and returns immediately. Results come back asynchronously through the sh
 `rads-algorithms` DynamoDB table (PK `AlgorithmId`), and — when `size` is set — rejects the request if that
 count exceeds the rows already seeded for the algorithm in PDM. It then launches a per-run EC2 executor, and returns
 `202 {runId, algorithmId, instanceId, status: "pending"}`. The executor installs AWS CLI + Docker, downloads
-every PDM record for the algorithm to `/opt/rads/run/records.json`, `aws s3 cp`s the image tar into place,
-`docker load`s it, then `docker run`s the image with that directory bind-mounted at `/data` and
-`RECORDS_PATH=/data/records.json` / `RESULT_PATH=/data/result.json` set. The app reads the records file and
-writes its result file; the executor ships that file as the output, falling back to the container's stdout
-for diagnostics. On exit it publishes
+`rads-host-tools` from `s3://<images-bucket>/executor/rads-host-tools`, pulls every PDM record for the algorithm
+to `/opt/rads/run/records.json`, `aws s3 cp`s the image tar into place, `docker load`s it, then `docker run`s the
+image with that directory bind-mounted at `/data` and `RECORDS_PATH=/data/records.json` / `RESULT_PATH=/data/result.json`
+set. The app reads the records file and writes its result file; the executor ships that file as the output, falling
+back to the container's stdout for diagnostics. On exit it publishes
 `{runId, instanceId, algorithmId, status, output, diag?}` to the `rads-run-results` queue (a consumer Lambda
 persists it to the `rads-run-results` table, PK `RunId`) and terminates itself.
 
 `GET /run/{runId}` polls the `rads-run-results` table: `{runId, status: "pending"}` until a result lands, then
 the stored result.
 
-Lifecycle events are logged to the `rads-log-events` queue (the log-service ingest contract
+Lifecycle events are posted to log-service `POST /events` (the ingest contract
 `{algorithmId, runId, event, timestamp, detail?}`): the control plane logs `run-requested` and
-`executor-launched`, and the executor logs `executor-finished` before it terminates.
+`executor-launched` / `launch-failed`, and the executor posts `executor-ready`, `artifact-retrieved`,
+`records-fetched`, `compute-completed`, and `executor-finished` over HTTPS.
 
 ## Deployment
 
@@ -36,14 +37,19 @@ bunx serverless deploy \
   --param="runResultsTable=rads-run-results" \
   --param="runResultsQueueUrl=<rads-run-results queue URL>" \
   --param="runResultsQueueArn=<rads-run-results queue ARN>" \
-  --param="logEventsQueueUrl=<rads-log-events queue URL>" \
-  --param="logEventsQueueArn=<rads-log-events queue ARN>" \
   --param="pdmUrl=https://pdm.example.org" \
   --param="pdmTable=rads-personal-data" \
   --param="amiId=<AL2023 AMI id>" \
   --param="vpcId=<VPC id>"
 ```
 
+Ship the executor host helpers (linux/arm64 static binary) to the images bucket before the first run after a tools change:
+
+```
+make -C rads/sce/execution-service ship
+```
+
+That uploads `dist/rads-host-tools` to `s3://rads-images/executor/rads-host-tools`. Userdata downloads it during host provisioning.
 `instanceType` defaults to `c6g.large` (arm64, matching the arm64 algorithm images); set it to match the image
 architecture you run. `region` defaults to `ap-southeast-2`. The security group, instance role, and instance
 profile are created by this stack; the queue URLs/ARNs and the tables/bucket/AMI/VPC already exist.
@@ -56,7 +62,7 @@ time are noted as such.
 
 - `PDM_URL` - the PDM endpoint the executor downloads records from before the app runs (not passed to the container).
 - `RUN_RESULTS_QUEUE_URL` - the `rads-run-results` queue the executor publishes its result to.
-- `LOG_EVENTS_QUEUE_URL` - the `rads-log-events` queue the executor publishes `executor-finished` to.
+- `LOG_HOST` - log-service hostname for `POST /events` (default `log.r.secure-rads.org`); rendered into userdata as `LogHost`.
 - `REGION` - from the instance/AWS_REGION; not operator-set.
 - `AlgorithmId`, `RunId`, `S3Bucket`, `S3Key` - from the launch request and `rads-algorithms` record.
 
@@ -69,5 +75,6 @@ and `RUN_RESULTS_TABLE`.
 
 ## Executor permissions (per run)
 
-The executor instance role can read `rads-images` (for the tar), send to `rads-run-results` (result delivery)
-and `rads-log-events` (for `executor-finished`), and terminate itself (tag-scoped to `ManagedBy=rads-execution-service`).
+The executor instance role can read `rads-images` (for the tar and host-tools), send to `rads-run-results`
+(result delivery), and terminate itself (tag-scoped to `ManagedBy=rads-execution-service`). Timeline events
+go out over HTTPS to log-service; no SQS permission for log events.

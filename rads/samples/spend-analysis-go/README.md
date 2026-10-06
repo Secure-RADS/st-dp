@@ -2,10 +2,9 @@
 
 Sample rads Data Controller app (Go stdlib only). Reads the records file the runner downloaded
 at `RECORDS_PATH`, aggregates every record for that algorithm, and writes a single JSON summary
-to `RESULT_PATH`. The aggregation is identical to the secure-rads `spend-analysis-go`; only the
-I/O differs: the runner fetches the records and hands the app a local file instead of sce-unit
-relaying them over a Unix socket. Progress lines go to stderr so the result holds exactly one
-JSON object.
+to `RESULT_PATH`. Same file contract as secure-rads (`RECORDS_PATH` / `RESULT_PATH`); the
+runner fetches plaintext from PDM instead of sce-unit decrypting inside the enclave. Progress
+lines go to stderr so the result holds exactly one JSON object.
 
 ```json
 {"algorithmId": "c7cc14fa-e962-4548-aff4-a54148798cd8", "userCount": 1000, "totalSpendByCategory": {"dining": 697211.38}, "avgMonthlySpendPerUser": 1199.77, "anomalies": [], "anomalyUserCount": 969}

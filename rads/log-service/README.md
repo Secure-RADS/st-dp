@@ -1,8 +1,11 @@
 # rads-log-service
 
-Serverless Framework v4, TypeScript. A fire-and-forget run-timeline logger for the baseline: registry-service and the execution-service/EC2 executor publish timestamped events keyed by `(AlgorithmId, runId)` onto an SQS queue, a worker writes them to DynamoDB, and operators export a run's or an algorithm's timeline as JSON or CSV.
+Serverless Framework v4, TypeScript. A fire-and-forget run-timeline logger for the baseline: producers
+publish timestamped events keyed by `(AlgorithmId, runId)`, a worker writes them to DynamoDB, and operators
+export a run's or an algorithm's timeline as JSON or CSV.
 
-Producers publish to the queue directly through `LOG_EVENTS_QUEUE_URL`; `POST /events` is the same queue's HTTP front for anything that cannot reach SQS.
+Producers (registry-service, execution-service Lambda, EC2 executor, result-consumer) all post through
+`POST /events`. The HTTP handler enqueues onto SQS; the worker writes DynamoDB.
 
 ## Endpoints
 

@@ -1,7 +1,8 @@
 # sce-unit
 
-The composed image's real entrypoint. Runs as root, spawns nsjail (which
-drops the Data Controller's app into its jail), then connects out to the
-DC app as a client over a unix socket to relay a request, then streams the
-response to the parent instance over vsock (CID 3, port 5000) - the enclave's
+The composed image's real entrypoint. Runs as root, attests, fetches and decrypts
+PDM records, writes `records.json` under the DC rootfs `/data` (JSON shape
+`algorithmId` + `records`, same load path as rads), starts nsjail with
+`RECORDS_PATH` / `RESULT_PATH` set, reads the DC app's `result.json`, then streams
+that result to the parent instance over vsock (CID 3, port 5000) - the enclave's
 only channel out.

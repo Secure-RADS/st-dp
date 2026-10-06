@@ -1,11 +1,10 @@
 package main
 
 import (
-	"bufio"
 	"encoding/json"
+	"fmt"
 	"log"
 	"math"
-	"net"
 	"os"
 	"sort"
 )
@@ -28,7 +27,7 @@ type Record struct {
 	Data     Data   `json:"data"`
 }
 
-type Request struct {
+type RecordsFile struct {
 	AlgorithmID string   `json:"algorithmId"`
 	Records     []Record `json:"records"`
 }
@@ -49,12 +48,12 @@ type Result struct {
 
 func round2(v float64) float64 { return math.Round(v*100) / 100 }
 
-func analyze(req Request) Result {
+func analyze(algorithmID string, records []Record) Result {
 	byCategory := map[string]float64{}
 	var anomalies []Anomaly
 	var totalMonthly float64
 
-	for _, rec := range req.Records {
+	for _, rec := range records {
 		txs := rec.Data.Transactions
 		var absSum, spend float64
 		months := map[string]bool{}
@@ -99,56 +98,53 @@ func analyze(req Request) Result {
 	}
 
 	return Result{
-		AlgorithmID:            req.AlgorithmID,
-		UserCount:              len(req.Records),
+		AlgorithmID:            algorithmID,
+		UserCount:              len(records),
 		TotalSpendByCategory:   byCategory,
-		AvgMonthlySpendPerUser: round2(totalMonthly / float64(len(req.Records))),
+		AvgMonthlySpendPerUser: round2(totalMonthly / float64(len(records))),
 		Anomalies:              anomalies,
 		AnomalyUserCount:       anomalyUsers,
 	}
 }
 
+func loadRecords(path string) (string, []Record, error) {
+	body, err := os.ReadFile(path)
+	if err != nil {
+		return "", nil, fmt.Errorf("read %s: %w", path, err)
+	}
+	var file RecordsFile
+	if err := json.Unmarshal(body, &file); err != nil {
+		return "", nil, fmt.Errorf("parse %s: %w", path, err)
+	}
+	return file.AlgorithmID, file.Records, nil
+}
+
+func writeResult(result Result) error {
+	out, err := json.Marshal(result)
+	if err != nil {
+		return fmt.Errorf("marshal result: %w", err)
+	}
+	if path := os.Getenv("RESULT_PATH"); path != "" {
+		return os.WriteFile(path, out, 0o644)
+	}
+	fmt.Println(string(out))
+	return nil
+}
+
 func main() {
 	log.SetOutput(os.Stderr)
-	log.Println("spend-analysis-go starting")
-
-	socketPath := os.Getenv("SCE_SOCKET_PATH")
-	if socketPath == "" {
-		socketPath = "/run/sce/dc.sock"
+	recordsPath := os.Getenv("RECORDS_PATH")
+	if recordsPath == "" {
+		log.Fatal("RECORDS_PATH is required")
 	}
-	os.Remove(socketPath)
 
-	listener, err := net.Listen("unix", socketPath)
+	algorithmID, records, err := loadRecords(recordsPath)
 	if err != nil {
-		log.Fatalf("listen: %v", err)
+		log.Fatalf("load: %v", err)
 	}
-	log.Printf("listening on %s", socketPath)
+	log.Printf("loaded %d records from %s", len(records), recordsPath)
 
-	conn, err := listener.Accept()
-	if err != nil {
-		log.Fatalf("accept: %v", err)
+	if err := writeResult(analyze(algorithmID, records)); err != nil {
+		log.Fatalf("write result: %v", err)
 	}
-	defer conn.Close()
-	log.Println("sce-unit connected")
-
-	reader := bufio.NewReaderSize(conn, 1<<20)
-	line, err := reader.ReadBytes('\n')
-	if err != nil && len(line) == 0 {
-		log.Fatalf("read: %v", err)
-	}
-
-	var req Request
-	if err := json.Unmarshal(line, &req); err != nil {
-		log.Fatalf("parse: %v", err)
-	}
-	log.Printf("received %d records", len(req.Records))
-
-	out, err := json.Marshal(analyze(req))
-	if err != nil {
-		log.Fatalf("marshal: %v", err)
-	}
-	if _, err := conn.Write(append(out, '\n')); err != nil {
-		log.Fatalf("write: %v", err)
-	}
-	log.Println("result sent")
 }

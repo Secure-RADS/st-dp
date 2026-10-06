@@ -6,11 +6,12 @@ The human user is the technical lead. The agent is a supporting engineer that he
 
 ## Project Context
 
-This repo is a PoC of the Secure Computing Environment (SCE), running on AWS Nitro Enclaves. It covers the end-to-end workflow: a build phase (Registry Service, part of the CSAV, turns a Data Controller's OCI image into a single EIF, layering the SCE Unit and nsjail on top, stores the artifact in S3, records `AlgorithmId` -> S3 path in DynamoDB) and an execution phase (enclave provisioning, remote attestation against the Verifier Service, data fetch from the Personal Data Management Service and KMS, computation over gRPC/Unix sockets inside the enclave, async result delivery via webhook). See the research docs referenced in `README.md` for full architecture detail before making assumptions about scope or design.
+This repo is a PoC of the Secure Computing Environment (SCE), running on AWS Nitro Enclaves. It covers the end-to-end workflow: a build phase (Registry Service, part of the CSAV, turns a Data Controller's OCI image into a single EIF, layering the SCE Unit and nsjail on top, stores the artifact in S3, records `AlgorithmId` -> S3 path in DynamoDB) and an execution phase (enclave provisioning, remote attestation against the Verifier Service, data fetch from the Personal Data Management Service and KMS, computation over decrypted records files inside the enclave (`RECORDS_PATH` / `RESULT_PATH`, same contract as rads), async result delivery via webhook). See the research docs referenced in `README.md` for full architecture detail before making assumptions about scope or design.
 
 ## Operating Rules
 
 - **IMPORTANT: Follow the user's requested scope exactly. Do not defy explicit user instructions.** If the user says not to edit, commit, push, delete, refactor, or implement something, do not do it.
+- **IMPORTANT: Keep `docs/` in sync.** When a change alters behavior, flows, event names, or contracts described under `docs/`, update those docs in the same turn and the same PR. Do not leave `docs/` stale relative to the code.
 - Do not expand the task into broad implementation work unless the user asks for that broader scope.
 - Do not perform massive, open-ended changes just because they seem useful.
 - Preserve existing work unless the user explicitly asks for destructive cleanup.

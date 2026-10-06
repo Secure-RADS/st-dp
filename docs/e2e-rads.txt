@@ -17,18 +17,19 @@ RADS-RUN(a, n)
 RADS-EXECUTOR(a, runId, n, key)
 1  install docker, awscli
 2  start docker
-3  emit executor-ready
-4  pull key from S3
-5  DOCKER-LOAD(tar)
-6  emit artifact-retrieved
-7  records ← FETCH-PDM(a, limit ← n)
-8  write records to records.json
-9  emit records-fetched
-10 DOCKER-RUN(image, bind ← /data/records.json)
-11 emit compute-completed
-12 publish result to SQS
-13 emit executor-finished
-14 terminate instance
+3  pull rads-host-tools from S3
+4  emit executor-ready
+5  pull key from S3
+6  DOCKER-LOAD(tar)
+7  emit artifact-retrieved
+8  records ← FETCH-PDM(a, limit ← n)   // rads-host-tools fetch-records
+9  write records to records.json
+10 emit records-fetched
+11 DOCKER-RUN(image, bind ← /data/records.json)
+12 emit compute-completed
+13 publish result to SQS
+14 emit executor-finished
+15 terminate instance
 
 
 RADS-RESULT-CONSUMER(result)

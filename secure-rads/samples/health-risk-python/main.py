@@ -1,12 +1,8 @@
 import json
 import os
-import socket
 import sys
 
 from pydantic import BaseModel
-
-
-SOCKET_PATH = os.environ.get("SCE_SOCKET_PATH", "/run/sce/dc.sock")
 
 
 class Day(BaseModel):
@@ -82,37 +78,42 @@ def analyze(algorithm_id: str | None, records: list[Record]) -> Analysis:
     )
 
 
-def read_line(conn: socket.socket) -> bytes:
-    chunks = []
-    while True:
-        chunk = conn.recv(1 << 16)
-        if not chunk:
-            break
-        chunks.append(chunk)
-        if b"\n" in chunk:
-            break
-    return b"".join(chunks).split(b"\n", 1)[0]
+def required_env(name: str) -> str:
+    value = os.environ.get(name)
+    if not value:
+        raise ValueError(f"missing required env var {name}; run with RECORDS_PATH set")
+    return value
+
+
+def load_records(path: str) -> tuple[str | None, list[Record]]:
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            body = json.load(handle)
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError(f"could not read records file {path}: {error}") from error
+    records = body["records"] if isinstance(body, dict) else body
+    algorithm_id = body.get("algorithmId") if isinstance(body, dict) else None
+    return algorithm_id, [Record.model_validate(record) for record in records]
+
+
+def write_result(result: Analysis) -> None:
+    payload = result.model_dump_json()
+    path = os.environ.get("RESULT_PATH")
+    if path:
+        try:
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write(payload)
+        except OSError as error:
+            raise ValueError(f"could not write result to {path}: {error}") from error
+    else:
+        print(payload)
 
 
 def main() -> None:
-    log("health-risk-python starting")
-    if os.path.exists(SOCKET_PATH):
-        os.remove(SOCKET_PATH)
-
-    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    server.bind(SOCKET_PATH)
-    server.listen(1)
-    log(f"listening on {SOCKET_PATH}")
-
-    conn, _ = server.accept()
-    log("sce-unit connected")
-    with conn:
-        request = json.loads(read_line(conn))
-        records = [Record.model_validate(record) for record in request["records"]]
-        log(f"received {len(records)} records")
-        result = analyze(request.get("algorithmId"), records)
-        conn.sendall((result.model_dump_json() + "\n").encode())
-        log("result sent")
+    records_path = required_env("RECORDS_PATH")
+    algorithm_id, records = load_records(records_path)
+    log(f"loaded {len(records)} records from {records_path}")
+    write_result(analyze(algorithm_id, records))
 
 
 if __name__ == "__main__":

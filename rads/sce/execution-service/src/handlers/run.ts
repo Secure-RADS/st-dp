@@ -13,9 +13,9 @@ const ec2 = new EC2Client({});
 const algorithmTable = requiredEnv("ALGORITHM_TABLE");
 const runResultsTable = requiredEnv("RUN_RESULTS_TABLE");
 const runResultsQueueUrl = requiredEnv("RUN_RESULTS_QUEUE_URL");
-const logEventsQueueUrl = requiredEnv("LOG_EVENTS_QUEUE_URL");
 const pdmUrl = requiredEnv("PDM_URL");
 const pdmTable = requiredEnv("PDM_TABLE");
+const logHost = requiredEnv("LOG_HOST");
 const executorAmiId = requiredEnv("EXECUTOR_AMI_ID");
 const executorInstanceType = requiredEnv("EXECUTOR_INSTANCE_TYPE") as RunInstancesCommandInput["InstanceType"];
 const executorSecurityGroupId = requiredEnv("EXECUTOR_SECURITY_GROUP_ID");
@@ -74,7 +74,7 @@ export const create: APIGatewayProxyHandlerV2 = async (event) => {
     if (!record?.Bucket || !record.Key) return jsonResponse(404, { error: "algorithm not found" });
 
     if (request.size !== undefined) {
-      const available = await countAlgorithmRecords(ddb, pdmTable, request.algorithmId);
+      const available = await countAlgorithmRecords(ddb, pdmTable, request.algorithmId, request.size);
       if (request.size > available) {
         return jsonResponse(400, {
           error: `size ${request.size} exceeds seeded dataset (${available} records)`,
@@ -95,7 +95,7 @@ export const create: APIGatewayProxyHandlerV2 = async (event) => {
         UserData: Buffer.from(
           userData({
             algorithmId: request.algorithmId,
-            logEventsQueueUrl,
+            logHost,
             pdmUrl,
             region,
             runId,

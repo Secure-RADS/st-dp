@@ -2,6 +2,7 @@ import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
 import type { SQSHandler, SQSRecord } from "aws-lambda";
 import { requiredEnv } from "../lib/env.js";
+import { logEvent } from "../lib/log.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const table = requiredEnv("RUN_RESULTS_TABLE");
@@ -46,6 +47,10 @@ async function persist(record: SQSRecord): Promise<void> {
       },
     }),
   );
+
+  if (message.algorithmId) {
+    await logEvent(message.algorithmId, message.runId, "result-persisted", { status: message.status });
+  }
 }
 
 export const handler: SQSHandler = async (event) => {

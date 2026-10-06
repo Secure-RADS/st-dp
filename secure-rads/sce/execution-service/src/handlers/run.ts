@@ -75,7 +75,7 @@ export const create: APIGatewayProxyHandlerV2 = async (event) => {
     if (!record?.S3Bucket || !record.S3Key) return jsonResponse(404, { error: "algorithm not found" });
 
     if (request.size !== undefined) {
-      const available = await countAlgorithmRecords(ddb, pdmTable, request.algorithmId);
+      const available = await countAlgorithmRecords(ddb, pdmTable, request.algorithmId, request.size);
       if (request.size > available) {
         return jsonResponse(400, {
           error: `size ${request.size} exceeds seeded dataset (${available} records)`,

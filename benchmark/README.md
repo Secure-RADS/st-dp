@@ -2,7 +2,7 @@
 
 End-to-end Exp1/Exp2 size sweep: `rads` (baseline) vs `secure-rads` (Nitro enclave) on the trial-eligibility algorithm over a shared e-health dataset.
 
-One algorithm id is reused across sizes. `make seed` generates the dataset, uploads both algorithm images, and BatchWrites the same JSON into both trees. `make run` then executes each size with a fetch `size` limit. Sizes come from `TRIAL_SIZES` in `src/lib/config.py` (not a CLI override).
+One algorithm id is reused across sizes. `make seed` generates the dataset, uploads both algorithm images, and BatchWrites the same JSON into both trees. `make run` then executes each size with a fetch `size` limit. Sizes come from `TRIAL_SIZES` in `src/lib/config.py` (10k..100k step 10k; not a CLI override). Each `(size, rep)` wave runs selected trees in parallel (separate stacks).
 
 Use [Devbox](https://www.jetify.com/docs/devbox/) from the repo root so AWS hits the local `.aws/` credentials and `ap-southeast-2` (`devbox shell` / `devbox run …`).
 
@@ -69,6 +69,8 @@ Each rep launches a **fresh EC2 executor**, boots (~70–90s), runs, then termin
 `make seed` BatchWrites the same `ehealth.json` (100K records) into both trees (rads plaintext; secure-rads envelope-encrypted under a KMS-wrapped DEK). `make run` passes `size` so each executor reads only the first N rows.
 
 Seed overwrites matching `(AlgorithmId, RecordId)` keys; it does not delete orphan rows from an older larger seed. Use BatchWrite via `seed-rads` / `seed-secure-rads` only — not DynamoDB ImportTable / S3 import.
+
+Sample image tarballs are cached under `benchmark/build/`. The cache is invalidated when any file under the sample directory is newer than the tar; delete `benchmark/build/*.tar` manually if a rebuild is needed without a source mtime change.
 
 ## Run without Make
 
