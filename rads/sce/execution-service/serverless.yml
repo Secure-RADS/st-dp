@@ -58,7 +58,6 @@ provider:
 functions:
   run:
     handler: src/handlers/run.create
-    # PDM size check + RunInstances; HTTP API caps client wait at 30s.
     timeout: 29
     events:
       - httpApi:
