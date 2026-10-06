@@ -4,8 +4,8 @@ Serverless Framework v4, TypeScript. A fire-and-forget run-timeline logger for t
 publish timestamped events keyed by `(AlgorithmId, runId)`, a worker writes them to DynamoDB, and operators
 export a run's or an algorithm's timeline as JSON or CSV.
 
-Execution-service (Lambda + EC2 executor) posts through `POST /events`. Registry-service still publishes
-directly to the queue via `LOG_EVENTS_QUEUE_URL`. Both paths land on the same ingest worker.
+Producers (registry-service, execution-service Lambda, EC2 executor, result-consumer) all post through
+`POST /events`. The HTTP handler enqueues onto SQS; the worker writes DynamoDB.
 
 ## Endpoints
 

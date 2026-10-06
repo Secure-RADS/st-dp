@@ -14,6 +14,8 @@ export const RUN_EVENTS = [
   "records-fetched",
   "compute-completed",
   "executor-finished",
+  // Result delivery (result-consumer).
+  "result-persisted",
 ] as const;
 
 export type RunEvent = (typeof RUN_EVENTS)[number];

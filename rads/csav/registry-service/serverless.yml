@@ -30,14 +30,10 @@ provider:
         - Effect: Allow
           Action: dynamodb:PutItem
           Resource: !GetAtt AlgorithmsTable.Arn
-        - Effect: Allow
-          Action: sqs:SendMessage
-          Resource: ${param:logEventsQueueArn, ''}
   environment:
     ARTIFACT_BUCKET: !Ref ImagesBucket
     DYNAMO_TABLE: !Ref AlgorithmsTable
-    # The rads-log-events queue lives in another stack - its URL/ARN are passed in at deploy time.
-    LOG_EVENTS_QUEUE_URL: ${param:logEventsQueueUrl, ''}
+    LOG_HOST: ${param:logHost, 'log.r.secure-rads.org'}
 
 functions:
   upload:
