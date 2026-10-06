@@ -19,17 +19,18 @@ LABELS = {Tree.RADS: "rads (baseline)", Tree.SECURE_RADS: "secure-rads (enclave)
 PHASES = {
     "host_provisioning_s": "host provisioning",
     "algorithm_retrieval_s": "algorithm retrieval",
+    "enclave_boot_s": "enclave boot",
     "sce_unit_s": "sce unit",
     "attestation_s": "attestation",
     "data_retrieval_s": "data retrieval",
     "algorithm_processing_s": "algorithm processing",
     "result_delivery_s": "result delivery",
 }
-PHASE_COLORS = ["#1F4E79", "#4C9BE8", "#6FBF73", "#F2C14E", "#E8873C", "#8E44AD", "#7F8C8D"]
+PHASE_COLORS = ["#1F4E79", "#4C9BE8", "#C0392B", "#6FBF73", "#F2C14E", "#E8873C", "#8E44AD", "#7F8C8D"]
 NOTE = (
     "host provisioning = per-run instance boot + tooling install (size-independent); "
     "data retrieval is fetch through records.json write (secure-rads includes decrypt).\n"
-    "rads has no enclave, so attestation / sce unit are blank for it."
+    "rads has no enclave, so enclave boot / sce unit / attestation are blank for it."
 )
 
 

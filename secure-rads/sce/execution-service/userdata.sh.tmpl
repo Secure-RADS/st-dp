@@ -39,14 +39,14 @@ systemctl enable --now nitro-enclaves-allocator
 
 # Checkpoint: the host is provisioned (boot + nitro tooling), before the artifact is pulled.
 curl -sS -X POST "https://{{.LogHost}}/events" -H 'content-type: application/json' \
-  -d "{\"algorithmId\":\"{{.AlgorithmId}}\",\"runId\":\"{{.RunId}}\",\"event\":\"executor-ready\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" >/dev/null || true
+  -d "{\"algorithmId\":\"{{.AlgorithmId}}\",\"runId\":\"{{.RunId}}\",\"event\":\"executor-ready\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)\"}" >/dev/null || true
 
 mkdir -p /opt/eif
 aws s3 cp "s3://{{.S3Bucket}}/{{.S3Key}}" /opt/eif/app.eif --region "{{.Region}}"
 
 # Checkpoint: the algorithm artifact (EIF) is now on the host, before the enclave is launched.
 curl -sS -X POST "https://{{.LogHost}}/events" -H 'content-type: application/json' \
-  -d "{\"algorithmId\":\"{{.AlgorithmId}}\",\"runId\":\"{{.RunId}}\",\"event\":\"artifact-retrieved\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" >/dev/null || true
+  -d "{\"algorithmId\":\"{{.AlgorithmId}}\",\"runId\":\"{{.RunId}}\",\"event\":\"artifact-retrieved\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)\"}" >/dev/null || true
 
 # sce-unit connects back to the parent (CID 3) on port 5000 and streams the DC app's output; one connection per run.
 python3 - <<'PYEOF' &
