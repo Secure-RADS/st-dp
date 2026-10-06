@@ -20,9 +20,10 @@ persists it to the `rads-run-results` table, PK `RunId`) and terminates itself.
 `GET /run/{runId}` polls the `rads-run-results` table: `{runId, status: "pending"}` until a result lands, then
 the stored result.
 
-Lifecycle events are logged to the `rads-log-events` queue (the log-service ingest contract
+Lifecycle events are posted to log-service `POST /events` (the ingest contract
 `{algorithmId, runId, event, timestamp, detail?}`): the control plane logs `run-requested` and
-`executor-launched`, and the executor logs `executor-finished` before it terminates.
+`executor-launched` / `launch-failed`, and the executor posts `executor-ready`, `artifact-retrieved`,
+`records-fetched`, `compute-completed`, and `executor-finished` over HTTPS.
 
 ## Deployment
 
@@ -36,8 +37,6 @@ bunx serverless deploy \
   --param="runResultsTable=rads-run-results" \
   --param="runResultsQueueUrl=<rads-run-results queue URL>" \
   --param="runResultsQueueArn=<rads-run-results queue ARN>" \
-  --param="logEventsQueueUrl=<rads-log-events queue URL>" \
-  --param="logEventsQueueArn=<rads-log-events queue ARN>" \
   --param="pdmUrl=https://pdm.example.org" \
   --param="pdmTable=rads-personal-data" \
   --param="amiId=<AL2023 AMI id>" \
@@ -63,7 +62,7 @@ time are noted as such.
 
 - `PDM_URL` - the PDM endpoint the executor downloads records from before the app runs (not passed to the container).
 - `RUN_RESULTS_QUEUE_URL` - the `rads-run-results` queue the executor publishes its result to.
-- `LOG_EVENTS_QUEUE_URL` - the `rads-log-events` queue the executor publishes `executor-finished` to.
+- `LOG_HOST` - log-service hostname for `POST /events` (default `log.r.secure-rads.org`); rendered into userdata as `LogHost`.
 - `REGION` - from the instance/AWS_REGION; not operator-set.
 - `AlgorithmId`, `RunId`, `S3Bucket`, `S3Key` - from the launch request and `rads-algorithms` record.
 
@@ -76,5 +75,6 @@ and `RUN_RESULTS_TABLE`.
 
 ## Executor permissions (per run)
 
-The executor instance role can read `rads-images` (for the tar), send to `rads-run-results` (result delivery)
-and `rads-log-events` (for `executor-finished`), and terminate itself (tag-scoped to `ManagedBy=rads-execution-service`).
+The executor instance role can read `rads-images` (for the tar and host-tools), send to `rads-run-results`
+(result delivery), and terminate itself (tag-scoped to `ManagedBy=rads-execution-service`). Timeline events
+go out over HTTPS to log-service; no SQS permission for log events.

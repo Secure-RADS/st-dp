@@ -10,7 +10,7 @@ S3_KEY="{{.S3Key}}"
 REGION="{{.Region}}"
 PDM_URL="{{.PdmUrl}}"
 RUN_RESULTS_QUEUE="{{.RunResultsQueueUrl}}"
-LOG_EVENTS_QUEUE="{{.LogEventsQueueUrl}}"
+LOG_HOST="{{.LogHost}}"
 # Record count for this run; empty means the whole dataset.
 SIZE="{{.Size}}"
 # Fixed key in the images bucket; make ship uploads the linux/arm64 helper binary here.
@@ -24,10 +24,11 @@ RESULT_FILE="$RUN_DIR/result.json"
 OUTPUT_FILE="$RUN_DIR/output.txt"
 DOCKER_LOAD_LOG="$RUN_DIR/docker-load.log"
 
-# Emit one run-timeline checkpoint onto the log queue. Best-effort: logging must never fail the run.
+# Emit one run-timeline checkpoint via log-service HTTP (same path as secure-rads). Best-effort.
 emit_event() {
   "$TOOLS_BIN" checkpoint "$ALGORITHM_ID" "$RUN_ID" "$1" > /tmp/checkpoint.json
-  aws sqs send-message --queue-url "$LOG_EVENTS_QUEUE" --message-body file:///tmp/checkpoint.json --region "$REGION" || true
+  curl -sS -X POST "https://$LOG_HOST/events" -H 'content-type: application/json' \
+    -d @/tmp/checkpoint.json >/dev/null || true
 }
 
 # Publish the run outcome, log the terminal event, and terminate the instance.
@@ -38,11 +39,12 @@ finish() {
   "$TOOLS_BIN" run-result "$STATUS" "$INSTANCE_ID" "$RESULT_FILE" "$OUTPUT_FILE" "$DOCKER_LOAD_LOG" "$RUN_ID" "$ALGORITHM_ID" > /tmp/result.json
   "$TOOLS_BIN" executor-finished "$STATUS" "$INSTANCE_ID" "$ALGORITHM_ID" "$RUN_ID" > /tmp/log-event.json
   aws sqs send-message --queue-url "$RUN_RESULTS_QUEUE" --message-body file:///tmp/result.json --region "$REGION" || true
-  aws sqs send-message --queue-url "$LOG_EVENTS_QUEUE" --message-body file:///tmp/log-event.json --region "$REGION" || true
+  curl -sS -X POST "https://$LOG_HOST/events" -H 'content-type: application/json' \
+    -d @/tmp/log-event.json >/dev/null || true
   aws ec2 terminate-instances --instance-ids "$INSTANCE_ID" --region "$REGION" || true
 }
 
-# Docker on Amazon Linux 2023; awscli covers the S3 pull and SQS publishes.
+# Docker on Amazon Linux 2023; awscli covers the S3 pull and results SQS publish.
 dnf install -y docker awscli >/dev/null
 systemctl enable --now docker
 for attempt in 1 2 3 4 5 6; do docker info >/dev/null 2>&1 && break; sleep 5; done
