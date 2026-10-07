@@ -15,6 +15,9 @@ HTTP_ACCEPTED = 202
 HTTP_NO_CONTENT = 204
 
 RESPONSE_SNIPPET_BYTES = 200
+CONNECT_RETRIES = 3
+
+_client = httpx.Client(transport=httpx.HTTPTransport(retries=CONNECT_RETRIES))
 
 
 class FlowError(RuntimeError):
@@ -30,7 +33,7 @@ def require(response_status: int, expected: int | tuple[int, ...], context: str,
 
 
 def request(method: str, url: str, *, timeout: float = HTTP_TIMEOUT_SECONDS, **kwargs: Any) -> tuple[int, bytes]:
-    response = httpx.request(method, url, timeout=timeout, **kwargs)
+    response = _client.request(method, url, timeout=timeout, **kwargs)
     return response.status_code, response.content
 
 
