@@ -21,6 +21,7 @@ PHASES: dict[str, dict[str, Window]] = {
     "secure-rads": {
         "host_provisioning": ("enclave-launched", "executor-ready"),
         "algorithm_retrieval": ("executor-ready", "artifact-retrieved"),
+        "enclave_boot": ("artifact-retrieved", "enclave-started"),
         "sce_unit": ("enclave-started", "unit-ready"),
         "attestation": ("unit-ready", "attested"),
         "data_retrieval": ("attested", "data-decrypted"),
@@ -31,12 +32,13 @@ PHASES: dict[str, dict[str, Window]] = {
     "rads": {
         "host_provisioning": ("executor-launched", "executor-ready"),
         "algorithm_retrieval": ("executor-ready", "artifact-retrieved"),
+        "enclave_boot": (None, None),
         "sce_unit": (None, None),
         "attestation": (None, None),
         "data_retrieval": ("artifact-retrieved", "records-fetched"),
         "algorithm_processing": ("records-fetched", "compute-completed"),
-        "result_delivery": ("compute-completed", "executor-finished"),
-        "total": ("run-requested", "executor-finished"),
+        "result_delivery": ("compute-completed", "result-persisted"),
+        "total": ("run-requested", "result-persisted"),
     },
 }
 
