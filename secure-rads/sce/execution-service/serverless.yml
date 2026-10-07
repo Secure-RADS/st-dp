@@ -50,6 +50,8 @@ provider:
     # Pinned to match rads EXECUTOR_AMI_ID so both trees boot the same AL2023 arm64 build.
     ENCLAVE_AMI_ID: ${param:enclaveAmiId, 'ami-05dbf6439e0906761'}
     ENCLAVE_INSTANCE_TYPE: ${param:enclaveInstanceType, 'c6g.large'}
+    # Same AZ as rads EXECUTOR_AZ so both trees launch side by side.
+    ENCLAVE_AZ: ${param:availabilityZone, 'ap-southeast-2b'}
     ENCLAVE_SECURITY_GROUP_ID: !Ref EnclaveHostSecurityGroup
     ENCLAVE_INSTANCE_PROFILE_ARN: !GetAtt EnclaveHostInstanceProfile.Arn
     VERIFIER_HOST: ${param:verifierHost, 'verifier-attest.sr.secure-rads.org'}

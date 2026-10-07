@@ -70,7 +70,7 @@ time are noted as such.
 The executor's data path is fixed: it writes `/opt/rads/run/records.json` and mounts `/opt/rads/run` at
 `/data`, so the app contract is `RECORDS_PATH` (read) and `RESULT_PATH` (write).
 
-Control-plane env used to launch the executor (from the same params): `EXECUTOR_AMI_ID`, `EXECUTOR_INSTANCE_TYPE`,
+Control-plane env used to launch the executor (from the same params): `EXECUTOR_AMI_ID`, `EXECUTOR_INSTANCE_TYPE`, `EXECUTOR_AZ`,
 `EXECUTOR_SECURITY_GROUP_ID` (from stack), `EXECUTOR_INSTANCE_PROFILE_ARN` (from stack), plus `ALGORITHM_TABLE`
 and `RUN_RESULTS_TABLE`.
 
