@@ -18,6 +18,7 @@ const pdmTable = requiredEnv("PDM_TABLE");
 const logHost = requiredEnv("LOG_HOST");
 const executorAmiId = requiredEnv("EXECUTOR_AMI_ID");
 const executorInstanceType = requiredEnv("EXECUTOR_INSTANCE_TYPE") as RunInstancesCommandInput["InstanceType"];
+const executorAz = requiredEnv("EXECUTOR_AZ");
 const executorSecurityGroupId = requiredEnv("EXECUTOR_SECURITY_GROUP_ID");
 const executorInstanceProfileArn = requiredEnv("EXECUTOR_INSTANCE_PROFILE_ARN");
 const region = requiredEnv("AWS_REGION");
@@ -88,6 +89,7 @@ export const create: APIGatewayProxyHandlerV2 = async (event) => {
       new RunInstancesCommand({
         ImageId: executorAmiId,
         InstanceType: executorInstanceType,
+        Placement: { AvailabilityZone: executorAz },
         MinCount: 1,
         MaxCount: 1,
         SecurityGroupIds: [executorSecurityGroupId],

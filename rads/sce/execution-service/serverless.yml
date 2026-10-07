@@ -53,6 +53,8 @@ provider:
     # Pinned to match secure-rads ENCLAVE_AMI_ID so both trees boot the same AL2023 arm64 build.
     EXECUTOR_AMI_ID: ${param:amiId, 'ami-05dbf6439e0906761'}
     EXECUTOR_INSTANCE_TYPE: ${param:instanceType, 'c6g.large'}
+    # Same AZ as secure-rads ENCLAVE_AZ so both trees launch side by side.
+    EXECUTOR_AZ: ${param:availabilityZone, 'ap-southeast-2b'}
     EXECUTOR_SECURITY_GROUP_ID: !Ref ExecutorSecurityGroup
     EXECUTOR_INSTANCE_PROFILE_ARN: !GetAtt ExecutorInstanceProfile.Arn
 

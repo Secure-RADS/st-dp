@@ -15,6 +15,7 @@ const runResultsTable = requiredEnv("RUN_RESULTS_TABLE");
 const runResultsQueueUrl = requiredEnv("RUN_RESULTS_QUEUE_URL");
 const enclaveAmiId = requiredEnv("ENCLAVE_AMI_ID");
 const enclaveInstanceType = requiredEnv("ENCLAVE_INSTANCE_TYPE") as RunInstancesCommandInput["InstanceType"];
+const enclaveAz = requiredEnv("ENCLAVE_AZ");
 const enclaveSecurityGroupId = requiredEnv("ENCLAVE_SECURITY_GROUP_ID");
 const enclaveInstanceProfileArn = requiredEnv("ENCLAVE_INSTANCE_PROFILE_ARN");
 const verifierHost = requiredEnv("VERIFIER_HOST");
@@ -89,6 +90,7 @@ export const create: APIGatewayProxyHandlerV2 = async (event) => {
       new RunInstancesCommand({
         ImageId: enclaveAmiId,
         InstanceType: enclaveInstanceType,
+        Placement: { AvailabilityZone: enclaveAz },
         MinCount: 1,
         MaxCount: 1,
         SecurityGroupIds: [enclaveSecurityGroupId],
