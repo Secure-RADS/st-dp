@@ -50,7 +50,8 @@ provider:
     LOG_HOST: ${param:logHost, 'log.r.secure-rads.org'}
     PDM_URL: ${param:pdmUrl}
     PDM_TABLE: ${param:pdmTable}
-    EXECUTOR_AMI_ID: ${param:amiId}
+    # Pinned to match secure-rads ENCLAVE_AMI_ID so both trees boot the same AL2023 arm64 build.
+    EXECUTOR_AMI_ID: ${param:amiId, 'ami-05dbf6439e0906761'}
     EXECUTOR_INSTANCE_TYPE: ${param:instanceType, 'c6g.large'}
     EXECUTOR_SECURITY_GROUP_ID: !Ref ExecutorSecurityGroup
     EXECUTOR_INSTANCE_PROFILE_ARN: !GetAtt ExecutorInstanceProfile.Arn

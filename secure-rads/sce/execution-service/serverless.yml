@@ -47,7 +47,8 @@ provider:
     ALGORITHM_TABLE: ${param:algorithmTable}
     RUN_RESULTS_TABLE: ${param:runResultsTable}
     RUN_RESULTS_QUEUE_URL: ${param:runResultsQueueUrl}
-    ENCLAVE_AMI_ID: ${param:enclaveAmiId}
+    # Pinned to match rads EXECUTOR_AMI_ID so both trees boot the same AL2023 arm64 build.
+    ENCLAVE_AMI_ID: ${param:enclaveAmiId, 'ami-05dbf6439e0906761'}
     ENCLAVE_INSTANCE_TYPE: ${param:enclaveInstanceType, 'c6g.large'}
     ENCLAVE_SECURITY_GROUP_ID: !Ref EnclaveHostSecurityGroup
     ENCLAVE_INSTANCE_PROFILE_ARN: !GetAtt EnclaveHostInstanceProfile.Arn
