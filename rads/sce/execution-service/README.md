@@ -39,9 +39,10 @@ bunx serverless deploy \
   --param="runResultsQueueArn=<rads-run-results queue ARN>" \
   --param="pdmUrl=https://pdm.example.org" \
   --param="pdmTable=rads-personal-data" \
-  --param="amiId=<AL2023 AMI id>" \
   --param="vpcId=<VPC id>"
 ```
+
+The executor AMI defaults to the AL2023 arm64 build pinned in `serverless.yml`, shared with secure-rads; override with `--param="amiId=..."` only to move both trees together.
 
 Ship the executor host helpers (linux/arm64 static binary) to the images bucket before the first run after a tools change:
 

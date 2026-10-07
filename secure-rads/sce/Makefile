@@ -18,8 +18,6 @@ RUN_RESULTS_TABLE = $(shell aws cloudformation describe-stacks --stack-name secu
 	--query "Stacks[0].Outputs[?OutputKey=='RunResultsTableName'].OutputValue" --output text)
 RUN_RESULTS_QUEUE_URL = $(shell aws cloudformation describe-stacks --stack-name secure-rads-result-consumer-dev --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='RunResultsQueueUrl'].OutputValue" --output text)
-ENCLAVE_AMI_ID = $(shell aws ssm get-parameter --region $(REGION) \
-	--name /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64 --query 'Parameter.Value' --output text)
 API_URL = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='ExecutionApiUrl'].OutputValue" --output text)
 
@@ -36,7 +34,6 @@ deploy:
 		--param="runResultsQueueArn=$(RUN_RESULTS_QUEUE_ARN)" \
 		--param="runResultsQueueUrl=$(RUN_RESULTS_QUEUE_URL)" \
 		--param="runResultsTable=$(RUN_RESULTS_TABLE)" \
-		--param="enclaveAmiId=$(ENCLAVE_AMI_ID)" \
 		--param="enclaveInstanceType=c6g.large"
 
 destroy:
