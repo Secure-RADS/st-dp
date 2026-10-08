@@ -7,8 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 // buildAndPush unpacks the uploaded image, jails the Data Controller's app
@@ -16,12 +14,10 @@ import (
 // from the result, and uploads only that to S3. The whole pipeline is
 // daemonless: skopeo + rootless umoci for unpack, eif_build directly on the
 // composed rootfs (eif.go) - no docker.sock anywhere.
-func buildAndPush(ctx context.Context, algorithmId, tarPath, existingKmsKeyArn string) (key string, err error) {
+func buildAndPush(ctx context.Context, algorithmId, tarPath, existingKmsKeyArn, buildId string) (key string, err error) {
 	start := time.Now()
 	log.Printf("build[%s]: start", tarPath)
 
-	// buildId is the runId under which this build's timeline is recorded (a build has no execution runId).
-	buildId := uuid.NewString()
 	logEvent(algorithmId, buildId, eventBuildStarted, nil)
 	defer func() {
 		if err != nil {
@@ -106,9 +102,14 @@ func buildAndPush(ctx context.Context, algorithmId, tarPath, existingKmsKeyArn s
 
 	key = algorithmId + ".eif"
 	log.Printf("build[%s]: uploading to s3 key=%s", tarPath, key)
+	size := int64(0)
+	if fi, statErr := f.Stat(); statErr == nil {
+		size = fi.Size()
+	}
 	if err := uploadToS3(ctx, key, f); err != nil {
 		return "", fmt.Errorf("upload EIF: %w", err)
 	}
+	costEvent(algorithmId, buildId, serviceS3, opS3Put, s3PutRequests(size))
 	logEvent(algorithmId, buildId, eventImageUploaded, map[string]any{"bucket": artifactBucket, "key": key})
 
 	log.Printf("build[%s]: registering PCRs with verifier-service", tarPath)
@@ -133,6 +134,7 @@ func buildAndPush(ctx context.Context, algorithmId, tarPath, existingKmsKeyArn s
 	if err := putAlgorithm(ctx, algorithmId, artifactBucket, key, kmsKeyArn); err != nil {
 		return "", fmt.Errorf("record algorithm: %w", err)
 	}
+	costEvent(algorithmId, buildId, serviceDynamoDB, opDynamoWrite, float64(len(algorithmId)+len(artifactBucket)+len(key)+len(kmsKeyArn)+64))
 	logEvent(algorithmId, buildId, eventAlgorithmRegistered, map[string]any{"key": key})
 
 	log.Printf("build[%s]: done key=%s took=%s", tarPath, key, time.Since(start))

@@ -59,7 +59,8 @@ class TreeHarness(ABC):
         run_id = http.parse_json(body)["runId"]
         deadline = time.time() + http.POLL_TIMEOUT_SECONDS
         while time.time() < deadline:
-            status, result_body = http.request("GET", f"{self._execution}/run/{run_id}")
+            # algorithmId lets the result handler attribute each poll's request cost to the run.
+            status, result_body = http.request("GET", f"{self._execution}/run/{run_id}?algorithmId={algorithm_id}")
             http.require(status, http.HTTP_OK, f"/run/{run_id}", result_body)
             result = http.parse_json(result_body)
             if result.get("status") != "pending":

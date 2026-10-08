@@ -69,6 +69,9 @@ func main() {
 			return
 		}
 
+		// buildId is the runId under which this build's log timeline and cost rows are recorded.
+		buildId := uuid.NewString()
+
 		uploadDir := "/tmp/registry-service-uploads"
 		// 0o755: standard dir perms - MkdirAll requires a mode, no bare option.
 		if err := os.MkdirAll(uploadDir, 0o755); err != nil {
@@ -83,7 +86,7 @@ func main() {
 		}
 		defer os.Remove(tmpPath)
 
-		existing, found, err := getAlgorithm(c.Request.Context(), algorithmId)
+		existing, found, err := getAlgorithm(c.Request.Context(), algorithmId, buildId)
 		if err != nil {
 			c.String(http.StatusInternalServerError, "could not read algorithm: %v", err)
 			return
@@ -93,7 +96,7 @@ func main() {
 			existingKmsKeyArn = existing.KmsKeyArn
 		}
 
-		builtKey, err := buildAndPush(c.Request.Context(), algorithmId, tmpPath, existingKmsKeyArn)
+		builtKey, err := buildAndPush(c.Request.Context(), algorithmId, tmpPath, existingKmsKeyArn, buildId)
 		if err != nil {
 			c.String(http.StatusInternalServerError, "build failed: %v", err)
 			return

@@ -2,10 +2,18 @@ RADS-BUILD(a, tar)
 Input:
   a  ← algorithm id
   tar ← algorithm’s Docker image packaged as a TAR 
-1  UPLOAD tar to S3 
-2  emit image-uploaded
-3  write a ↦ S3-path to DynamoDB
-4  emit algorithm-registered
+1  /upload: PRESIGN S3 PUT(a)           // presign is local, no S3 call
+2  cost apigateway:request + lambda
+3  client PUTs tar to S3
+4  /register: HEAD a in S3
+5  cost s3:head
+6  cost s3:put                          // client upload attributed from HeadObject size
+7  write a ↦ ⟨bucket, key⟩ to DynamoDB
+8  cost dynamodb:write
+9  emit image-uploaded
+10 emit algorithm-registered
+11 cost apigateway:request + lambda     // /register request
+12 return
 
 
 RADS-RUN(a, n)
@@ -14,10 +22,14 @@ Input:
   n ← dataset size (# of records)
 1  runId ← NEW-ID()
 2  emit run-requested
-3  key ← LOOKUP-S3(a) // S3 location of algorithm's TAR
-4  RunInstances(userdata ← ⟨a, runId, n, key⟩)
-5  emit executor-launched
-6  return runId
+3  cost dynamodb:read                   // execution-service: algorithm lookup
+4  key ← LOOKUP-S3(a) // S3 location of algorithm's TAR
+5  RUN-COUNT-CHECK(n)
+6  cost dynamodb:read                   // PDM Query count, bytes estimated per row
+7  RunInstances(userdata ← ⟨a, runId, n, key, launchEpoch⟩)
+8  emit executor-launched
+9  cost apigateway:request + lambda     // per control-plane request/poll (GET /run/{runId} too)
+10 return runId
 
 
 RADS-EXECUTOR(a, runId, n, key)
@@ -29,23 +41,29 @@ Input:
 1  install docker, awscli
 2  start docker
 3  pull rads-host-tools from S3
-4  emit executor-ready
-5  tar ← GET-S3(key)
-6  DOCKER-LOAD(tar)
-7  emit artifact-retrieved
-8  records ← FETCH-PDM(a, limit ← n)   // rads-host-tools fetch-records
-9  emit records-fetched
-10 write records to records.json
-11 emit records-stored-locally
-12 DOCKER-RUN(image, bind ← /data/records.json)
-13 emit compute-completed
-14 publish result to SQS
-15 emit executor-finished
-16 terminate instance
+4  cost s3:get
+5  emit executor-ready
+6  tar ← GET-S3(key)
+7  DOCKER-LOAD(tar)
+8  cost s3:get                          // algorithm artifact
+9  emit artifact-retrieved
+10 records ← FETCH-PDM(a, limit ← n)   // rads-host-tools fetch-records
+11 cost dynamodb:read                   // emitted by pdm-service: records Query pages
+12 emit records-fetched
+13 write records to records.json
+14 emit records-stored-locally
+15 DOCKER-RUN(image, bind ← /data/records.json)
+16 emit compute-completed
+17 publish result to SQS
+18 cost sqs:send                        // message bytes
+19 emit executor-finished
+20 terminate instance
+21 cost ec2:instance                    // seconds from launchEpoch to this terminate call
 
 
 RADS-RESULT-CONSUMER(result)
 Input:
   result ← processing result returned by the RADS executor
-1  persist result to DynamoDB
-2 emit result-persisted
+1  cost sqs:receive + dynamodb:write    // batch receive + result row
+2  persist result to DynamoDB
+3  emit result-persisted

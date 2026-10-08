@@ -1,6 +1,7 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
+import { costEvent, recordRequest } from "../lib/cost.js";
 import { requiredEnv } from "../lib/env.js";
 import { verifyAccessToken } from "../lib/jwt.js";
 
@@ -42,6 +43,7 @@ function decodeCursor(cursor: string): Record<string, unknown> | undefined {
 }
 
 export const handler: APIGatewayProxyHandlerV2 = async (event) => {
+  const startedAt = process.hrtime.bigint();
   const authorization = event.headers.authorization;
   if (!authorization?.startsWith("Bearer ")) {
     return jsonResponse(401, { error: "missing bearer token" });
@@ -52,6 +54,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   if (!validation) {
     return jsonResponse(401, { error: "invalid token" });
   }
+  const runId = event.headers["x-run-id"] ?? "";
 
   let exclusiveStartKey: Record<string, unknown> | undefined;
   const cursor = event.queryStringParameters?.cursor;
@@ -67,8 +70,17 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     const keyItem = await ddb.send(
       new GetCommand({ TableName: dataKeyTable, Key: { AlgorithmId: validation.algorithmId } }),
     );
+    await costEvent(
+      validation.algorithmId,
+      runId,
+      "execution",
+      "dynamodb",
+      "read",
+      keyItem.Item ? Buffer.byteLength(JSON.stringify(keyItem.Item)) : 1,
+    );
     const stored = keyItem.Item?.DataKey;
     if (typeof stored !== "string" || stored.length === 0) {
+      await recordRequest(validation.algorithmId, runId, "execution", startedAt);
       return jsonResponse(500, { error: "missing data key" });
     }
     dataKey = stored;
@@ -83,18 +95,27 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       ExclusiveStartKey: exclusiveStartKey,
     }),
   );
+  await costEvent(
+    validation.algorithmId,
+    runId,
+    "execution",
+    "dynamodb",
+    "read",
+    Math.max(1, Buffer.byteLength(JSON.stringify(result.Items ?? []))),
+  );
 
   const dataSubjectIds = (result.Items ?? [])
     .map((item) => item.DataSubjectId)
     .filter((id): id is string => typeof id === "string" && id.length > 0);
   // DSAR trail: which data subjects this page actually read. Awaited so the request is not lost to a Lambda
   // freeze (bounded by the function timeout); failures are swallowed inside logSubjectAccess.
-  await logSubjectAccess(validation.algorithmId, event.headers["x-run-id"] ?? "unknown", dataSubjectIds);
+  await logSubjectAccess(validation.algorithmId, runId || "unknown", dataSubjectIds);
 
   const records = (result.Items ?? []).map((item) => ({ recordId: item.RecordId, data: item.Data }));
   const nextCursor = result.LastEvaluatedKey
     ? Buffer.from(JSON.stringify(result.LastEvaluatedKey)).toString("base64url")
     : null;
 
+  await recordRequest(validation.algorithmId, runId, "execution", startedAt);
   return jsonResponse(200, { algorithmId: validation.algorithmId, records, dataKey, nextCursor });
 };

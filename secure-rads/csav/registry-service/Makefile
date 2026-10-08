@@ -41,6 +41,8 @@ PDM_HOST_PUBKEY_SHA256 ?= 207678f01b44dc030dcf7d93d6dacb4cd75ca1d7c1dad266538f85
 # log-service's plain-TLS domain (/events), baked in and pinned so the enclave can log its run timeline.
 LOG_HOST ?= log.sr.secure-rads.org
 LOG_HOST_PUBKEY_SHA256 ?= 207678f01b44dc030dcf7d93d6dacb4cd75ca1d7c1dad266538f85ffa479213c
+# cost-service's plain-TLS domain (/cost). Called by registry-service and the run host, never the enclave, so no pin.
+COST_HOST ?= cost.sr.secure-rads.org
 
 .PHONY: build test run clean sce-unit-base eif-build-base gen-client-cert image ship remote-up remote-down logs deploy-storage destroy-storage upload
 
@@ -91,6 +93,7 @@ ship: image
 	echo "PDM_HOST_PUBKEY_SHA256=$(PDM_HOST_PUBKEY_SHA256)" >> /tmp/registry-service.env
 	echo "LOG_HOST=$(LOG_HOST)" >> /tmp/registry-service.env
 	echo "LOG_HOST_PUBKEY_SHA256=$(LOG_HOST_PUBKEY_SHA256)" >> /tmp/registry-service.env
+	echo "COST_HOST=$(COST_HOST)" >> /tmp/registry-service.env
 	echo "ENCLAVE_HOST_ROLE_ARN=$(ENCLAVE_HOST_ROLE_ARN)" >> /tmp/registry-service.env
 	echo "CSAV_ROLE_ARN=$(CSAV_ROLE_ARN)" >> /tmp/registry-service.env
 	$(SSH) "mkdir -p $(REMOTE_DIR)"

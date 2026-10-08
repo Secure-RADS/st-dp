@@ -44,6 +44,8 @@ PHASES: dict[str, dict[str, Window]] = {
 
 COLUMNS = list(PHASES["secure-rads"])
 
+COST_SERVICES = ["ec2", "dynamodb", "s3", "sqs", "lambda", "apigateway"]
+
 TIMESTAMP_EVENTS = [
     "run-requested",
     "executor-launched",
@@ -86,6 +88,19 @@ def fetch_events(url: str, algorithm_id: str, run_id: str) -> dict[str, str]:
     return by_event
 
 
+def fetch_costs(url: str, algorithm_id: str, run_id: str) -> dict[str, float]:
+    endpoint = f"{url}/cost/{algorithm_id}?runId={run_id}"
+    status, body = http.request("GET", endpoint, timeout=60)
+    http.require(status, http.HTTP_OK, f"GET {endpoint}", body)
+    totals = dict.fromkeys(COST_SERVICES, 0.0)
+    for event in json.loads(body).get("events", []):
+        service = event.get("service")
+        if service in totals:
+            totals[service] += float(event.get("costUsd", 0) or 0)
+    totals["total"] = sum(totals[service] for service in COST_SERVICES)
+    return totals
+
+
 def _parse_ts(value: str) -> float:
     if value.endswith("Z"):
         value = f"{value[:-1]}+00:00"
@@ -114,13 +129,15 @@ def main() -> int:
     except Exception as err:  # noqa: BLE001 - surface resolve failures as CLI errors
         logger.error("failed to resolve service catalog: {}", err)
         return 1
-    urls = {tree: resolved[tree]["log"] for tree in Tree}
+    urls = {tree: {"log": resolved[tree]["log"], "cost": resolved[tree]["cost"]} for tree in Tree}
 
     header = [
         "dataset_size",
         "tree",
         "run",
         "status",
+        *[f"{service}_cost_usd" for service in COST_SERVICES],
+        "total_cost_usd",
         *[f"{column}_s" for column in COLUMNS],
         *[f"{event}_ts" for event in TIMESTAMP_EVENTS],
     ]
@@ -130,10 +147,23 @@ def main() -> int:
         writer = csv.writer(handle)
         writer.writerow(header)
         for row in tqdm(runs, desc="export", unit="run"):
-            by_event = fetch_events(urls[Tree(row["tree"])], row["algorithm_id"], row["run_id"])
+            tree = Tree(row["tree"])
+            by_event = fetch_events(urls[tree]["log"], row["algorithm_id"], row["run_id"])
+            costs = fetch_costs(urls[tree]["cost"], row["algorithm_id"], row["run_id"])
             phases = [window_seconds(by_event, PHASES[row["tree"]][column]) for column in COLUMNS]
             stamps = [by_event.get(event, "") for event in TIMESTAMP_EVENTS]
-            writer.writerow([row["size"], row["tree"], row["rep"], row.get("status") or "", *phases, *stamps])
+            writer.writerow(
+                [
+                    row["size"],
+                    row["tree"],
+                    row["rep"],
+                    row.get("status") or "",
+                    *[f"{costs[service]:.8f}" for service in COST_SERVICES],
+                    f"{costs['total']:.8f}",
+                    *phases,
+                    *stamps,
+                ]
+            )
 
     logger.info("wrote {} ({} runs)", PHASE_TIMINGS_CSV, len(runs))
     return 0

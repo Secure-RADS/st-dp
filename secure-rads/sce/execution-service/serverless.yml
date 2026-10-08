@@ -58,6 +58,7 @@ provider:
     PDM_HOST: ${param:pdmHost, 'pdm.sr.secure-rads.org'}
     PDM_TABLE: ${param:pdmTable}
     LOG_HOST: ${param:logHost, 'log.sr.secure-rads.org'}
+    COST_HOST: ${param:costHost, 'cost.sr.secure-rads.org'}
 
 functions:
   run:

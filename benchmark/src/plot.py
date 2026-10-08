@@ -27,6 +27,9 @@ PHASES = {
     "result_delivery_s": "result delivery",
 }
 PHASE_COLORS = ["#1F4E79", "#4C9BE8", "#C0392B", "#6FBF73", "#F2C14E", "#E8873C", "#8E44AD", "#7F8C8D"]
+COST_SERVICES = ["ec2", "dynamodb", "s3", "sqs", "lambda", "apigateway"]
+COST_COLS = [f"{service}_cost_usd" for service in COST_SERVICES]
+COST_COLORS = ["#1F4E79", "#4C9BE8", "#C0392B", "#6FBF73", "#F2C14E", "#8E44AD"]
 NOTE = (
     "host provisioning = per-run instance boot + tooling install (size-independent); "
     "data retrieval is fetch through records.json write (secure-rads includes decrypt).\n"
@@ -41,6 +44,9 @@ def load() -> pd.DataFrame:
     df = pd.read_csv(PHASE_TIMINGS_CSV)
     cols = [*PHASES, "total_s"]
     df[cols] = df[cols].apply(pd.to_numeric, errors="coerce")
+    cost_cols = [c for c in [*COST_COLS, "total_cost_usd"] if c in df.columns]
+    if cost_cols:
+        df[cost_cols] = df[cost_cols].apply(pd.to_numeric, errors="coerce")
     df["dataset_size"] = df["dataset_size"].astype(int)
     df["label"] = df["tree"].map(LABELS)
     return df
@@ -105,6 +111,43 @@ def scaling_figure(df: pd.DataFrame) -> None:
     _save(fig, "sweep-scaling.png")
 
 
+def cost_figure(df: pd.DataFrame) -> None:
+    if "total_cost_usd" not in df.columns:
+        logger.warning("no cost columns in {}; skipping cost figure", PHASE_TIMINGS_CSV)
+        return
+
+    fig, (ax_line, ax_bar) = plt.subplots(1, 2, figsize=(13, 5))
+
+    sns.lineplot(
+        data=df,
+        x="dataset_size",
+        y="total_cost_usd",
+        hue="label",
+        hue_order=[LABELS[t] for t in Tree],
+        palette={LABELS[t]: c for t, c in PALETTE.items()},
+        marker="o",
+        errorbar=("ci", 95),
+        ax=ax_line,
+    )
+    ax_line.set_xlabel("dataset size (records)")
+    ax_line.set_ylabel("execution cost (USD)")
+    ax_line.set_title("Execution cost vs dataset size")
+    ax_line.legend(title=None, frameon=False)
+
+    by_service = df.groupby("label", as_index=False)[COST_COLS].mean().set_index("label")
+    by_service.columns = [column.removesuffix("_cost_usd") for column in by_service.columns]
+    present = [service for service in COST_SERVICES if service in by_service.columns]
+    by_service = by_service[present]
+    by_service.plot.barh(stacked=True, color=COST_COLORS, width=0.7, ax=ax_bar)
+    ax_bar.set_xlabel("mean execution cost (USD)")
+    ax_bar.set_ylabel("")
+    ax_bar.set_title("Cost by AWS service")
+    ax_bar.legend(title=None, frameon=False, fontsize=8)
+
+    fig.tight_layout()
+    _save(fig, "sweep-cost.png")
+
+
 def main() -> int:
     sns.set_theme(style="whitegrid", context="notebook")
     FIG_DIR.mkdir(parents=True, exist_ok=True)
@@ -112,6 +155,7 @@ def main() -> int:
     logger.info("loaded {} runs across {} sizes", len(df), df["dataset_size"].nunique())
     phases_figure(df)
     scaling_figure(df)
+    cost_figure(df)
     return 0
 
 

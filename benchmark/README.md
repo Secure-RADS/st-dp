@@ -45,7 +45,7 @@ Typical iteration: `make seed` once, then `make run REPS=1` / `make report` whil
 ## Prerequisites
 
 - Devbox + repo `.aws/credentials` (not the global AWS root profile)
-- Both trees deployed (PDM, execution, log, result-consumer; secure-rads also needs CSAV registry + verifier)
+- Both trees deployed (PDM, execution, log, cost, result-consumer; secure-rads also needs CSAV registry + verifier)
 - CSAV host running (`make up` / `make secure-rads-ready` from the repo root)
 - Docker (arm64) for the sample algorithm image on first upload
 - `uv` (Python); `bun` for `../seeding` generate/seed
@@ -98,10 +98,12 @@ Each sweep writes `results/raw/sweep-<unix>.json`. Stop with Ctrl-C and terminat
 ## Export and figures
 
 ```
-make export    # every results/raw/sweep-*.json + log-service -> phase-timings.csv
-make plot      # -> results/figures/sweep-phases.png and sweep-scaling.png
+make export    # every results/raw/sweep-*.json + log-service + cost-service -> phase-timings.csv
+make plot      # -> results/figures/sweep-phases.png, sweep-scaling.png, sweep-cost.png
 make report    # both
 ```
+
+`export` also reads `GET /cost/{algorithmId}?runId=` and adds per-service (`ec2_cost_usd`, `dynamodb_cost_usd`, `s3_cost_usd`, `sqs_cost_usd`, `lambda_cost_usd`, `apigateway_cost_usd`) and `total_cost_usd` columns. `plot` writes `sweep-cost.png` (total cost vs size, and a cost-by-service breakdown). These are list-price estimates, not the bill - see [`../docs/cost-service.md`](../docs/cost-service.md). Cost rows land asynchronously via SQS, so run `export` after the sweep has settled.
 
 To export one sweep only, move other `results/raw/sweep-*.json` files aside first. Drop or re-run failed reps (`error` in raw JSON, or PDM 500s) before treating the CSV as final.
 

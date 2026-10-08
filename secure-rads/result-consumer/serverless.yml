@@ -21,6 +21,7 @@ provider:
   environment:
     RUN_RESULTS_TABLE: !Ref RunResultsTable
     LOG_EVENTS_URL: ${param:logEventsUrl, 'https://log.sr.secure-rads.org/events'}
+    COST_HOST: ${param:costHost, 'cost.sr.secure-rads.org'}
 
 functions:
   consume:

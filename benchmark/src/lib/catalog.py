@@ -44,6 +44,7 @@ CATALOG: dict[Tree, dict[str, ApiGatewayService | Ec2HttpService]] = {
         "pdm": ApiGatewayService(stack="rads-pdm-service-dev"),
         "execution": ApiGatewayService(stack="rads-execution-service-dev"),
         "log": ApiGatewayService(stack="rads-log-service-dev"),
+        "cost": ApiGatewayService(stack="rads-cost-service-dev"),
     },
     Tree.SECURE_RADS: {
         "registry": Ec2HttpService(
@@ -55,6 +56,7 @@ CATALOG: dict[Tree, dict[str, ApiGatewayService | Ec2HttpService]] = {
         "pdm": ApiGatewayService(stack="secure-rads-pdm-service-dev"),
         "execution": ApiGatewayService(stack="secure-rads-execution-service-dev"),
         "log": ApiGatewayService(stack="secure-rads-log-service-dev"),
+        "cost": ApiGatewayService(stack="secure-rads-cost-service-dev"),
         "registry_storage": ApiGatewayService(
             stack="secure-rads-registry-service-storage",
             has_url=False,

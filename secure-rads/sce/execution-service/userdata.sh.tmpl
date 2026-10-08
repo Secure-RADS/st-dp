@@ -7,6 +7,13 @@ emit_event() {
     -d "{\"algorithmId\":\"{{.AlgorithmId}}\",\"runId\":\"{{.RunId}}\",\"event\":\"$1\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)\"}" >/dev/null || true
 }
 
+# Cost metering: one event per billable AWS op, keyed by (AlgorithmId, runId). Best-effort.
+emit_cost() {
+  [ -z "{{.CostHost}}" ] && return 0
+  curl -sS -X POST "https://{{.CostHost}}/cost" -H 'content-type: application/json' \
+    -d "{\"algorithmId\":\"{{.AlgorithmId}}\",\"runId\":\"{{.RunId}}\",\"eventId\":\"$(cat /proc/sys/kernel/random/uuid)\",\"phase\":\"execution\",\"service\":\"$1\",\"operation\":\"$2\",\"quantity\":$3,\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)\"}" >/dev/null || true
+}
+
 # Always self-terminate on exit and send the run result to SQS, where a consumer Lambda persists it for the
 # caller to poll (GET /run/<runId>). The result carries the runId execution-service assigned at launch.
 finish() {
@@ -30,6 +37,9 @@ print(json.dumps({"runId": "{{.RunId}}", "algorithmId": "{{.AlgorithmId}}", "ins
 PYEOF
   aws sqs send-message --queue-url "{{.QueueUrl}}" --message-body file:///tmp/result.json --region "$REGION" || true
   emit_event executor-finished
+  emit_cost sqs send "$(wc -c < /tmp/result.json)"
+  # EC2 is billed per second from launch to the shutting-down state; the terminate call below is that edge.
+  emit_cost ec2 instance "$(( $(date +%s) - {{.LaunchEpoch}} ))"
   aws ec2 terminate-instances --instance-ids "$INSTANCE_ID" --region "$REGION"
 }
 trap finish EXIT
@@ -49,6 +59,7 @@ emit_event executor-ready
 
 mkdir -p /opt/eif
 aws s3 cp "s3://{{.S3Bucket}}/{{.S3Key}}" /opt/eif/app.eif --region "{{.Region}}"
+emit_cost s3 get 1
 
 # Checkpoint: the algorithm artifact (EIF) is now on the host, before the enclave is launched.
 emit_event artifact-retrieved

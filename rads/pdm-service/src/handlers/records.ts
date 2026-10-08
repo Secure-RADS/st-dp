@@ -1,6 +1,7 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
+import { costEvent, recordRequest } from "../lib/cost.js";
 import { requiredEnv } from "../lib/env.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -40,10 +41,12 @@ function decodeCursor(cursor: string): Record<string, unknown> | undefined {
 }
 
 export const handler: APIGatewayProxyHandlerV2 = async (event) => {
+  const startedAt = process.hrtime.bigint();
   const algorithmId = event.queryStringParameters?.algorithmId;
   if (!algorithmId) {
     return jsonResponse(400, { error: "missing algorithmId" });
   }
+  const runId = event.headers["x-run-id"] ?? "";
 
   let exclusiveStartKey: Record<string, unknown> | undefined;
   const cursor = event.queryStringParameters?.cursor;
@@ -63,18 +66,27 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       ExclusiveStartKey: exclusiveStartKey,
     }),
   );
+  await costEvent(
+    algorithmId,
+    runId,
+    "execution",
+    "dynamodb",
+    "read",
+    Math.max(1, Buffer.byteLength(JSON.stringify(result.Items ?? []))),
+  );
 
   const dataSubjectIds = (result.Items ?? [])
     .map((item) => item.DataSubjectId)
     .filter((id): id is string => typeof id === "string" && id.length > 0);
   // DSAR trail: which data subjects this page actually read. Awaited so the request is not lost to a Lambda
   // freeze (bounded by the function timeout); failures are swallowed inside logSubjectAccess.
-  await logSubjectAccess(algorithmId, event.headers["x-run-id"] ?? "unknown", dataSubjectIds);
+  await logSubjectAccess(algorithmId, runId || "unknown", dataSubjectIds);
 
   const records = (result.Items ?? []).map((item) => ({ recordId: item.RecordId, data: item.Data }));
   const nextCursor = result.LastEvaluatedKey
     ? Buffer.from(JSON.stringify(result.LastEvaluatedKey)).toString("base64url")
     : null;
 
+  await recordRequest(algorithmId, runId, "execution", startedAt);
   return jsonResponse(200, { algorithmId, records, nextCursor });
 };
