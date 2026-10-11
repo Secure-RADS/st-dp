@@ -48,7 +48,7 @@ Input:
 8  RUN-ENCLAVE(EIF)
 9  emit enclave-launched
 10 wait for enclave exit
-11  publish result to SQS
+11 publish result to SQS
 12 emit executor-finished
 13 terminate instance
 
@@ -80,5 +80,7 @@ SCE-UNIT()
 
 
 SECURE-RADS-RESULT-CONSUMER(result)
+Input:
+result ← processing result returned by the SCE-UNIT
 1  persist result to DynamoDB
 2  emit result-persisted
