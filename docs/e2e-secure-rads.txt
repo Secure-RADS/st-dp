@@ -53,8 +53,9 @@ Input:
 13 terminate instance
 
 
-SCE-UNIT()
-
+SCE-UNIT(a)
+Input:
+  a ← algorithm id
 1  cfg ← LOAD-RUN-CONFIG()
 2  ⟨runId, n⟩ ← READ-RUNINFO(:5001)
 3  emit enclave-started
