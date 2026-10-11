@@ -1,6 +1,6 @@
 RADS-BUILD(a, tar)
 Input:
-  a   ← algorithm id
+  a  ← algorithm id
  tar ← algorithm’s Docker image packaged as a TAR 
 1  UPLOAD tar to S3 
 2  emit image-uploaded
@@ -10,7 +10,7 @@ Input:
 
 RADS-RUN(a, n)
 Input:
-  a   ← algorithm id
+  a ← algorithm id
   n ← dataset size (# of records)
 1  runId ← NEW-ID()
 2  emit run-requested
@@ -34,13 +34,14 @@ Input:
 6  DOCKER-LOAD(tar)
 7  emit artifact-retrieved
 8  records ← FETCH-PDM(a, limit ← n)   // rads-host-tools fetch-records
-9  write records to records.json
-10 emit records-fetched
-11 DOCKER-RUN(image, bind ← /data/records.json)
-12 emit compute-completed
-13 publish result to SQS
-14 emit executor-finished
-15 terminate instance
+9  emit records-fetched
+10 write records to records.json
+11 emit records-stored-locally
+12 DOCKER-RUN(image, bind ← /data/records.json)
+13 emit compute-completed
+14 publish result to SQS
+15 emit executor-finished
+16 terminate instance
 
 
 RADS-RESULT-CONSUMER(result)
