@@ -1,25 +1,36 @@
 RADS-BUILD(a, tar)
-1  store tar in S3 under a
+Input:
+  a   ← algorithm id
+ tar ← algorithm’s Docker image packaged as a TAR 
+1  UPLOAD tar to S3 
 2  emit image-uploaded
 3  write a ↦ S3-path to DynamoDB
 4  emit algorithm-registered
 
 
 RADS-RUN(a, n)
+Input:
+  a   ← algorithm id
+  n ← dataset size (# of records)
 1  runId ← NEW-ID()
 2  emit run-requested
-3  key ← LOOKUP-S3(a)
+3  key ← LOOKUP-S3(a) // S3 location of algorithm's TAR
 4  RunInstances(userdata ← ⟨a, runId, n, key⟩)
 5  emit executor-launched
 6  return runId
 
 
 RADS-EXECUTOR(a, runId, n, key)
+Input:
+  a ← algorithm id
+  runId ← run id
+  n ← dataset size (# of records)
+  key ←  S3 location of algorithm's TAR
 1  install docker, awscli
 2  start docker
 3  pull rads-host-tools from S3
 4  emit executor-ready
-5  pull key from S3
+5  tar ← GET-S3(key)
 6  DOCKER-LOAD(tar)
 7  emit artifact-retrieved
 8  records ← FETCH-PDM(a, limit ← n)   // rads-host-tools fetch-records
@@ -33,4 +44,7 @@ RADS-EXECUTOR(a, runId, n, key)
 
 
 RADS-RESULT-CONSUMER(result)
+Input:
+result ← processing result returned by the RADS executor
 1  persist result to DynamoDB
+2	 emit result-persisted
