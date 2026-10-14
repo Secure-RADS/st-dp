@@ -12,9 +12,10 @@ OUTPUT_PAIR_FIELDS = 2
 TRIAL_SAMPLE = "trial-eligibility-python"
 TRIAL_ALGORITHM_ID = "e587067e-47dc-4835-8f87-5e66fc979adf"
 TRIAL_DATASET = "ehealth"
-# Capped at 400k: the sample app json.loads the whole records file, so ~1.58 GB at 400k fits the
-# secure-rads 2048 MiB enclave, while 500k (1.96 GB) and beyond does not.
-TRIAL_SIZES = list(range(50_000, 400_000 + 1, 50_000))
+# Ascending 100k..1M. The sample app json.loads the whole records file, so run memory scales with
+# size (~1.58 GB @400k, ~1.96 GB @500k, ~3.9 GB @1M); a tree crashes past its memory limit
+# (secure-rads 2048 MiB enclave, rads 4 GiB host) and the harness drops just that tree.
+TRIAL_SIZES = list(range(100_000, 1_000_000 + 1, 100_000))
 
 TREES = tuple(Tree)
 

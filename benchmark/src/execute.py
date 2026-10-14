@@ -170,11 +170,18 @@ async def amain() -> int:
         return 0
 
     results: list[Result] = []
+    failed: set[Tree] = set()
     # One wave per (size, rep): all trees in parallel (separate PDM/execution stacks).
+    # A tree that fails a size (e.g. the app OOMs past the enclave/executor memory wall) is dropped
+    # from later waves, so the remaining trees are still pushed to their own limit.
     waves = [(size, rep) for size in sizes for rep in range(1, args.reps + 1)]
     for size, rep in tqdm(waves, desc="execute", unit="wave"):
+        active = [harness for harness in harnesses if harness.name not in failed]
+        if not active:
+            logger.info("all trees stopped; ending sweep at size={}", size)
+            break
         batch = await asyncio.gather(
-            *[asyncio.to_thread(run_once, harness, dataset, size, rep) for harness in harnesses],
+            *[asyncio.to_thread(run_once, harness, dataset, size, rep) for harness in active],
         )
         for result in batch:
             results.append(result)
@@ -188,6 +195,15 @@ async def amain() -> int:
                 result.status,
                 result.error,
             )
+            if result.status != "exit:0" or result.error:
+                failed.add(result.tree)
+                logger.warning(
+                    "stopping {} after size={} status={} err={}",
+                    result.tree,
+                    size,
+                    result.status,
+                    result.error,
+                )
 
     RAW_DIR.mkdir(parents=True, exist_ok=True)
     out = RAW_DIR / f"sweep-{int(time.time())}.json"
