@@ -2,9 +2,9 @@
 
 End-to-end Exp1/Exp2 size sweep: `rads` (baseline) vs `secure-rads` (Nitro enclave) on the trial-eligibility algorithm over a shared e-health dataset.
 
-One algorithm id is reused across sizes. `make seed` generates the dataset, uploads both algorithm images, and BatchWrites the same JSON into both trees. `make run` then executes each size with a fetch `size` limit. Sizes come from `TRIAL_SIZES` in `src/lib/config.py` (10k..250k step 10k; not a CLI override). Each `(size, rep)` wave runs selected trees in parallel (separate stacks).
+One algorithm id is reused across sizes. `make seed` generates the dataset, uploads both algorithm images, and BatchWrites the same JSON into both trees. `make run` then executes each size with a fetch `size` limit. Sizes come from `TRIAL_SIZES` in `src/lib/config.py` (10k..200k step 10k; not a CLI override). Each `(size, rep)` wave runs selected trees in parallel (separate stacks).
 
-The sample app `json.load`s the whole records file and pydantic-models every row, so run memory scales with size. secure-rads (2048 MiB enclave) is the tighter tree and dies between 200k and 300k; rads (4 GiB host) survives past 1M. The harness records a failure, drops just that tree, and keeps pushing the others.
+The sample app `json.load`s the whole records file and pydantic-models every row, so run memory scales with size. secure-rads (2048 MiB enclave) is the tighter tree and dies around 200k; rads (4 GiB host) survives past 1M. The harness records a failure, drops just that tree, and keeps pushing the others.
 
 Use [Devbox](https://www.jetify.com/docs/devbox/) from the repo root so AWS hits the local `.aws/` credentials and `ap-southeast-2` (`devbox shell` / `devbox run …`).
 
