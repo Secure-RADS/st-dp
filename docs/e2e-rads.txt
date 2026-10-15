@@ -46,6 +46,6 @@ Input:
 
 RADS-RESULT-CONSUMER(result)
 Input:
-result ← processing result returned by the RADS executor
+  result ← processing result returned by the RADS executor
 1  persist result to DynamoDB
 2	 emit result-persisted
