@@ -13,7 +13,7 @@ export const DATASETS: DatasetConfig[] = [
   { name: "finance", algorithmId: "c7cc14fa-e962-4548-aff4-a54148798cd8", count: 1000, seed: 202 },
   { name: "ecommerce", algorithmId: "3b8bba4a-8106-4309-9446-7bce99a1453a", count: 2500, seed: 303 },
   { name: "social", algorithmId: "e4082659-08d6-4f0a-9e60-327e9410c710", count: 5000, seed: 404 },
-  { name: "ehealth", algorithmId: "e587067e-47dc-4835-8f87-5e66fc979adf", count: 100_000, seed: 505 },
+  { name: "ehealth", algorithmId: "e587067e-47dc-4835-8f87-5e66fc979adf", count: 150_000, seed: 505 },
 ];
 
 export const DEFAULT_SEED_NAMES = DATASETS.map((dataset) => dataset.name);

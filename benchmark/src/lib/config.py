@@ -12,7 +12,7 @@ OUTPUT_PAIR_FIELDS = 2
 TRIAL_SAMPLE = "trial-eligibility-python"
 TRIAL_ALGORITHM_ID = "e587067e-47dc-4835-8f87-5e66fc979adf"
 TRIAL_DATASET = "ehealth"
-TRIAL_SIZES = list(range(10_000, 100_000 + 1, 10_000))
+TRIAL_SIZES = list(range(10_000, 150_000 + 1, 10_000))
 
 TREES = tuple(Tree)
 

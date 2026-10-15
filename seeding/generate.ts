@@ -1,8 +1,9 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { once } from "node:events";
+import { createWriteStream, mkdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { faker } from "@faker-js/faker";
 import { v5 as uuidv5 } from "uuid";
-import { DATASETS } from "./config";
+import { DATASETS, type DatasetConfig } from "./config";
 
 const OUT_DIR = join(import.meta.dir, "datasets");
 
@@ -15,7 +16,8 @@ function daysAgo(n: number): string {
 }
 
 function tsWithinDays(n: number): string {
-  const ms = TODAY.getTime() - faker.number.int({ min: 0, max: n }) * DAY_MS - faker.number.int({ min: 0, max: DAY_MS });
+  const ms =
+    TODAY.getTime() - faker.number.int({ min: 0, max: n }) * DAY_MS - faker.number.int({ min: 0, max: DAY_MS });
   return new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
 }
 
@@ -131,8 +133,26 @@ function ecommerceData() {
 }
 
 const INTERESTS = [
-  "fitness", "gaming", "cooking", "travel", "politics", "fashion", "music", "movies", "sports", "tech",
-  "art", "books", "pets", "parenting", "finance", "food", "photography", "diy", "science", "news",
+  "fitness",
+  "gaming",
+  "cooking",
+  "travel",
+  "politics",
+  "fashion",
+  "music",
+  "movies",
+  "sports",
+  "tech",
+  "art",
+  "books",
+  "pets",
+  "parenting",
+  "finance",
+  "food",
+  "photography",
+  "diy",
+  "science",
+  "news",
 ];
 
 function socialData(index: number, count: number) {
@@ -179,11 +199,28 @@ function isoWeek(d: Date): string {
 }
 
 const CONDITIONS = [
-  "type2diabetes", "hypertension", "asthma", "copd", "ckd", "coronaryarterydisease", "depression", "osteoarthritis",
+  "type2diabetes",
+  "hypertension",
+  "asthma",
+  "copd",
+  "ckd",
+  "coronaryarterydisease",
+  "depression",
+  "osteoarthritis",
 ];
 const MEDICATIONS = [
-  "metformin", "lisinopril", "amlodipine", "atorvastatin", "salbutamol", "omeprazole", "sertraline",
-  "ibuprofen", "levothyroxine", "aspirin", "insulin glargine", "losartan",
+  "metformin",
+  "lisinopril",
+  "amlodipine",
+  "atorvastatin",
+  "salbutamol",
+  "omeprazole",
+  "sertraline",
+  "ibuprofen",
+  "levothyroxine",
+  "aspirin",
+  "insulin glargine",
+  "losartan",
 ];
 
 function ehealthData() {
@@ -227,18 +264,36 @@ const GENERATORS: Record<string, (index: number, count: number) => object> = {
   ehealth: () => ehealthData(),
 };
 
+// Streams one record per write so memory stays flat regardless of dataset size (a 10M dataset is ~5 GiB).
+async function writeDataset({ name, algorithmId, count, seed }: DatasetConfig): Promise<void> {
+  const generate = GENERATORS[name];
+  faker.seed(seed);
+
+  const path = join(OUT_DIR, `${name}.json`);
+  const stream = createWriteStream(path);
+  const write = async (chunk: string): Promise<void> => {
+    if (!stream.write(chunk)) await once(stream, "drain");
+  };
+
+  await write(`{"algorithmId": ${JSON.stringify(algorithmId)}, "name": ${JSON.stringify(name)}, "records": [\n`);
+
+  let maxItem = 0;
+  for (let i = 1; i <= count; i++) {
+    const line = JSON.stringify({ recordId: recordId(i), dataSubjectId: dataSubjectId(i), data: generate(i, count) });
+    maxItem = Math.max(maxItem, line.length);
+    await write(i === 1 ? line : `,\n${line}`);
+  }
+
+  await write("\n]}\n");
+  stream.end();
+  await once(stream, "finish");
+
+  const bytes = statSync(path).size;
+  console.log(`${name}: ${count} records, file ${(bytes / 1024).toFixed(1)} KiB, largest record ${maxItem} bytes`);
+}
+
 mkdirSync(OUT_DIR, { recursive: true });
 
-for (const { name, algorithmId, count, seed } of DATASETS) {
-  const gen = GENERATORS[name];
-  faker.seed(seed);
-  const records = [];
-  for (let i = 1; i <= count; i++) {
-    records.push({ recordId: recordId(i), dataSubjectId: dataSubjectId(i), data: gen(i, count) });
-  }
-  const body = records.map((r) => JSON.stringify(r)).join(",\n");
-  const json = `{"algorithmId": ${JSON.stringify(algorithmId)}, "name": ${JSON.stringify(name)}, "records": [\n${body}\n]}\n`;
-  writeFileSync(join(OUT_DIR, `${name}.json`), json);
-  const maxItem = records.reduce((m, r) => Math.max(m, JSON.stringify(r).length), 0);
-  console.log(`${name}: ${count} records, file ${(json.length / 1024).toFixed(1)} KiB, largest record ${maxItem} bytes`);
+for (const dataset of DATASETS) {
+  await writeDataset(dataset);
 }
