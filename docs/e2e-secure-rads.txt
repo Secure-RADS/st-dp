@@ -1,66 +1,87 @@
 SECURE-RADS-BUILD(a, oci)
+Input:
+  a  ← algorithm id
+  tar ← algorithm’s Docker image packaged as TAR 
 1  buildId ← NEW-ID()
 2  emit build-started
-3  rootfs ← UNPACK(oci)                 // skopeo + umoci
-4  LAYER sce-unit, nsjail onto rootfs
-5  ⟨EIF, PCRs⟩ ← EIF-BUILD(rootfs)
-6  emit eif-built
-7  UPLOAD EIF to S3
-8  emit image-uploaded
-9  REGISTER-PCRS(a, PCRs)               // mTLS to Verifier
-10 emit pcrs-registered
-11 kmsArn ← CREATE-OR-REUSE-KMS-KEY(a)
-12 emit kms-key-provisioned
-13 write a ↦ ⟨S3-path, kmsArn⟩ to DynamoDB
-14 emit build-completed                 // or build-failed
-15 return
+3  oci ← CONVERT-TO-OCI(tar)             // skopeo
+4  rootfs ← UNPACK(oci)                 // umoci
+5  LAYER sce-unit, nsjail onto rootfs
+6  ⟨EIF, PCRs⟩ ← EIF-BUILD(rootfs)
+7  emit build-completed
+8  UPLOAD EIF to S3
+9  emit image-uploaded
+10 REGISTER-PCRS(a, PCRs)               // mTLS to Verifier
+11 emit pcrs-registered
+12 kmsArn ← CREATE-OR-REUSE-KMS-KEY(a)
+13 emit kms-key-provisioned
+14 write a ↦ ⟨S3-path, kmsArn⟩ to DynamoDB
+15 emit algorithm-registered
+16 return
 
 
 SECURE-RADS-RUN(a, n)
+Input:
+  a ← algorithm id
+  n ← dataset size (# of records)
 1  runId ← NEW-ID()
 2  emit run-requested
-3  key ← LOOKUP-EIF(a)
+3  key ← LOOKUP-EIF(a) // S3 location of algorithm's EIF
 4  RunInstances(Nitro parent, userdata ← ⟨a, runId, n, key⟩)
-5  emit enclave-launched
+5  emit executor-launched
 6  return runId
 
 
-SECURE-RADS-HOST(a, runId, n, key)
+SECURE-RADS-EXECUTOR(a, runId, n, key)
+Input:
+  a ← algorithm id
+  runId ← run id
+  n ← dataset size (# of records)
+  key ←  S3 location of algorithm's EIF
 1  install nitro-cli
 2  configure allocator
 3  emit executor-ready
-4  pull EIF from S3
+4  EIF ← GET-S3(key)
 5  emit artifact-retrieved
 6  start vsock listeners                // output :5000, runInfo :5001
-7  RUN-ENCLAVE(EIF)
-8  wait for enclave exit
-9  publish result to SQS
-10 terminate instance
+7  configure vsock-proxy
+8  RUN-ENCLAVE(EIF)
+9  emit enclave-launched
+10 wait for enclave exit
+11 publish result to SQS
+12 emit executor-finished
+13 terminate instance
 
 
-SCE-UNIT(a, cfg)
-1  ⟨runId, n⟩ ← READ-RUNINFO(:5001)
-2  emit enclave-started
-3  SEED-ENTROPY from NSM
-4  emit unit-ready
-5  token ← ATTEST(Verifier)
-6  emit attested
-7  creds ← FETCH-AWS-CREDS()
-8  ⟨records, encDEK⟩ ← FETCH-PDM(a, token, limit ← n)
-9  emit records-fetched
-10 DEK ← KMS-DECRYPT(encDEK, attestation)
-11 plaintext ← DECRYPT(records, DEK)
-12 write {algorithmId, records} to /data/records.json
-13 emit data-decrypted
-14 START nsjail                         // RECORDS_PATH, RESULT_PATH
-15 wait for nsjail exit
-16 output ← read /data/result.json
-17 emit dc-app-completed
-18 STREAM output to parent              // vsock :5000
-19 emit output-sent
-20 // on failure: emit run-failed
+SCE-UNIT(a)
+Input:
+  a ← algorithm id
+1  cfg ← LOAD-RUN-CONFIG()
+2  ⟨runId, n⟩ ← READ-RUNINFO(:5001)
+3  emit enclave-started
+4  SEED-ENTROPY from NSM
+5  emit unit-ready
+6  token ← ATTEST(Verifier)
+7  emit attested
+8  creds ← FETCH-AWS-CREDS()
+9  ⟨records, encDEK⟩ ← FETCH-PDM(a, token, limit ← n)
+10  emit records-fetched
+11 DEK ← KMS-DECRYPT(encDEK, attestation)
+12 plaintext ← DECRYPT(records, DEK)
+13 emit records-decrypted
+14 write {algorithmId, records} to /data/records.json
+15 emit records-stored-locally
+16 START nsjail                         // RECORDS_PATH, RESULT_PATH
+17 wait for nsjail exit
+18 output ← read /data/result.json
+19 emit dc-app-completed
+20 STREAM output to parent              // vsock :5000
+21 emit output-sent
+22 // on failure: emit run-failed
 
 
 SECURE-RADS-RESULT-CONSUMER(result)
+Input:
+  result ← processing result returned by the SCE-UNIT
 1  persist result to DynamoDB
 2  emit result-persisted
