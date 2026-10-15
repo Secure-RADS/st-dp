@@ -5,8 +5,8 @@
     "algorithm_id": "e587067e-47dc-4835-8f87-5e66fc979adf",
     "rep": 1,
     "size": 10000,
-    "seconds": 105.17009938699994,
-    "run_id": "b9e42ee5-ca6f-4fc8-8775-cfa4f4bf1503",
+    "seconds": 92.86563103399749,
+    "run_id": "23c8be58-de97-4b49-8fb2-a83113f56c59",
     "status": "exit:0",
     "output": "{\"algorithmId\":\"e587067e-47dc-4835-8f87-5e66fc979adf\",\"userCount\":10000,\"eligibleCount\":282,\"eligiblePct\":2.82,\"exclusionBreakdown\":{\"age\":5093,\"hba1c\":8628,\"egfr\":1590,\"ckd\":2545,\"bmi\":4378},\"eligibleRecordIds\":[\"user-000019\",\"user-000023\",\"user-000118\",\"user-000136\",\"user-000143\",\"user-000170\",\"user-000174\",\"user-000280\",\"user-000302\",\"user-000318\",\"user-000336\",\"user-000416\",\"user-000491\",\"user-000495\",\"user-000569\",\"user-000572\",\"user-000620\",\"user-000689\",\"user-000706\",\"user-000708\",\"user-000795\",\"user-000853\",\"user-000863\",\"user-000932\",\"user-000951\",\"user-000979\",\"user-001040\",\"user-001080\",\"user-001094\",\"user-001116\",\"user-001148\",\"user-001151\",\"user-001263\",\"user-001335\",\"user-001348\",\"user-001358\",\"user-001369\",\"user-001370\",\"user-001379\",\"user-001465\",\"user-001533\",\"user-001606\",\"user-001622\",\"user-001637\",\"user-001652\",\"user-001758\",\"user-001837\",\"user-001844\",\"user-001890\",\"user-001912\"]}",
     "error": null
@@ -17,8 +17,8 @@
     "algorithm_id": "e587067e-47dc-4835-8f87-5e66fc979adf",
     "rep": 1,
     "size": 10000,
-    "seconds": 103.06306212800018,
-    "run_id": "55fdd680-dab1-4cbc-aba2-b3e5efe444a0",
+    "seconds": 102.3446000340009,
+    "run_id": "1c82f82d-451c-4406-b46e-8ea8db057953",
     "status": "exit:0",
     "output": "{\"algorithmId\":\"e587067e-47dc-4835-8f87-5e66fc979adf\",\"userCount\":10000,\"eligibleCount\":282,\"eligiblePct\":2.82,\"exclusionBreakdown\":{\"age\":5093,\"hba1c\":8628,\"egfr\":1590,\"ckd\":2545,\"bmi\":4378},\"eligibleRecordIds\":[\"user-000019\",\"user-000023\",\"user-000118\",\"user-000136\",\"user-000143\",\"user-000170\",\"user-000174\",\"user-000280\",\"user-000302\",\"user-000318\",\"user-000336\",\"user-000416\",\"user-000491\",\"user-000495\",\"user-000569\",\"user-000572\",\"user-000620\",\"user-000689\",\"user-000706\",\"user-000708\",\"user-000795\",\"user-000853\",\"user-000863\",\"user-000932\",\"user-000951\",\"user-000979\",\"user-001040\",\"user-001080\",\"user-001094\",\"user-001116\",\"user-001148\",\"user-001151\",\"user-001263\",\"user-001335\",\"user-001348\",\"user-001358\",\"user-001369\",\"user-001370\",\"user-001379\",\"user-001465\",\"user-001533\",\"user-001606\",\"user-001622\",\"user-001637\",\"user-001652\",\"user-001758\",\"user-001837\",\"user-001844\",\"user-001890\",\"user-001912\"]}\n",
     "error": null
@@ -29,8 +29,8 @@
     "algorithm_id": "e587067e-47dc-4835-8f87-5e66fc979adf",
     "rep": 1,
     "size": 20000,
-    "seconds": 102.65273177999961,
-    "run_id": "44d2e743-d5fd-4a13-901f-f51511f5f5fd",
+    "seconds": 97.33612336399892,
+    "run_id": "29579fd2-840a-440c-9165-3e4f93a715c0",
     "status": "exit:0",
     "output": "{\"algorithmId\":\"e587067e-47dc-4835-8f87-5e66fc979adf\",\"userCount\":20000,\"eligibleCount\":535,\"eligiblePct\":2.67,\"exclusionBreakdown\":{\"age\":10181,\"hba1c\":17244,\"egfr\":3174,\"ckd\":5103,\"bmi\":8831},\"eligibleRecordIds\":[\"user-000019\",\"user-000023\",\"user-000118\",\"user-000136\",\"user-000143\",\"user-000170\",\"user-000174\",\"user-000280\",\"user-000302\",\"user-000318\",\"user-000336\",\"user-000416\",\"user-000491\",\"user-000495\",\"user-000569\",\"user-000572\",\"user-000620\",\"user-000689\",\"user-000706\",\"user-000708\",\"user-000795\",\"user-000853\",\"user-000863\",\"user-000932\",\"user-000951\",\"user-000979\",\"user-001040\",\"user-001080\",\"user-001094\",\"user-001116\",\"user-001148\",\"user-001151\",\"user-001263\",\"user-001335\",\"user-001348\",\"user-001358\",\"user-001369\",\"user-001370\",\"user-001379\",\"user-001465\",\"user-001533\",\"user-001606\",\"user-001622\",\"user-001637\",\"user-001652\",\"user-001758\",\"user-001837\",\"user-001844\",\"user-001890\",\"user-001912\"]}",
     "error": null
@@ -41,8 +41,8 @@
     "algorithm_id": "e587067e-47dc-4835-8f87-5e66fc979adf",
     "rep": 1,
     "size": 20000,
-    "seconds": 106.29165880799974,
-    "run_id": "a6475c13-c0a5-4cb1-a2c6-afa74cc5cea2",
+    "seconds": 100.31835836799655,
+    "run_id": "46baf37b-5587-4518-9278-a070d4175983",
     "status": "exit:0",
     "output": "{\"algorithmId\":\"e587067e-47dc-4835-8f87-5e66fc979adf\",\"userCount\":20000,\"eligibleCount\":535,\"eligiblePct\":2.67,\"exclusionBreakdown\":{\"age\":10181,\"hba1c\":17244,\"egfr\":3174,\"ckd\":5103,\"bmi\":8831},\"eligibleRecordIds\":[\"user-000019\",\"user-000023\",\"user-000118\",\"user-000136\",\"user-000143\",\"user-000170\",\"user-000174\",\"user-000280\",\"user-000302\",\"user-000318\",\"user-000336\",\"user-000416\",\"user-000491\",\"user-000495\",\"user-000569\",\"user-000572\",\"user-000620\",\"user-000689\",\"user-000706\",\"user-000708\",\"user-000795\",\"user-000853\",\"user-000863\",\"user-000932\",\"user-000951\",\"user-000979\",\"user-001040\",\"user-001080\",\"user-001094\",\"user-001116\",\"user-001148\",\"user-001151\",\"user-001263\",\"user-001335\",\"user-001348\",\"user-001358\",\"user-001369\",\"user-001370\",\"user-001379\",\"user-001465\",\"user-001533\",\"user-001606\",\"user-001622\",\"user-001637\",\"user-001652\",\"user-001758\",\"user-001837\",\"user-001844\",\"user-001890\",\"user-001912\"]}\n",
     "error": null
@@ -53,8 +53,8 @@
     "algorithm_id": "e587067e-47dc-4835-8f87-5e66fc979adf",
     "rep": 1,
     "size": 30000,
-    "seconds": 96.62188452500004,
-    "run_id": "c14c50db-0adb-423c-bf04-6b8f4ef3c8f5",
+    "seconds": 96.40426411099907,
+    "run_id": "209bb0a9-22a3-487d-ab9d-60cafb0011e5",
     "status": "exit:0",
     "output": "{\"algorithmId\":\"e587067e-47dc-4835-8f87-5e66fc979adf\",\"userCount\":30000,\"eligibleCount\":820,\"eligiblePct\":2.73,\"exclusionBreakdown\":{\"age\":15290,\"hba1c\":25855,\"egfr\":4806,\"ckd\":7636,\"bmi\":13266},\"eligibleRecordIds\":[\"user-000019\",\"user-000023\",\"user-000118\",\"user-000136\",\"user-000143\",\"user-000170\",\"user-000174\",\"user-000280\",\"user-000302\",\"user-000318\",\"user-000336\",\"user-000416\",\"user-000491\",\"user-000495\",\"user-000569\",\"user-000572\",\"user-000620\",\"user-000689\",\"user-000706\",\"user-000708\",\"user-000795\",\"user-000853\",\"user-000863\",\"user-000932\",\"user-000951\",\"user-000979\",\"user-001040\",\"user-001080\",\"user-001094\",\"user-001116\",\"user-001148\",\"user-001151\",\"user-001263\",\"user-001335\",\"user-001348\",\"user-001358\",\"user-001369\",\"user-001370\",\"user-001379\",\"user-001465\",\"user-001533\",\"user-001606\",\"user-001622\",\"user-001637\",\"user-001652\",\"user-001758\",\"user-001837\",\"user-001844\",\"user-001890\",\"user-001912\"]}",
     "error": null
@@ -65,8 +65,8 @@
     "algorithm_id": "e587067e-47dc-4835-8f87-5e66fc979adf",
     "rep": 1,
     "size": 30000,
-    "seconds": 105.72430031899967,
-    "run_id": "115fcda7-1b4b-4e06-82c1-c838763d36d2",
+    "seconds": 106.26514651400066,
+    "run_id": "3cd2a84f-becd-48b9-87e7-90c3acb7d5f1",
     "status": "exit:0",
     "output": "{\"algorithmId\":\"e587067e-47dc-4835-8f87-5e66fc979adf\",\"userCount\":30000,\"eligibleCount\":820,\"eligiblePct\":2.73,\"exclusionBreakdown\":{\"age\":15290,\"hba1c\":25855,\"egfr\":4806,\"ckd\":7636,\"bmi\":13266},\"eligibleRecordIds\":[\"user-000019\",\"user-000023\",\"user-000118\",\"user-000136\",\"user-000143\",\"user-000170\",\"user-000174\",\"user-000280\",\"user-000302\",\"user-000318\",\"user-000336\",\"user-000416\",\"user-000491\",\"user-000495\",\"user-000569\",\"user-000572\",\"user-000620\",\"user-000689\",\"user-000706\",\"user-000708\",\"user-000795\",\"user-000853\",\"user-000863\",\"user-000932\",\"user-000951\",\"user-000979\",\"user-001040\",\"user-001080\",\"user-001094\",\"user-001116\",\"user-001148\",\"user-001151\",\"user-001263\",\"user-001335\",\"user-001348\",\"user-001358\",\"user-001369\",\"user-001370\",\"user-001379\",\"user-001465\",\"user-001533\",\"user-001606\",\"user-001622\",\"user-001637\",\"user-001652\",\"user-001758\",\"user-001837\",\"user-001844\",\"user-001890\",\"user-001912\"]}\n",
     "error": null
@@ -77,8 +77,8 @@
     "algorithm_id": "e587067e-47dc-4835-8f87-5e66fc979adf",
     "rep": 1,
     "size": 40000,
-    "seconds": 108.85959918699973,
-    "run_id": "01eee239-9ffc-4cf0-9988-6f32c00cfddf",
+    "seconds": 103.7543471550016,
+    "run_id": "c21a6ffc-8a55-41de-a8a7-b747afe72541",
     "status": "exit:0",
     "output": "{\"algorithmId\":\"e587067e-47dc-4835-8f87-5e66fc979adf\",\"userCount\":40000,\"eligibleCount\":1101,\"eligiblePct\":2.75,\"exclusionBreakdown\":{\"age\":20352,\"hba1c\":34424,\"egfr\":6327,\"ckd\":10070,\"bmi\":17617},\"eligibleRecordIds\":[\"user-000019\",\"user-000023\",\"user-000118\",\"user-000136\",\"user-000143\",\"user-000170\",\"user-000174\",\"user-000280\",\"user-000302\",\"user-000318\",\"user-000336\",\"user-000416\",\"user-000491\",\"user-000495\",\"user-000569\",\"user-000572\",\"user-000620\",\"user-000689\",\"user-000706\",\"user-000708\",\"user-000795\",\"user-000853\",\"user-000863\",\"user-000932\",\"user-000951\",\"user-000979\",\"user-001040\",\"user-001080\",\"user-001094\",\"user-001116\",\"user-001148\",\"user-001151\",\"user-001263\",\"user-001335\",\"user-001348\",\"user-001358\",\"user-001369\",\"user-001370\",\"user-001379\",\"user-001465\",\"user-001533\",\"user-001606\",\"user-001622\",\"user-001637\",\"user-001652\",\"user-001758\",\"user-001837\",\"user-001844\",\"user-001890\",\"user-001912\"]}",
     "error": null
@@ -89,8 +89,8 @@
     "algorithm_id": "e587067e-47dc-4835-8f87-5e66fc979adf",
     "rep": 1,
     "size": 40000,
-    "seconds": 111.26832616499996,
-    "run_id": "9aa27dd5-c51f-439a-9a81-5af18c649d3d",
+    "seconds": 111.27083422999931,
+    "run_id": "74db1983-e1e9-4dd3-bfab-0465e7bafb79",
     "status": "exit:0",
     "output": "{\"algorithmId\":\"e587067e-47dc-4835-8f87-5e66fc979adf\",\"userCount\":40000,\"eligibleCount\":1101,\"eligiblePct\":2.75,\"exclusionBreakdown\":{\"age\":20352,\"hba1c\":34424,\"egfr\":6327,\"ckd\":10070,\"bmi\":17617},\"eligibleRecordIds\":[\"user-000019\",\"user-000023\",\"user-000118\",\"user-000136\",\"user-000143\",\"user-000170\",\"user-000174\",\"user-000280\",\"user-000302\",\"user-000318\",\"user-000336\",\"user-000416\",\"user-000491\",\"user-000495\",\"user-000569\",\"user-000572\",\"user-000620\",\"user-000689\",\"user-000706\",\"user-000708\",\"user-000795\",\"user-000853\",\"user-000863\",\"user-000932\",\"user-000951\",\"user-000979\",\"user-001040\",\"user-001080\",\"user-001094\",\"user-001116\",\"user-001148\",\"user-001151\",\"user-001263\",\"user-001335\",\"user-001348\",\"user-001358\",\"user-001369\",\"user-001370\",\"user-001379\",\"user-001465\",\"user-001533\",\"user-001606\",\"user-001622\",\"user-001637\",\"user-001652\",\"user-001758\",\"user-001837\",\"user-001844\",\"user-001890\",\"user-001912\"]}\n",
     "error": null
@@ -101,8 +101,8 @@
     "algorithm_id": "e587067e-47dc-4835-8f87-5e66fc979adf",
     "rep": 1,
     "size": 50000,
-    "seconds": 102.53228581799976,
-    "run_id": "b9c3f637-ffb6-4e28-9bfb-d355409008cd",
+    "seconds": 103.15277287299978,
+    "run_id": "1e01cfaf-2509-4dfc-892f-3e4899e34fc9",
     "status": "exit:0",
     "output": "{\"algorithmId\":\"e587067e-47dc-4835-8f87-5e66fc979adf\",\"userCount\":50000,\"eligibleCount\":1341,\"eligiblePct\":2.68,\"exclusionBreakdown\":{\"age\":25442,\"hba1c\":43074,\"egfr\":7951,\"ckd\":12610,\"bmi\":22042},\"eligibleRecordIds\":[\"user-000019\",\"user-000023\",\"user-000118\",\"user-000136\",\"user-000143\",\"user-000170\",\"user-000174\",\"user-000280\",\"user-000302\",\"user-000318\",\"user-000336\",\"user-000416\",\"user-000491\",\"user-000495\",\"user-000569\",\"user-000572\",\"user-000620\",\"user-000689\",\"user-000706\",\"user-000708\",\"user-000795\",\"user-000853\",\"user-000863\",\"user-000932\",\"user-000951\",\"user-000979\",\"user-001040\",\"user-001080\",\"user-001094\",\"user-001116\",\"user-001148\",\"user-001151\",\"user-001263\",\"user-001335\",\"user-001348\",\"user-001358\",\"user-001369\",\"user-001370\",\"user-001379\",\"user-001465\",\"user-001533\",\"user-001606\",\"user-001622\",\"user-001637\",\"user-001652\",\"user-001758\",\"user-001837\",\"user-001844\",\"user-001890\",\"user-001912\"]}",
     "error": null
@@ -113,8 +113,8 @@
     "algorithm_id": "e587067e-47dc-4835-8f87-5e66fc979adf",
     "rep": 1,
     "size": 50000,
-    "seconds": 112.40948923799988,
-    "run_id": "36420f5f-9ee7-418b-814c-c8e575d32023",
+    "seconds": 110.74097937199986,
+    "run_id": "a06d0c72-0fcc-4d11-b066-66b00e9f2caa",
     "status": "exit:0",
     "output": "{\"algorithmId\":\"e587067e-47dc-4835-8f87-5e66fc979adf\",\"userCount\":50000,\"eligibleCount\":1341,\"eligiblePct\":2.68,\"exclusionBreakdown\":{\"age\":25442,\"hba1c\":43074,\"egfr\":7951,\"ckd\":12610,\"bmi\":22042},\"eligibleRecordIds\":[\"user-000019\",\"user-000023\",\"user-000118\",\"user-000136\",\"user-000143\",\"user-000170\",\"user-000174\",\"user-000280\",\"user-000302\",\"user-000318\",\"user-000336\",\"user-000416\",\"user-000491\",\"user-000495\",\"user-000569\",\"user-000572\",\"user-000620\",\"user-000689\",\"user-000706\",\"user-000708\",\"user-000795\",\"user-000853\",\"user-000863\",\"user-000932\",\"user-000951\",\"user-000979\",\"user-001040\",\"user-001080\",\"user-001094\",\"user-001116\",\"user-001148\",\"user-001151\",\"user-001263\",\"user-001335\",\"user-001348\",\"user-001358\",\"user-001369\",\"user-001370\",\"user-001379\",\"user-001465\",\"user-001533\",\"user-001606\",\"user-001622\",\"user-001637\",\"user-001652\",\"user-001758\",\"user-001837\",\"user-001844\",\"user-001890\",\"user-001912\"]}\n",
     "error": null
@@ -125,8 +125,8 @@
     "algorithm_id": "e587067e-47dc-4835-8f87-5e66fc979adf",
     "rep": 1,
     "size": 60000,
-    "seconds": 109.08304217399973,
-    "run_id": "93118194-8cc8-47e3-ad7e-3c57ba57c431",
+    "seconds": 109.02711228000044,
+    "run_id": "ab1a98f7-373f-413a-b11b-13d99f586d50",
     "status": "exit:0",
     "output": "{\"algorithmId\":\"e587067e-47dc-4835-8f87-5e66fc979adf\",\"userCount\":60000,\"eligibleCount\":1631,\"eligiblePct\":2.72,\"exclusionBreakdown\":{\"age\":30555,\"hba1c\":51674,\"egfr\":9591,\"ckd\":15180,\"bmi\":26465},\"eligibleRecordIds\":[\"user-000019\",\"user-000023\",\"user-000118\",\"user-000136\",\"user-000143\",\"user-000170\",\"user-000174\",\"user-000280\",\"user-000302\",\"user-000318\",\"user-000336\",\"user-000416\",\"user-000491\",\"user-000495\",\"user-000569\",\"user-000572\",\"user-000620\",\"user-000689\",\"user-000706\",\"user-000708\",\"user-000795\",\"user-000853\",\"user-000863\",\"user-000932\",\"user-000951\",\"user-000979\",\"user-001040\",\"user-001080\",\"user-001094\",\"user-001116\",\"user-001148\",\"user-001151\",\"user-001263\",\"user-001335\",\"user-001348\",\"user-001358\",\"user-001369\",\"user-001370\",\"user-001379\",\"user-001465\",\"user-001533\",\"user-001606\",\"user-001622\",\"user-001637\",\"user-001652\",\"user-001758\",\"user-001837\",\"user-001844\",\"user-001890\",\"user-001912\"]}",
     "error": null
@@ -137,8 +137,8 @@
     "algorithm_id": "e587067e-47dc-4835-8f87-5e66fc979adf",
     "rep": 1,
     "size": 60000,
-    "seconds": 117.5854071560002,
-    "run_id": "b8d4f71b-ad4e-4d5a-9cd0-8762f470c9ab",
+    "seconds": 116.40826493199711,
+    "run_id": "3e26bdac-5db9-48cb-b333-8ad576d86286",
     "status": "exit:0",
     "output": "{\"algorithmId\":\"e587067e-47dc-4835-8f87-5e66fc979adf\",\"userCount\":60000,\"eligibleCount\":1631,\"eligiblePct\":2.72,\"exclusionBreakdown\":{\"age\":30555,\"hba1c\":51674,\"egfr\":9591,\"ckd\":15180,\"bmi\":26465},\"eligibleRecordIds\":[\"user-000019\",\"user-000023\",\"user-000118\",\"user-000136\",\"user-000143\",\"user-000170\",\"user-000174\",\"user-000280\",\"user-000302\",\"user-000318\",\"user-000336\",\"user-000416\",\"user-000491\",\"user-000495\",\"user-000569\",\"user-000572\",\"user-000620\",\"user-000689\",\"user-000706\",\"user-000708\",\"user-000795\",\"user-000853\",\"user-000863\",\"user-000932\",\"user-000951\",\"user-000979\",\"user-001040\",\"user-001080\",\"user-001094\",\"user-001116\",\"user-001148\",\"user-001151\",\"user-001263\",\"user-001335\",\"user-001348\",\"user-001358\",\"user-001369\",\"user-001370\",\"user-001379\",\"user-001465\",\"user-001533\",\"user-001606\",\"user-001622\",\"user-001637\",\"user-001652\",\"user-001758\",\"user-001837\",\"user-001844\",\"user-001890\",\"user-001912\"]}\n",
     "error": null
@@ -149,8 +149,8 @@
     "algorithm_id": "e587067e-47dc-4835-8f87-5e66fc979adf",
     "rep": 1,
     "size": 70000,
-    "seconds": 115.09610393799994,
-    "run_id": "1194907f-a5db-4868-a43e-da7cca2e0c8d",
+    "seconds": 114.98001287299849,
+    "run_id": "1b715c6c-ae20-476d-b30a-bf3779ae01a0",
     "status": "exit:0",
     "output": "{\"algorithmId\":\"e587067e-47dc-4835-8f87-5e66fc979adf\",\"userCount\":70000,\"eligibleCount\":1887,\"eligiblePct\":2.7,\"exclusionBreakdown\":{\"age\":35725,\"hba1c\":60309,\"egfr\":11162,\"ckd\":17723,\"bmi\":30856},\"eligibleRecordIds\":[\"user-000019\",\"user-000023\",\"user-000118\",\"user-000136\",\"user-000143\",\"user-000170\",\"user-000174\",\"user-000280\",\"user-000302\",\"user-000318\",\"user-000336\",\"user-000416\",\"user-000491\",\"user-000495\",\"user-000569\",\"user-000572\",\"user-000620\",\"user-000689\",\"user-000706\",\"user-000708\",\"user-000795\",\"user-000853\",\"user-000863\",\"user-000932\",\"user-000951\",\"user-000979\",\"user-001040\",\"user-001080\",\"user-001094\",\"user-001116\",\"user-001148\",\"user-001151\",\"user-001263\",\"user-001335\",\"user-001348\",\"user-001358\",\"user-001369\",\"user-001370\",\"user-001379\",\"user-001465\",\"user-001533\",\"user-001606\",\"user-001622\",\"user-001637\",\"user-001652\",\"user-001758\",\"user-001837\",\"user-001844\",\"user-001890\",\"user-001912\"]}",
     "error": null
@@ -161,8 +161,8 @@
     "algorithm_id": "e587067e-47dc-4835-8f87-5e66fc979adf",
     "rep": 1,
     "size": 70000,
-    "seconds": 123.38016442900016,
-    "run_id": "915eadb3-b6b2-4e24-9fdd-dd0dbf9097d0",
+    "seconds": 123.24372376999963,
+    "run_id": "c3aa1431-7abd-471e-818d-328a08e76f93",
     "status": "exit:0",
     "output": "{\"algorithmId\":\"e587067e-47dc-4835-8f87-5e66fc979adf\",\"userCount\":70000,\"eligibleCount\":1887,\"eligiblePct\":2.7,\"exclusionBreakdown\":{\"age\":35725,\"hba1c\":60309,\"egfr\":11162,\"ckd\":17723,\"bmi\":30856},\"eligibleRecordIds\":[\"user-000019\",\"user-000023\",\"user-000118\",\"user-000136\",\"user-000143\",\"user-000170\",\"user-000174\",\"user-000280\",\"user-000302\",\"user-000318\",\"user-000336\",\"user-000416\",\"user-000491\",\"user-000495\",\"user-000569\",\"user-000572\",\"user-000620\",\"user-000689\",\"user-000706\",\"user-000708\",\"user-000795\",\"user-000853\",\"user-000863\",\"user-000932\",\"user-000951\",\"user-000979\",\"user-001040\",\"user-001080\",\"user-001094\",\"user-001116\",\"user-001148\",\"user-001151\",\"user-001263\",\"user-001335\",\"user-001348\",\"user-001358\",\"user-001369\",\"user-001370\",\"user-001379\",\"user-001465\",\"user-001533\",\"user-001606\",\"user-001622\",\"user-001637\",\"user-001652\",\"user-001758\",\"user-001837\",\"user-001844\",\"user-001890\",\"user-001912\"]}\n",
     "error": null
@@ -173,8 +173,8 @@
     "algorithm_id": "e587067e-47dc-4835-8f87-5e66fc979adf",
     "rep": 1,
     "size": 80000,
-    "seconds": 115.31175456500023,
-    "run_id": "0ca1fd76-9531-492b-a7ca-8f6dd1223db7",
+    "seconds": 120.96999847099869,
+    "run_id": "3a4c2f30-0e43-4758-9d70-9480c58b20d6",
     "status": "exit:0",
     "output": "{\"algorithmId\":\"e587067e-47dc-4835-8f87-5e66fc979adf\",\"userCount\":80000,\"eligibleCount\":2168,\"eligiblePct\":2.71,\"exclusionBreakdown\":{\"age\":40706,\"hba1c\":68856,\"egfr\":12694,\"ckd\":20215,\"bmi\":35279},\"eligibleRecordIds\":[\"user-000019\",\"user-000023\",\"user-000118\",\"user-000136\",\"user-000143\",\"user-000170\",\"user-000174\",\"user-000280\",\"user-000302\",\"user-000318\",\"user-000336\",\"user-000416\",\"user-000491\",\"user-000495\",\"user-000569\",\"user-000572\",\"user-000620\",\"user-000689\",\"user-000706\",\"user-000708\",\"user-000795\",\"user-000853\",\"user-000863\",\"user-000932\",\"user-000951\",\"user-000979\",\"user-001040\",\"user-001080\",\"user-001094\",\"user-001116\",\"user-001148\",\"user-001151\",\"user-001263\",\"user-001335\",\"user-001348\",\"user-001358\",\"user-001369\",\"user-001370\",\"user-001379\",\"user-001465\",\"user-001533\",\"user-001606\",\"user-001622\",\"user-001637\",\"user-001652\",\"user-001758\",\"user-001837\",\"user-001844\",\"user-001890\",\"user-001912\"]}",
     "error": null
@@ -185,8 +185,8 @@
     "algorithm_id": "e587067e-47dc-4835-8f87-5e66fc979adf",
     "rep": 1,
     "size": 80000,
-    "seconds": 127.79958616399972,
-    "run_id": "59a317eb-d05d-409e-89c3-7cdd66bda04f",
+    "seconds": 128.35915551200014,
+    "run_id": "bbac0da2-70e1-40ca-b191-2ad88bd04f37",
     "status": "exit:0",
     "output": "{\"algorithmId\":\"e587067e-47dc-4835-8f87-5e66fc979adf\",\"userCount\":80000,\"eligibleCount\":2168,\"eligiblePct\":2.71,\"exclusionBreakdown\":{\"age\":40706,\"hba1c\":68856,\"egfr\":12694,\"ckd\":20215,\"bmi\":35279},\"eligibleRecordIds\":[\"user-000019\",\"user-000023\",\"user-000118\",\"user-000136\",\"user-000143\",\"user-000170\",\"user-000174\",\"user-000280\",\"user-000302\",\"user-000318\",\"user-000336\",\"user-000416\",\"user-000491\",\"user-000495\",\"user-000569\",\"user-000572\",\"user-000620\",\"user-000689\",\"user-000706\",\"user-000708\",\"user-000795\",\"user-000853\",\"user-000863\",\"user-000932\",\"user-000951\",\"user-000979\",\"user-001040\",\"user-001080\",\"user-001094\",\"user-001116\",\"user-001148\",\"user-001151\",\"user-001263\",\"user-001335\",\"user-001348\",\"user-001358\",\"user-001369\",\"user-001370\",\"user-001379\",\"user-001465\",\"user-001533\",\"user-001606\",\"user-001622\",\"user-001637\",\"user-001652\",\"user-001758\",\"user-001837\",\"user-001844\",\"user-001890\",\"user-001912\"]}\n",
     "error": null
@@ -197,8 +197,8 @@
     "algorithm_id": "e587067e-47dc-4835-8f87-5e66fc979adf",
     "rep": 1,
     "size": 90000,
-    "seconds": 121.30956290099948,
-    "run_id": "827ad19f-3341-491c-8fa2-93aba08669ef",
+    "seconds": 115.24329639400094,
+    "run_id": "e6d0372b-3847-4724-ba7e-2c025b502770",
     "status": "exit:0",
     "output": "{\"algorithmId\":\"e587067e-47dc-4835-8f87-5e66fc979adf\",\"userCount\":90000,\"eligibleCount\":2427,\"eligiblePct\":2.7,\"exclusionBreakdown\":{\"age\":45859,\"hba1c\":77478,\"egfr\":14280,\"ckd\":22727,\"bmi\":39697},\"eligibleRecordIds\":[\"user-000019\",\"user-000023\",\"user-000118\",\"user-000136\",\"user-000143\",\"user-000170\",\"user-000174\",\"user-000280\",\"user-000302\",\"user-000318\",\"user-000336\",\"user-000416\",\"user-000491\",\"user-000495\",\"user-000569\",\"user-000572\",\"user-000620\",\"user-000689\",\"user-000706\",\"user-000708\",\"user-000795\",\"user-000853\",\"user-000863\",\"user-000932\",\"user-000951\",\"user-000979\",\"user-001040\",\"user-001080\",\"user-001094\",\"user-001116\",\"user-001148\",\"user-001151\",\"user-001263\",\"user-001335\",\"user-001348\",\"user-001358\",\"user-001369\",\"user-001370\",\"user-001379\",\"user-001465\",\"user-001533\",\"user-001606\",\"user-001622\",\"user-001637\",\"user-001652\",\"user-001758\",\"user-001837\",\"user-001844\",\"user-001890\",\"user-001912\"]}",
     "error": null
@@ -209,8 +209,8 @@
     "algorithm_id": "e587067e-47dc-4835-8f87-5e66fc979adf",
     "rep": 1,
     "size": 90000,
-    "seconds": 128.33165390000067,
-    "run_id": "2e7e6aab-74c5-46d9-8079-a6d94829e92c",
+    "seconds": 128.7183512499978,
+    "run_id": "1b8cf0b2-0ef3-4f0a-b708-396dcf631182",
     "status": "exit:0",
     "output": "{\"algorithmId\":\"e587067e-47dc-4835-8f87-5e66fc979adf\",\"userCount\":90000,\"eligibleCount\":2427,\"eligiblePct\":2.7,\"exclusionBreakdown\":{\"age\":45859,\"hba1c\":77478,\"egfr\":14280,\"ckd\":22727,\"bmi\":39697},\"eligibleRecordIds\":[\"user-000019\",\"user-000023\",\"user-000118\",\"user-000136\",\"user-000143\",\"user-000170\",\"user-000174\",\"user-000280\",\"user-000302\",\"user-000318\",\"user-000336\",\"user-000416\",\"user-000491\",\"user-000495\",\"user-000569\",\"user-000572\",\"user-000620\",\"user-000689\",\"user-000706\",\"user-000708\",\"user-000795\",\"user-000853\",\"user-000863\",\"user-000932\",\"user-000951\",\"user-000979\",\"user-001040\",\"user-001080\",\"user-001094\",\"user-001116\",\"user-001148\",\"user-001151\",\"user-001263\",\"user-001335\",\"user-001348\",\"user-001358\",\"user-001369\",\"user-001370\",\"user-001379\",\"user-001465\",\"user-001533\",\"user-001606\",\"user-001622\",\"user-001637\",\"user-001652\",\"user-001758\",\"user-001837\",\"user-001844\",\"user-001890\",\"user-001912\"]}\n",
     "error": null
@@ -221,8 +221,8 @@
     "algorithm_id": "e587067e-47dc-4835-8f87-5e66fc979adf",
     "rep": 1,
     "size": 100000,
-    "seconds": 127.17317374100003,
-    "run_id": "ae67c488-247f-4d4b-8f33-b99ec8110931",
+    "seconds": 126.99885281800016,
+    "run_id": "a30c07e4-fafc-433f-9b3f-f121ee7827e5",
     "status": "exit:0",
     "output": "{\"algorithmId\":\"e587067e-47dc-4835-8f87-5e66fc979adf\",\"userCount\":100000,\"eligibleCount\":2675,\"eligiblePct\":2.67,\"exclusionBreakdown\":{\"age\":51024,\"hba1c\":86096,\"egfr\":15889,\"ckd\":25264,\"bmi\":44066},\"eligibleRecordIds\":[\"user-000019\",\"user-000023\",\"user-000118\",\"user-000136\",\"user-000143\",\"user-000170\",\"user-000174\",\"user-000280\",\"user-000302\",\"user-000318\",\"user-000336\",\"user-000416\",\"user-000491\",\"user-000495\",\"user-000569\",\"user-000572\",\"user-000620\",\"user-000689\",\"user-000706\",\"user-000708\",\"user-000795\",\"user-000853\",\"user-000863\",\"user-000932\",\"user-000951\",\"user-000979\",\"user-001040\",\"user-001080\",\"user-001094\",\"user-001116\",\"user-001148\",\"user-001151\",\"user-001263\",\"user-001335\",\"user-001348\",\"user-001358\",\"user-001369\",\"user-001370\",\"user-001379\",\"user-001465\",\"user-001533\",\"user-001606\",\"user-001622\",\"user-001637\",\"user-001652\",\"user-001758\",\"user-001837\",\"user-001844\",\"user-001890\",\"user-001912\"]}",
     "error": null
@@ -233,8 +233,8 @@
     "algorithm_id": "e587067e-47dc-4835-8f87-5e66fc979adf",
     "rep": 1,
     "size": 100000,
-    "seconds": 135.9604328759997,
-    "run_id": "2f0b546a-3f72-4e33-a600-dafae57ef87c",
+    "seconds": 134.90814756799955,
+    "run_id": "6c2a1d92-c7c5-41ed-8ae4-93c506497f03",
     "status": "exit:0",
     "output": "{\"algorithmId\":\"e587067e-47dc-4835-8f87-5e66fc979adf\",\"userCount\":100000,\"eligibleCount\":2675,\"eligiblePct\":2.67,\"exclusionBreakdown\":{\"age\":51024,\"hba1c\":86096,\"egfr\":15889,\"ckd\":25264,\"bmi\":44066},\"eligibleRecordIds\":[\"user-000019\",\"user-000023\",\"user-000118\",\"user-000136\",\"user-000143\",\"user-000170\",\"user-000174\",\"user-000280\",\"user-000302\",\"user-000318\",\"user-000336\",\"user-000416\",\"user-000491\",\"user-000495\",\"user-000569\",\"user-000572\",\"user-000620\",\"user-000689\",\"user-000706\",\"user-000708\",\"user-000795\",\"user-000853\",\"user-000863\",\"user-000932\",\"user-000951\",\"user-000979\",\"user-001040\",\"user-001080\",\"user-001094\",\"user-001116\",\"user-001148\",\"user-001151\",\"user-001263\",\"user-001335\",\"user-001348\",\"user-001358\",\"user-001369\",\"user-001370\",\"user-001379\",\"user-001465\",\"user-001533\",\"user-001606\",\"user-001622\",\"user-001637\",\"user-001652\",\"user-001758\",\"user-001837\",\"user-001844\",\"user-001890\",\"user-001912\"]}\n",
     "error": null
@@ -245,10 +245,10 @@
     "algorithm_id": "e587067e-47dc-4835-8f87-5e66fc979adf",
     "rep": 1,
     "size": 110000,
-    "seconds": 127.25432743300007,
-    "run_id": "c314e4ea-495f-4ad9-b0ee-d0a2d6f39e6b",
+    "seconds": 127.14554008699997,
+    "run_id": "7dcec6ca-c215-4e69-8ea2-f6646d6c25db",
     "status": "exit:0",
-    "output": "{\"algorithmId\":\"e587067e-47dc-4835-8f87-5e66fc979adf\",\"userCount\":110000,\"eligibleCount\":2956,\"eligiblePct\":2.69,\"exclusionBreakdown\":{\"age\":56130,\"hba1c\":94724,\"egfr\":17412,\"ckd\":27700,\"bmi\":48475},\"eligibleRecordIds\":[\"user-000019\",\"user-000023\",\"user-000118\",\"user-000136\",\"user-000143\",\"user-000170\",\"user-000174\",\"user-000280\",\"user-000302\",\"user-000318\",\"user-000336\",\"user-000416\",\"user-000491\",\"user-000495\",\"user-000569\",\"user-000572\",\"user-000620\",\"user-000689\",\"user-000706\",\"user-000708\",\"user-000795\",\"user-000853\",\"user-000863\",\"user-000932\",\"user-000951\",\"user-000979\",\"user-001040\",\"user-001080\",\"user-001094\",\"user-001116\",\"user-001148\",\"user-001151\",\"user-001263\",\"user-001335\",\"user-001348\",\"user-001358\",\"user-001369\",\"user-001370\",\"user-001379\",\"user-001465\",\"user-001533\",\"user-001606\",\"user-001622\",\"user-001637\",\"user-001652\",\"user-001758\",\"user-001837\",\"user-001844\",\"user-001890\",\"user-001912\"]}",
+    "output": "{\"algorithmId\":\"e587067e-47dc-4835-8f87-5e66fc979adf\",\"userCount\":110000,\"eligibleCount\":2956,\"eligiblePct\":2.69,\"exclusionBreakdown\":{\"age\":56115,\"hba1c\":94650,\"egfr\":17394,\"ckd\":27726,\"bmi\":48476},\"eligibleRecordIds\":[\"user-000019\",\"user-000023\",\"user-000118\",\"user-000136\",\"user-000143\",\"user-000170\",\"user-000174\",\"user-000280\",\"user-000302\",\"user-000318\",\"user-000336\",\"user-000416\",\"user-000491\",\"user-000495\",\"user-000569\",\"user-000572\",\"user-000620\",\"user-000689\",\"user-000706\",\"user-000708\",\"user-000795\",\"user-000853\",\"user-000863\",\"user-000932\",\"user-000951\",\"user-000979\",\"user-001040\",\"user-001080\",\"user-001094\",\"user-001116\",\"user-001148\",\"user-001151\",\"user-001263\",\"user-001335\",\"user-001348\",\"user-001358\",\"user-001369\",\"user-001370\",\"user-001379\",\"user-001465\",\"user-001533\",\"user-001606\",\"user-001622\",\"user-001637\",\"user-001652\",\"user-001758\",\"user-001837\",\"user-001844\",\"user-001890\",\"user-001912\"]}",
     "error": null
   },
   {
@@ -257,11 +257,11 @@
     "algorithm_id": "e587067e-47dc-4835-8f87-5e66fc979adf",
     "rep": 1,
     "size": 110000,
-    "seconds": 129.03522591599994,
-    "run_id": "6fdd7ca4-8fd4-42dc-9550-3e409c83cf8c",
+    "seconds": 134.51344734799932,
+    "run_id": "99831fb9-9672-4803-a5e5-f695eb5c4c15",
     "status": "exit:0",
-    "output": "{\"error\":\"decrypt record: decrypt record: cipher: message authentication failed\"}\n",
-    "error": "decrypt record: decrypt record: cipher: message authentication failed"
+    "output": "{\"algorithmId\":\"e587067e-47dc-4835-8f87-5e66fc979adf\",\"userCount\":110000,\"eligibleCount\":2956,\"eligiblePct\":2.69,\"exclusionBreakdown\":{\"age\":56115,\"hba1c\":94650,\"egfr\":17394,\"ckd\":27726,\"bmi\":48476},\"eligibleRecordIds\":[\"user-000019\",\"user-000023\",\"user-000118\",\"user-000136\",\"user-000143\",\"user-000170\",\"user-000174\",\"user-000280\",\"user-000302\",\"user-000318\",\"user-000336\",\"user-000416\",\"user-000491\",\"user-000495\",\"user-000569\",\"user-000572\",\"user-000620\",\"user-000689\",\"user-000706\",\"user-000708\",\"user-000795\",\"user-000853\",\"user-000863\",\"user-000932\",\"user-000951\",\"user-000979\",\"user-001040\",\"user-001080\",\"user-001094\",\"user-001116\",\"user-001148\",\"user-001151\",\"user-001263\",\"user-001335\",\"user-001348\",\"user-001358\",\"user-001369\",\"user-001370\",\"user-001379\",\"user-001465\",\"user-001533\",\"user-001606\",\"user-001622\",\"user-001637\",\"user-001652\",\"user-001758\",\"user-001837\",\"user-001844\",\"user-001890\",\"user-001912\"]}\n",
+    "error": null
   },
   {
     "tree": "rads",
@@ -269,10 +269,10 @@
     "algorithm_id": "e587067e-47dc-4835-8f87-5e66fc979adf",
     "rep": 1,
     "size": 120000,
-    "seconds": 132.57051573300032,
-    "run_id": "6a5e3e58-2ec3-435a-aedf-71e4285724d5",
+    "seconds": 132.99557513000036,
+    "run_id": "e617b2ad-a1a0-4f05-b3ac-7a4bcad13c82",
     "status": "exit:0",
-    "output": "{\"algorithmId\":\"e587067e-47dc-4835-8f87-5e66fc979adf\",\"userCount\":120000,\"eligibleCount\":3222,\"eligiblePct\":2.69,\"exclusionBreakdown\":{\"age\":61160,\"hba1c\":103373,\"egfr\":18954,\"ckd\":30182,\"bmi\":52865},\"eligibleRecordIds\":[\"user-000019\",\"user-000023\",\"user-000118\",\"user-000136\",\"user-000143\",\"user-000170\",\"user-000174\",\"user-000280\",\"user-000302\",\"user-000318\",\"user-000336\",\"user-000416\",\"user-000491\",\"user-000495\",\"user-000569\",\"user-000572\",\"user-000620\",\"user-000689\",\"user-000706\",\"user-000708\",\"user-000795\",\"user-000853\",\"user-000863\",\"user-000932\",\"user-000951\",\"user-000979\",\"user-001040\",\"user-001080\",\"user-001094\",\"user-001116\",\"user-001148\",\"user-001151\",\"user-001263\",\"user-001335\",\"user-001348\",\"user-001358\",\"user-001369\",\"user-001370\",\"user-001379\",\"user-001465\",\"user-001533\",\"user-001606\",\"user-001622\",\"user-001637\",\"user-001652\",\"user-001758\",\"user-001837\",\"user-001844\",\"user-001890\",\"user-001912\"]}",
+    "output": "{\"algorithmId\":\"e587067e-47dc-4835-8f87-5e66fc979adf\",\"userCount\":120000,\"eligibleCount\":3229,\"eligiblePct\":2.69,\"exclusionBreakdown\":{\"age\":61187,\"hba1c\":103310,\"egfr\":18875,\"ckd\":30175,\"bmi\":52948},\"eligibleRecordIds\":[\"user-000019\",\"user-000023\",\"user-000118\",\"user-000136\",\"user-000143\",\"user-000170\",\"user-000174\",\"user-000280\",\"user-000302\",\"user-000318\",\"user-000336\",\"user-000416\",\"user-000491\",\"user-000495\",\"user-000569\",\"user-000572\",\"user-000620\",\"user-000689\",\"user-000706\",\"user-000708\",\"user-000795\",\"user-000853\",\"user-000863\",\"user-000932\",\"user-000951\",\"user-000979\",\"user-001040\",\"user-001080\",\"user-001094\",\"user-001116\",\"user-001148\",\"user-001151\",\"user-001263\",\"user-001335\",\"user-001348\",\"user-001358\",\"user-001369\",\"user-001370\",\"user-001379\",\"user-001465\",\"user-001533\",\"user-001606\",\"user-001622\",\"user-001637\",\"user-001652\",\"user-001758\",\"user-001837\",\"user-001844\",\"user-001890\",\"user-001912\"]}",
     "error": null
   },
   {
@@ -281,11 +281,11 @@
     "algorithm_id": "e587067e-47dc-4835-8f87-5e66fc979adf",
     "rep": 1,
     "size": 120000,
-    "seconds": 134.60211114100002,
-    "run_id": "bf17a5bc-0872-4c91-9fa7-6b9539443438",
+    "seconds": 141.03671085400129,
+    "run_id": "e7fb206a-36d7-4e72-89ff-c096db44b1c7",
     "status": "exit:0",
-    "output": "{\"error\":\"decrypt record: decrypt record: cipher: message authentication failed\"}\n",
-    "error": "decrypt record: decrypt record: cipher: message authentication failed"
+    "output": "{\"algorithmId\":\"e587067e-47dc-4835-8f87-5e66fc979adf\",\"userCount\":120000,\"eligibleCount\":3229,\"eligiblePct\":2.69,\"exclusionBreakdown\":{\"age\":61187,\"hba1c\":103310,\"egfr\":18875,\"ckd\":30175,\"bmi\":52948},\"eligibleRecordIds\":[\"user-000019\",\"user-000023\",\"user-000118\",\"user-000136\",\"user-000143\",\"user-000170\",\"user-000174\",\"user-000280\",\"user-000302\",\"user-000318\",\"user-000336\",\"user-000416\",\"user-000491\",\"user-000495\",\"user-000569\",\"user-000572\",\"user-000620\",\"user-000689\",\"user-000706\",\"user-000708\",\"user-000795\",\"user-000853\",\"user-000863\",\"user-000932\",\"user-000951\",\"user-000979\",\"user-001040\",\"user-001080\",\"user-001094\",\"user-001116\",\"user-001148\",\"user-001151\",\"user-001263\",\"user-001335\",\"user-001348\",\"user-001358\",\"user-001369\",\"user-001370\",\"user-001379\",\"user-001465\",\"user-001533\",\"user-001606\",\"user-001622\",\"user-001637\",\"user-001652\",\"user-001758\",\"user-001837\",\"user-001844\",\"user-001890\",\"user-001912\"]}\n",
+    "error": null
   },
   {
     "tree": "rads",
@@ -293,10 +293,10 @@
     "algorithm_id": "e587067e-47dc-4835-8f87-5e66fc979adf",
     "rep": 1,
     "size": 130000,
-    "seconds": 132.73603706300037,
-    "run_id": "acc42e6c-9a1f-4835-8abb-186362d2f87f",
+    "seconds": 138.95416831500188,
+    "run_id": "e709f60b-1dd7-44fd-87f4-ceba1c295224",
     "status": "exit:0",
-    "output": "{\"algorithmId\":\"e587067e-47dc-4835-8f87-5e66fc979adf\",\"userCount\":130000,\"eligibleCount\":3506,\"eligiblePct\":2.7,\"exclusionBreakdown\":{\"age\":66253,\"hba1c\":111990,\"egfr\":20483,\"ckd\":32674,\"bmi\":57287},\"eligibleRecordIds\":[\"user-000019\",\"user-000023\",\"user-000118\",\"user-000136\",\"user-000143\",\"user-000170\",\"user-000174\",\"user-000280\",\"user-000302\",\"user-000318\",\"user-000336\",\"user-000416\",\"user-000491\",\"user-000495\",\"user-000569\",\"user-000572\",\"user-000620\",\"user-000689\",\"user-000706\",\"user-000708\",\"user-000795\",\"user-000853\",\"user-000863\",\"user-000932\",\"user-000951\",\"user-000979\",\"user-001040\",\"user-001080\",\"user-001094\",\"user-001116\",\"user-001148\",\"user-001151\",\"user-001263\",\"user-001335\",\"user-001348\",\"user-001358\",\"user-001369\",\"user-001370\",\"user-001379\",\"user-001465\",\"user-001533\",\"user-001606\",\"user-001622\",\"user-001637\",\"user-001652\",\"user-001758\",\"user-001837\",\"user-001844\",\"user-001890\",\"user-001912\"]}",
+    "output": "{\"algorithmId\":\"e587067e-47dc-4835-8f87-5e66fc979adf\",\"userCount\":130000,\"eligibleCount\":3518,\"eligiblePct\":2.71,\"exclusionBreakdown\":{\"age\":66229,\"hba1c\":111865,\"egfr\":20441,\"ckd\":32714,\"bmi\":57314},\"eligibleRecordIds\":[\"user-000019\",\"user-000023\",\"user-000118\",\"user-000136\",\"user-000143\",\"user-000170\",\"user-000174\",\"user-000280\",\"user-000302\",\"user-000318\",\"user-000336\",\"user-000416\",\"user-000491\",\"user-000495\",\"user-000569\",\"user-000572\",\"user-000620\",\"user-000689\",\"user-000706\",\"user-000708\",\"user-000795\",\"user-000853\",\"user-000863\",\"user-000932\",\"user-000951\",\"user-000979\",\"user-001040\",\"user-001080\",\"user-001094\",\"user-001116\",\"user-001148\",\"user-001151\",\"user-001263\",\"user-001335\",\"user-001348\",\"user-001358\",\"user-001369\",\"user-001370\",\"user-001379\",\"user-001465\",\"user-001533\",\"user-001606\",\"user-001622\",\"user-001637\",\"user-001652\",\"user-001758\",\"user-001837\",\"user-001844\",\"user-001890\",\"user-001912\"]}",
     "error": null
   },
   {
@@ -305,11 +305,11 @@
     "algorithm_id": "e587067e-47dc-4835-8f87-5e66fc979adf",
     "rep": 1,
     "size": 130000,
-    "seconds": 140.23031011999956,
-    "run_id": "d88c5e86-fb0b-4779-98e9-af7ac440a867",
+    "seconds": 146.7782260669992,
+    "run_id": "d9d612c9-6725-42cd-b914-d3dd21e92c34",
     "status": "exit:0",
-    "output": "{\"error\":\"decrypt record: decrypt record: cipher: message authentication failed\"}\n",
-    "error": "decrypt record: decrypt record: cipher: message authentication failed"
+    "output": "{\"algorithmId\":\"e587067e-47dc-4835-8f87-5e66fc979adf\",\"userCount\":130000,\"eligibleCount\":3518,\"eligiblePct\":2.71,\"exclusionBreakdown\":{\"age\":66229,\"hba1c\":111865,\"egfr\":20441,\"ckd\":32714,\"bmi\":57314},\"eligibleRecordIds\":[\"user-000019\",\"user-000023\",\"user-000118\",\"user-000136\",\"user-000143\",\"user-000170\",\"user-000174\",\"user-000280\",\"user-000302\",\"user-000318\",\"user-000336\",\"user-000416\",\"user-000491\",\"user-000495\",\"user-000569\",\"user-000572\",\"user-000620\",\"user-000689\",\"user-000706\",\"user-000708\",\"user-000795\",\"user-000853\",\"user-000863\",\"user-000932\",\"user-000951\",\"user-000979\",\"user-001040\",\"user-001080\",\"user-001094\",\"user-001116\",\"user-001148\",\"user-001151\",\"user-001263\",\"user-001335\",\"user-001348\",\"user-001358\",\"user-001369\",\"user-001370\",\"user-001379\",\"user-001465\",\"user-001533\",\"user-001606\",\"user-001622\",\"user-001637\",\"user-001652\",\"user-001758\",\"user-001837\",\"user-001844\",\"user-001890\",\"user-001912\"]}\n",
+    "error": null
   },
   {
     "tree": "rads",
@@ -317,10 +317,10 @@
     "algorithm_id": "e587067e-47dc-4835-8f87-5e66fc979adf",
     "rep": 1,
     "size": 140000,
-    "seconds": 139.92119190700032,
-    "run_id": "990b1a29-89e1-4095-b737-9e2ac1bd433f",
+    "seconds": 139.05233321099877,
+    "run_id": "11c0ff26-1006-475e-a0d5-3e936860a79b",
     "status": "exit:0",
-    "output": "{\"algorithmId\":\"e587067e-47dc-4835-8f87-5e66fc979adf\",\"userCount\":140000,\"eligibleCount\":3771,\"eligiblePct\":2.69,\"exclusionBreakdown\":{\"age\":71285,\"hba1c\":120649,\"egfr\":22030,\"ckd\":35204,\"bmi\":61725},\"eligibleRecordIds\":[\"user-000019\",\"user-000023\",\"user-000118\",\"user-000136\",\"user-000143\",\"user-000170\",\"user-000174\",\"user-000280\",\"user-000302\",\"user-000318\",\"user-000336\",\"user-000416\",\"user-000491\",\"user-000495\",\"user-000569\",\"user-000572\",\"user-000620\",\"user-000689\",\"user-000706\",\"user-000708\",\"user-000795\",\"user-000853\",\"user-000863\",\"user-000932\",\"user-000951\",\"user-000979\",\"user-001040\",\"user-001080\",\"user-001094\",\"user-001116\",\"user-001148\",\"user-001151\",\"user-001263\",\"user-001335\",\"user-001348\",\"user-001358\",\"user-001369\",\"user-001370\",\"user-001379\",\"user-001465\",\"user-001533\",\"user-001606\",\"user-001622\",\"user-001637\",\"user-001652\",\"user-001758\",\"user-001837\",\"user-001844\",\"user-001890\",\"user-001912\"]}",
+    "output": "{\"algorithmId\":\"e587067e-47dc-4835-8f87-5e66fc979adf\",\"userCount\":140000,\"eligibleCount\":3769,\"eligiblePct\":2.69,\"exclusionBreakdown\":{\"age\":71264,\"hba1c\":120459,\"egfr\":21968,\"ckd\":35164,\"bmi\":61708},\"eligibleRecordIds\":[\"user-000019\",\"user-000023\",\"user-000118\",\"user-000136\",\"user-000143\",\"user-000170\",\"user-000174\",\"user-000280\",\"user-000302\",\"user-000318\",\"user-000336\",\"user-000416\",\"user-000491\",\"user-000495\",\"user-000569\",\"user-000572\",\"user-000620\",\"user-000689\",\"user-000706\",\"user-000708\",\"user-000795\",\"user-000853\",\"user-000863\",\"user-000932\",\"user-000951\",\"user-000979\",\"user-001040\",\"user-001080\",\"user-001094\",\"user-001116\",\"user-001148\",\"user-001151\",\"user-001263\",\"user-001335\",\"user-001348\",\"user-001358\",\"user-001369\",\"user-001370\",\"user-001379\",\"user-001465\",\"user-001533\",\"user-001606\",\"user-001622\",\"user-001637\",\"user-001652\",\"user-001758\",\"user-001837\",\"user-001844\",\"user-001890\",\"user-001912\"]}",
     "error": null
   },
   {
@@ -329,11 +329,11 @@
     "algorithm_id": "e587067e-47dc-4835-8f87-5e66fc979adf",
     "rep": 1,
     "size": 140000,
-    "seconds": 141.1583835780002,
-    "run_id": "b3aad6a2-33db-41d6-b2a4-40889ee809cb",
+    "seconds": 147.73151171000063,
+    "run_id": "ee316034-f40e-4443-a7af-841771d127ad",
     "status": "exit:0",
-    "output": "{\"error\":\"decrypt record: decrypt record: cipher: message authentication failed\"}\n",
-    "error": "decrypt record: decrypt record: cipher: message authentication failed"
+    "output": "{\"algorithmId\":\"e587067e-47dc-4835-8f87-5e66fc979adf\",\"userCount\":140000,\"eligibleCount\":3769,\"eligiblePct\":2.69,\"exclusionBreakdown\":{\"age\":71264,\"hba1c\":120459,\"egfr\":21968,\"ckd\":35164,\"bmi\":61708},\"eligibleRecordIds\":[\"user-000019\",\"user-000023\",\"user-000118\",\"user-000136\",\"user-000143\",\"user-000170\",\"user-000174\",\"user-000280\",\"user-000302\",\"user-000318\",\"user-000336\",\"user-000416\",\"user-000491\",\"user-000495\",\"user-000569\",\"user-000572\",\"user-000620\",\"user-000689\",\"user-000706\",\"user-000708\",\"user-000795\",\"user-000853\",\"user-000863\",\"user-000932\",\"user-000951\",\"user-000979\",\"user-001040\",\"user-001080\",\"user-001094\",\"user-001116\",\"user-001148\",\"user-001151\",\"user-001263\",\"user-001335\",\"user-001348\",\"user-001358\",\"user-001369\",\"user-001370\",\"user-001379\",\"user-001465\",\"user-001533\",\"user-001606\",\"user-001622\",\"user-001637\",\"user-001652\",\"user-001758\",\"user-001837\",\"user-001844\",\"user-001890\",\"user-001912\"]}\n",
+    "error": null
   },
   {
     "tree": "rads",
@@ -341,10 +341,10 @@
     "algorithm_id": "e587067e-47dc-4835-8f87-5e66fc979adf",
     "rep": 1,
     "size": 150000,
-    "seconds": 138.8268629260001,
-    "run_id": "1bf9877f-3ed0-4ecf-83a3-9a61a5d75d5f",
+    "seconds": 139.192386445,
+    "run_id": "fa84444d-b975-4aa8-9efd-0e8c81ae7eb8",
     "status": "exit:0",
-    "output": "{\"algorithmId\":\"e587067e-47dc-4835-8f87-5e66fc979adf\",\"userCount\":150000,\"eligibleCount\":4036,\"eligiblePct\":2.69,\"exclusionBreakdown\":{\"age\":76342,\"hba1c\":129220,\"egfr\":23610,\"ckd\":37732,\"bmi\":66106},\"eligibleRecordIds\":[\"user-000019\",\"user-000023\",\"user-000118\",\"user-000136\",\"user-000143\",\"user-000170\",\"user-000174\",\"user-000280\",\"user-000302\",\"user-000318\",\"user-000336\",\"user-000416\",\"user-000491\",\"user-000495\",\"user-000569\",\"user-000572\",\"user-000620\",\"user-000689\",\"user-000706\",\"user-000708\",\"user-000795\",\"user-000853\",\"user-000863\",\"user-000932\",\"user-000951\",\"user-000979\",\"user-001040\",\"user-001080\",\"user-001094\",\"user-001116\",\"user-001148\",\"user-001151\",\"user-001263\",\"user-001335\",\"user-001348\",\"user-001358\",\"user-001369\",\"user-001370\",\"user-001379\",\"user-001465\",\"user-001533\",\"user-001606\",\"user-001622\",\"user-001637\",\"user-001652\",\"user-001758\",\"user-001837\",\"user-001844\",\"user-001890\",\"user-001912\"]}",
+    "output": "{\"algorithmId\":\"e587067e-47dc-4835-8f87-5e66fc979adf\",\"userCount\":150000,\"eligibleCount\":4041,\"eligiblePct\":2.69,\"exclusionBreakdown\":{\"age\":76330,\"hba1c\":129103,\"egfr\":23507,\"ckd\":37618,\"bmi\":66165},\"eligibleRecordIds\":[\"user-000019\",\"user-000023\",\"user-000118\",\"user-000136\",\"user-000143\",\"user-000170\",\"user-000174\",\"user-000280\",\"user-000302\",\"user-000318\",\"user-000336\",\"user-000416\",\"user-000491\",\"user-000495\",\"user-000569\",\"user-000572\",\"user-000620\",\"user-000689\",\"user-000706\",\"user-000708\",\"user-000795\",\"user-000853\",\"user-000863\",\"user-000932\",\"user-000951\",\"user-000979\",\"user-001040\",\"user-001080\",\"user-001094\",\"user-001116\",\"user-001148\",\"user-001151\",\"user-001263\",\"user-001335\",\"user-001348\",\"user-001358\",\"user-001369\",\"user-001370\",\"user-001379\",\"user-001465\",\"user-001533\",\"user-001606\",\"user-001622\",\"user-001637\",\"user-001652\",\"user-001758\",\"user-001837\",\"user-001844\",\"user-001890\",\"user-001912\"]}",
     "error": null
   },
   {
@@ -353,10 +353,10 @@
     "algorithm_id": "e587067e-47dc-4835-8f87-5e66fc979adf",
     "rep": 1,
     "size": 150000,
-    "seconds": 148.56851829300012,
-    "run_id": "20ea8337-e3cc-43bf-9e35-271e1ff86508",
+    "seconds": 152.9454854249998,
+    "run_id": "f1899be3-5358-44f9-9867-74915cb553d5",
     "status": "exit:0",
-    "output": "{\"error\":\"decrypt record: decrypt record: cipher: message authentication failed\"}\n",
-    "error": "decrypt record: decrypt record: cipher: message authentication failed"
+    "output": "{\"algorithmId\":\"e587067e-47dc-4835-8f87-5e66fc979adf\",\"userCount\":150000,\"eligibleCount\":4041,\"eligiblePct\":2.69,\"exclusionBreakdown\":{\"age\":76330,\"hba1c\":129103,\"egfr\":23507,\"ckd\":37618,\"bmi\":66165},\"eligibleRecordIds\":[\"user-000019\",\"user-000023\",\"user-000118\",\"user-000136\",\"user-000143\",\"user-000170\",\"user-000174\",\"user-000280\",\"user-000302\",\"user-000318\",\"user-000336\",\"user-000416\",\"user-000491\",\"user-000495\",\"user-000569\",\"user-000572\",\"user-000620\",\"user-000689\",\"user-000706\",\"user-000708\",\"user-000795\",\"user-000853\",\"user-000863\",\"user-000932\",\"user-000951\",\"user-000979\",\"user-001040\",\"user-001080\",\"user-001094\",\"user-001116\",\"user-001148\",\"user-001151\",\"user-001263\",\"user-001335\",\"user-001348\",\"user-001358\",\"user-001369\",\"user-001370\",\"user-001379\",\"user-001465\",\"user-001533\",\"user-001606\",\"user-001622\",\"user-001637\",\"user-001652\",\"user-001758\",\"user-001837\",\"user-001844\",\"user-001890\",\"user-001912\"]}\n",
+    "error": null
   }
 ]
