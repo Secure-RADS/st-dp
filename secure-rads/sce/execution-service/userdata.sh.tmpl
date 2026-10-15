@@ -1,11 +1,17 @@
 #!/bin/bash
-set -uo pipefail
+set -euo pipefail
 exec > >(tee /var/log/execution-service-run.log) 2>&1
+
+emit_event() {
+  curl -sS --max-time 5 -X POST "https://{{.LogHost}}/events" -H 'content-type: application/json' \
+    -d "{\"algorithmId\":\"{{.AlgorithmId}}\",\"runId\":\"{{.RunId}}\",\"event\":\"$1\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)\"}" >/dev/null || true
+}
 
 # Always self-terminate on exit and send the run result to SQS, where a consumer Lambda persists it for the
 # caller to poll (GET /run/<runId>). The result carries the runId execution-service assigned at launch.
 finish() {
   STATUS=$?
+  set +e
   TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
   INSTANCE_ID=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-id)
   REGION=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/placement/region)
@@ -23,6 +29,7 @@ diag = {"runEnclave": read("/tmp/run-enclave.log")} if not out else {}
 print(json.dumps({"runId": "{{.RunId}}", "algorithmId": "{{.AlgorithmId}}", "instanceId": sys.argv[2], "status": "exit:" + sys.argv[1], "output": out, "diag": diag}))
 PYEOF
   aws sqs send-message --queue-url "{{.QueueUrl}}" --message-body file:///tmp/result.json --region "$REGION" || true
+  emit_event executor-finished
   aws ec2 terminate-instances --instance-ids "$INSTANCE_ID" --region "$REGION"
 }
 trap finish EXIT
@@ -38,15 +45,13 @@ EOF
 systemctl enable --now nitro-enclaves-allocator
 
 # Checkpoint: the host is provisioned (boot + nitro tooling), before the artifact is pulled.
-curl -sS -X POST "https://{{.LogHost}}/events" -H 'content-type: application/json' \
-  -d "{\"algorithmId\":\"{{.AlgorithmId}}\",\"runId\":\"{{.RunId}}\",\"event\":\"executor-ready\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)\"}" >/dev/null || true
+emit_event executor-ready
 
 mkdir -p /opt/eif
 aws s3 cp "s3://{{.S3Bucket}}/{{.S3Key}}" /opt/eif/app.eif --region "{{.Region}}"
 
 # Checkpoint: the algorithm artifact (EIF) is now on the host, before the enclave is launched.
-curl -sS -X POST "https://{{.LogHost}}/events" -H 'content-type: application/json' \
-  -d "{\"algorithmId\":\"{{.AlgorithmId}}\",\"runId\":\"{{.RunId}}\",\"event\":\"artifact-retrieved\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)\"}" >/dev/null || true
+emit_event artifact-retrieved
 
 # sce-unit connects back to the parent (CID 3) on port 5000 and streams the DC app's output; one connection per run.
 python3 - <<'PYEOF' &
@@ -132,9 +137,14 @@ for attempt in 1 2 3 4 5; do
 done
 
 if [ "$launched" = true ]; then
-  # Result delivery, not enclave visibility, is the completion signal. describe-enclaves can transiently
-  # miss a running enclave and previously let the host publish an empty result before the relay completed.
-  wait "$OUTPUT_LISTENER_PID"
+  emit_event enclave-launched
+  # Wait for output first so a transient describe-enclaves miss cannot publish an empty result.
+  wait "$OUTPUT_LISTENER_PID" || exit $?
+  while true; do
+    ENCLAVE_COUNT=$(nitro-cli describe-enclaves | python3 -c 'import json, sys; print(sum(e.get("EnclaveCID") == 16 for e in json.load(sys.stdin)))') || exit 1
+    [ "$ENCLAVE_COUNT" -eq 0 ] && break
+    sleep 1
+  done
 else
   kill "$OUTPUT_LISTENER_PID" 2>/dev/null || true
   wait "$OUTPUT_LISTENER_PID" 2>/dev/null || true

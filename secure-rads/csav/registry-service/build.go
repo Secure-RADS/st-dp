@@ -96,7 +96,7 @@ func buildAndPush(ctx context.Context, algorithmId, tarPath, existingKmsKeyArn s
 	if err != nil {
 		return "", "", fmt.Errorf("build EIF: %w", err)
 	}
-	logEvent(algorithmId, buildId, eventEifBuilt, map[string]any{"pcr0": pcrs.PCR0})
+	logEvent(algorithmId, buildId, eventBuildCompleted, map[string]any{"pcr0": pcrs.PCR0})
 
 	f, err := os.Open(eifPath)
 	if err != nil {
@@ -130,7 +130,11 @@ func buildAndPush(ctx context.Context, algorithmId, tarPath, existingKmsKeyArn s
 	}
 	logEvent(algorithmId, buildId, eventKmsKeyProvisioned, map[string]any{"kmsKeyArn": kmsKeyArn, "reused": existingKmsKeyArn != ""})
 
+	if err := putAlgorithm(ctx, algorithmId, artifactBucket, key, kmsKeyArn); err != nil {
+		return "", "", fmt.Errorf("record algorithm: %w", err)
+	}
+	logEvent(algorithmId, buildId, eventAlgorithmRegistered, map[string]any{"key": key})
+
 	log.Printf("build[%s]: done key=%s took=%s", tarPath, key, time.Since(start))
-	logEvent(algorithmId, buildId, eventBuildCompleted, map[string]any{"key": key})
 	return key, kmsKeyArn, nil
 }

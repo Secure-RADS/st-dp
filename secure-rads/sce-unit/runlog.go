@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -23,14 +24,15 @@ const logEventTimeout = 5 * time.Second
 type runEvent string
 
 const (
-	eventEnclaveStarted runEvent = "enclave-started"
-	eventUnitReady      runEvent = "unit-ready"
-	eventAttested       runEvent = "attested"
-	eventRecordsFetched runEvent = "records-fetched"
-	eventDataDecrypted  runEvent = "data-decrypted"
-	eventDCAppCompleted runEvent = "dc-app-completed"
-	eventOutputSent     runEvent = "output-sent"
-	eventRunFailed      runEvent = "run-failed"
+	eventEnclaveStarted       runEvent = "enclave-started"
+	eventUnitReady            runEvent = "unit-ready"
+	eventAttested             runEvent = "attested"
+	eventRecordsFetched       runEvent = "records-fetched"
+	eventRecordsDecrypted     runEvent = "records-decrypted"
+	eventRecordsStoredLocally runEvent = "records-stored-locally"
+	eventDCAppCompleted       runEvent = "dc-app-completed"
+	eventOutputSent           runEvent = "output-sent"
+	eventRunFailed            runEvent = "run-failed"
 )
 
 // runInfo is the per-run data the host serves on hostRunIDPort: the run id and how many records to read
@@ -40,22 +42,21 @@ type runInfo struct {
 	Size  int    `json:"size"`
 }
 
-// readRunInfo fetches the run info the host is serving on hostRunIDPort. Best-effort: a zero value just
-// means enclave-side events go unattributed and all records are read, not a failure.
-func readRunInfo() runInfo {
+func readRunInfo() (runInfo, error) {
 	fd, err := unix.Socket(unix.AF_VSOCK, unix.SOCK_STREAM, 0)
 	if err != nil {
-		return runInfo{}
+		return runInfo{}, fmt.Errorf("create run-info socket: %w", err)
 	}
 	defer unix.Close(fd)
 
 	addr := &unix.SockaddrVM{CID: hostCID, Port: hostRunIDPort}
 	for i := 0; ; i++ {
-		if err := unix.Connect(fd, addr); err == nil {
+		err := unix.Connect(fd, addr)
+		if err == nil {
 			break
 		}
 		if i >= vsockRetryLimit {
-			return runInfo{}
+			return runInfo{}, fmt.Errorf("connect run-info socket: %w", err)
 		}
 		time.Sleep(vsockRetryWait)
 	}
@@ -67,17 +68,22 @@ func readRunInfo() runInfo {
 		if n > 0 {
 			buf.Write(chunk[:n])
 		}
-		if err != nil || n == 0 {
+		if err != nil {
+			return runInfo{}, fmt.Errorf("read run-info: %w", err)
+		}
+		if n == 0 {
 			break
 		}
 	}
 
 	var info runInfo
 	if err := json.Unmarshal(buf.Bytes(), &info); err != nil {
-		// Backwards-compat: a bare run-id string is treated as just the id.
-		return runInfo{RunID: buf.String()}
+		return runInfo{}, fmt.Errorf("decode run-info: %w", err)
 	}
-	return info
+	if info.RunID == "" || info.Size < 0 {
+		return runInfo{}, fmt.Errorf("invalid run-info: runId must be nonempty and size must be nonnegative")
+	}
+	return info, nil
 }
 
 // logEvent fire-and-forgets one timeline event to log-service over the pinned vsock transport. The timestamp is

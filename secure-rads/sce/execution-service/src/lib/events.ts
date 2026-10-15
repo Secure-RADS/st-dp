@@ -2,7 +2,7 @@ import { requiredEnv } from "./env.js";
 
 const logEventsUrl = `https://${requiredEnv("LOG_HOST")}/events`;
 
-export type RunEvent = "run-requested" | "enclave-launched" | "launch-failed";
+export type RunEvent = "run-requested" | "executor-launched" | "launch-failed";
 
 export async function logEvent(
   algorithmId: string,

@@ -1,5 +1,5 @@
 #!/bin/bash
-set -uo pipefail
+set -euo pipefail
 exec > >(tee /var/log/rads-execution-service-run.log) 2>&1
 
 # Per-run plain Docker executor; the host owns the data path and result delivery.
@@ -34,15 +34,17 @@ emit_event() {
 # Publish the run outcome, log the terminal event, and terminate the instance.
 finish() {
   STATUS=$?
+  set +e
   TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
   INSTANCE_ID=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-id)
   "$TOOLS_BIN" run-result "$STATUS" "$INSTANCE_ID" "$RESULT_FILE" "$OUTPUT_FILE" "$DOCKER_LOAD_LOG" "$RUN_ID" "$ALGORITHM_ID" > /tmp/result.json
-  "$TOOLS_BIN" executor-finished "$STATUS" "$INSTANCE_ID" "$ALGORITHM_ID" "$RUN_ID" > /tmp/log-event.json
   aws sqs send-message --queue-url "$RUN_RESULTS_QUEUE" --message-body file:///tmp/result.json --region "$REGION" || true
+  "$TOOLS_BIN" executor-finished "$STATUS" "$INSTANCE_ID" "$ALGORITHM_ID" "$RUN_ID" > /tmp/log-event.json
   curl -sS -X POST "https://$LOG_HOST/events" -H 'content-type: application/json' \
     -d @/tmp/log-event.json >/dev/null || true
   aws ec2 terminate-instances --instance-ids "$INSTANCE_ID" --region "$REGION" || true
 }
+trap finish EXIT
 
 # Docker on Amazon Linux 2023; awscli covers the S3 pull and results SQS publish.
 dnf install -y docker awscli >/dev/null
@@ -53,7 +55,6 @@ for attempt in 1 2 3 4 5 6; do docker info >/dev/null 2>&1 && break; sleep 5; do
 mkdir -p /opt/rads/bin "$RUN_DIR"
 aws s3 cp "s3://$S3_BUCKET/$TOOLS_S3_KEY" "$TOOLS_BIN" --region "$REGION"
 chmod +x "$TOOLS_BIN"
-trap finish EXIT
 emit_event executor-ready
 
 # Pull the algorithm artifact first, so the run steps follow the same order as secure-rads (artifact, data, compute).
@@ -67,8 +68,8 @@ fi
 emit_event artifact-retrieved
 
 # Download the algorithm's full record set before the app starts, so the DC app reads a local file.
-"$TOOLS_BIN" fetch-records "$PDM_URL" "$ALGORITHM_ID" "$RECORDS_FILE" "$RUN_ID" "$SIZE"
-emit_event records-fetched
+"$TOOLS_BIN" fetch-records "$PDM_URL" "$ALGORITHM_ID" "$RECORDS_FILE" "$RUN_ID" "$SIZE" "https://$LOG_HOST/events" || exit $?
+emit_event records-stored-locally
 
 # The app reads /data/records.json and writes /data/result.json; stdout is the diagnostic fallback.
 docker run --rm -v "$RUN_DIR:/data" -e RECORDS_PATH=/data/records.json -e RESULT_PATH=/data/result.json "$IMAGE" > "$OUTPUT_FILE"

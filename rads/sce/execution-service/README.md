@@ -9,8 +9,8 @@ run it, and returns immediately. Results come back asynchronously through the sh
 `rads-algorithms` DynamoDB table (PK `AlgorithmId`), and — when `size` is set — rejects the request if that
 count exceeds the rows already seeded for the algorithm in PDM. It then launches a per-run EC2 executor, and returns
 `202 {runId, algorithmId, instanceId, status: "pending"}`. The executor installs AWS CLI + Docker, downloads
-`rads-host-tools` from `s3://<images-bucket>/executor/rads-host-tools`, pulls every PDM record for the algorithm
-to `/opt/rads/run/records.json`, `aws s3 cp`s the image tar into place, `docker load`s it, then `docker run`s the
+`rads-host-tools` from `s3://<images-bucket>/executor/rads-host-tools`, `aws s3 cp`s the image tar into place,
+`docker load`s it, fetches PDM records up to the requested size into `/opt/rads/run/records.json`, then `docker run`s the
 image with that directory bind-mounted at `/data` and `RECORDS_PATH=/data/records.json` / `RESULT_PATH=/data/result.json`
 set. The app reads the records file and writes its result file; the executor ships that file as the output, falling
 back to the container's stdout for diagnostics. On exit it publishes
@@ -23,7 +23,9 @@ the stored result.
 Lifecycle events are posted to log-service `POST /events` (the ingest contract
 `{algorithmId, runId, event, timestamp, detail?}`): the control plane logs `run-requested` and
 `executor-launched` / `launch-failed`, and the executor posts `executor-ready`, `artifact-retrieved`,
-`records-fetched`, `compute-completed`, and `executor-finished` over HTTPS.
+`records-fetched`, `records-stored-locally`, `compute-completed`, and `executor-finished` over HTTPS.
+The fetch helper emits `records-fetched` before serializing/writing the records file; userdata emits
+`records-stored-locally` only after that write succeeds. `executor-finished` is timestamped after result publication.
 
 ## Deployment
 

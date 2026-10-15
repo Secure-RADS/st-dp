@@ -124,7 +124,7 @@ export const create: APIGatewayProxyHandlerV2 = async (event) => {
     const instanceId = launched.Instances?.[0]?.InstanceId;
     if (!instanceId) throw new Error("RunInstances returned no instance");
 
-    await logEvent(request.algorithmId, runId, "enclave-launched", { instanceId });
+    await logEvent(request.algorithmId, runId, "executor-launched", { instanceId });
     return jsonResponse(202, { runId, algorithmId: request.algorithmId, instanceId, status: "pending" });
   } catch (error) {
     if (runId) await logEvent(request.algorithmId, runId, "launch-failed", { error: String(error) });

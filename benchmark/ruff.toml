@@ -110,6 +110,8 @@ convention = "google"
 ]
 
 "tests/**/*.py" = [
+    "CPY001",
+    "PT009",   # Tests use stdlib unittest.
     "S101",    # Allow `assert` statements in tests
     "D10",     # Allow missing docstrings in tests (D100, D101, D102, D103)
     "ANN",     # Allow missing type hints in tests

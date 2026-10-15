@@ -12,20 +12,20 @@ from tqdm import tqdm
 from lib import config, http
 from lib.log import logger
 from lib.trees import Tree
-from paths import RAW_DIR, PHASE_TIMINGS_CSV
+from paths import PHASE_TIMINGS_CSV, RAW_DIR
 
 # null endpoints = phase does not apply (rads has no enclave).
 Window = tuple[str | None, str | None]
 
 PHASES: dict[str, dict[str, Window]] = {
     "secure-rads": {
-        "host_provisioning": ("enclave-launched", "executor-ready"),
+        "host_provisioning": ("executor-launched", "executor-ready"),
         "algorithm_retrieval": ("executor-ready", "artifact-retrieved"),
         "enclave_boot": ("artifact-retrieved", "enclave-started"),
         "sce_unit": ("enclave-started", "unit-ready"),
         "attestation": ("unit-ready", "attested"),
-        "data_retrieval": ("attested", "data-decrypted"),
-        "algorithm_processing": ("data-decrypted", "dc-app-completed"),
+        "data_retrieval": ("attested", "records-stored-locally"),
+        "algorithm_processing": ("records-stored-locally", "dc-app-completed"),
         "result_delivery": ("output-sent", "result-persisted"),
         "total": ("run-requested", "result-persisted"),
     },
@@ -35,8 +35,8 @@ PHASES: dict[str, dict[str, Window]] = {
         "enclave_boot": (None, None),
         "sce_unit": (None, None),
         "attestation": (None, None),
-        "data_retrieval": ("artifact-retrieved", "records-fetched"),
-        "algorithm_processing": ("records-fetched", "compute-completed"),
+        "data_retrieval": ("artifact-retrieved", "records-stored-locally"),
+        "algorithm_processing": ("records-stored-locally", "compute-completed"),
         "result_delivery": ("compute-completed", "result-persisted"),
         "total": ("run-requested", "result-persisted"),
     },
@@ -54,7 +54,8 @@ TIMESTAMP_EVENTS = [
     "unit-ready",
     "attested",
     "records-fetched",
-    "data-decrypted",
+    "records-decrypted",
+    "records-stored-locally",
     "dc-app-completed",
     "compute-completed",
     "output-sent",
@@ -69,11 +70,7 @@ def load_runs() -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for path in sorted(RAW_DIR.glob("sweep-*.json")):
         parsed = json.loads(path.read_text())
-        rows.extend(
-            row
-            for row in parsed
-            if row.get("run_id") and row.get("size") is not None and not row.get("error")
-        )
+        rows.extend(row for row in parsed if row.get("run_id") and row.get("size") is not None and not row.get("error"))
     return rows
 
 

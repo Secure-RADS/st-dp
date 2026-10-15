@@ -9,6 +9,7 @@ const RUN_EVENTS = [
   "executor-ready",
   "artifact-retrieved",
   "records-fetched",
+  "records-stored-locally",
   "compute-completed",
   "executor-finished",
   "result-persisted",

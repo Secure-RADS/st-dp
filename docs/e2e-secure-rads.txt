@@ -1,4 +1,4 @@
-SECURE-RADS-BUILD(a, oci)
+SECURE-RADS-BUILD(a, tar)
 Input:
   a  ← algorithm id
   tar ← algorithm’s Docker image packaged as TAR 

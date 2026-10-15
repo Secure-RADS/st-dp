@@ -93,14 +93,9 @@ func main() {
 			existingKmsKeyArn = existing.KmsKeyArn
 		}
 
-		builtKey, kmsKeyArn, err := buildAndPush(c.Request.Context(), algorithmId, tmpPath, existingKmsKeyArn)
+		builtKey, _, err := buildAndPush(c.Request.Context(), algorithmId, tmpPath, existingKmsKeyArn)
 		if err != nil {
 			c.String(http.StatusInternalServerError, "build failed: %v", err)
-			return
-		}
-
-		if err := putAlgorithm(c.Request.Context(), algorithmId, artifactBucket, builtKey, kmsKeyArn); err != nil {
-			c.String(http.StatusInternalServerError, "could not record algorithm: %v", err)
 			return
 		}
 
