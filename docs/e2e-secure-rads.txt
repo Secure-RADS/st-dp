@@ -16,7 +16,7 @@ Input:
 12 kmsArn ← CREATE-OR-REUSE-KMS-KEY(a)
 13 emit kms-key-provisioned
 14 write a ↦ ⟨S3-path, kmsArn⟩ to DynamoDB
-15 emit algorithm-registered                 
+15 emit algorithm-registered
 16 return
 
 
