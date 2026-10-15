@@ -1,7 +1,7 @@
 RADS-BUILD(a, tar)
 Input:
   a  ← algorithm id
- tar ← algorithm’s Docker image packaged as a TAR 
+  tar ← algorithm’s Docker image packaged as a TAR 
 1  UPLOAD tar to S3 
 2  emit image-uploaded
 3  write a ↦ S3-path to DynamoDB
