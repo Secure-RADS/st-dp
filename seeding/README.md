@@ -24,4 +24,4 @@ The five datasets mirror the service contexts framed in the source paper (social
 | finance | financial | c7cc14fa-e962-4548-aff4-a54148798cd8 | 1000 |
 | ecommerce | e-commerce | 3b8bba4a-8106-4309-9446-7bce99a1453a | 2500 |
 | social | social media | e4082659-08d6-4f0a-9e60-327e9410c710 | 5000 |
-| ehealth | e-health | e587067e-47dc-4835-8f87-5e66fc979adf | 1000000 |
+| ehealth | e-health | e587067e-47dc-4835-8f87-5e66fc979adf | 150000 |
