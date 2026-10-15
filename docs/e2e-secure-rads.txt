@@ -82,6 +82,6 @@ Input:
 
 SECURE-RADS-RESULT-CONSUMER(result)
 Input:
-result ← processing result returned by the SCE-UNIT
+  result ← processing result returned by the SCE-UNIT
 1  persist result to DynamoDB
 2  emit result-persisted
