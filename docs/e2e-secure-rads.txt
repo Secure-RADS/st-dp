@@ -1,7 +1,7 @@
 SECURE-RADS-BUILD(a, oci)
 Input:
   a  ← algorithm id
- tar ← algorithm’s Docker image packaged as TAR 
+  tar ← algorithm’s Docker image packaged as TAR 
 1  buildId ← NEW-ID()
 2  emit build-started
 3  oci ← CONVERT-TO-OCI(tar)             // skopeo
