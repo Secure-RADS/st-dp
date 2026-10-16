@@ -93,7 +93,7 @@ func main() {
 			existingKmsKeyArn = existing.KmsKeyArn
 		}
 
-		builtKey, _, err := buildAndPush(c.Request.Context(), algorithmId, tmpPath, existingKmsKeyArn)
+		builtKey, err := buildAndPush(c.Request.Context(), algorithmId, tmpPath, existingKmsKeyArn)
 		if err != nil {
 			c.String(http.StatusInternalServerError, "build failed: %v", err)
 			return

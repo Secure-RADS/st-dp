@@ -16,7 +16,7 @@ import (
 // from the result, and uploads only that to S3. The whole pipeline is
 // daemonless: skopeo + rootless umoci for unpack, eif_build directly on the
 // composed rootfs (eif.go) - no docker.sock anywhere.
-func buildAndPush(ctx context.Context, algorithmId, tarPath, existingKmsKeyArn string) (key, kmsKeyArn string, err error) {
+func buildAndPush(ctx context.Context, algorithmId, tarPath, existingKmsKeyArn string) (key string, err error) {
 	start := time.Now()
 	log.Printf("build[%s]: start", tarPath)
 
@@ -31,7 +31,7 @@ func buildAndPush(ctx context.Context, algorithmId, tarPath, existingKmsKeyArn s
 
 	workDir := filepath.Join(os.TempDir(), "registry-build-"+algorithmId)
 	if err := os.Mkdir(workDir, 0o755); err != nil {
-		return "", "", err
+		return "", err
 	}
 	defer os.RemoveAll(workDir)
 
@@ -40,43 +40,43 @@ func buildAndPush(ctx context.Context, algorithmId, tarPath, existingKmsKeyArn s
 
 	log.Printf("build[%s]: skopeo copy in", tarPath)
 	if _, err := run(ctx, "skopeo", "copy", "docker-archive:"+tarPath, "oci:"+layoutDir+":src"); err != nil {
-		return "", "", fmt.Errorf("skopeo copy in: %w", err)
+		return "", fmt.Errorf("skopeo copy in: %w", err)
 	}
 
 	log.Printf("build[%s]: umoci unpack", tarPath)
 	if _, err := run(ctx, "umoci", "unpack", "--rootless", "--image", layoutDir+":src", bundleDir); err != nil {
-		return "", "", fmt.Errorf("umoci unpack: %w", err)
+		return "", fmt.Errorf("umoci unpack: %w", err)
 	}
 
 	cfg, err := readOCIConfig(bundleDir)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 	if len(cfg.Process.Args) == 0 {
-		return "", "", fmt.Errorf("image has no entrypoint/cmd - nothing to jail")
+		return "", fmt.Errorf("image has no entrypoint/cmd - nothing to jail")
 	}
 	execPath, args := cfg.Process.Args[0], cfg.Process.Args[1:]
 
 	pathEnv, err := pathFromEnv(cfg.Process.Env)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 
 	dcRootfs := filepath.Join(bundleDir, "rootfs")
 	execPath, err = resolveExecPath(dcRootfs, execPath, pathEnv)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 	log.Printf("build[%s]: resolved entrypoint %s %v", tarPath, execPath, args)
 
 	if verifierHost == "" || verifierHostPubKeySHA256 == "" {
-		return "", "", fmt.Errorf("VERIFIER_HOST / VERIFIER_HOST_PUBKEY_SHA256 not configured")
+		return "", fmt.Errorf("VERIFIER_HOST / VERIFIER_HOST_PUBKEY_SHA256 not configured")
 	}
 	if pdmHost == "" || pdmHostPubKeySHA256 == "" {
-		return "", "", fmt.Errorf("PDM_HOST / PDM_HOST_PUBKEY_SHA256 not configured")
+		return "", fmt.Errorf("PDM_HOST / PDM_HOST_PUBKEY_SHA256 not configured")
 	}
 	if logHost == "" || logHostPubKeySHA256 == "" {
-		return "", "", fmt.Errorf("LOG_HOST / LOG_HOST_PUBKEY_SHA256 not configured")
+		return "", fmt.Errorf("LOG_HOST / LOG_HOST_PUBKEY_SHA256 not configured")
 	}
 
 	log.Printf("build[%s]: composing final rootfs", tarPath)
@@ -88,53 +88,53 @@ func buildAndPush(ctx context.Context, algorithmId, tarPath, existingKmsKeyArn s
 		Region: region,
 	}
 	if err := composeFinalRootfs(bundleDir, execPath, pathEnv, args, rc); err != nil {
-		return "", "", fmt.Errorf("compose final rootfs: %w", err)
+		return "", fmt.Errorf("compose final rootfs: %w", err)
 	}
 
 	log.Printf("build[%s]: building EIF", tarPath)
 	eifPath, pcrs, err := buildEIF(ctx, dcRootfs, workDir)
 	if err != nil {
-		return "", "", fmt.Errorf("build EIF: %w", err)
+		return "", fmt.Errorf("build EIF: %w", err)
 	}
 	logEvent(algorithmId, buildId, eventBuildCompleted, map[string]any{"pcr0": pcrs.PCR0})
 
 	f, err := os.Open(eifPath)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 	defer f.Close()
 
 	key = algorithmId + ".eif"
 	log.Printf("build[%s]: uploading to s3 key=%s", tarPath, key)
 	if err := uploadToS3(ctx, key, f); err != nil {
-		return "", "", fmt.Errorf("upload EIF: %w", err)
+		return "", fmt.Errorf("upload EIF: %w", err)
 	}
 	logEvent(algorithmId, buildId, eventImageUploaded, map[string]any{"bucket": artifactBucket, "key": key})
 
 	log.Printf("build[%s]: registering PCRs with verifier-service", tarPath)
 	if err := registerPCRs(ctx, algorithmId, pcrs); err != nil {
-		return "", "", fmt.Errorf("register PCRs: %w", err)
+		return "", fmt.Errorf("register PCRs: %w", err)
 	}
 	logEvent(algorithmId, buildId, eventPcrsRegistered, nil)
 
 	log.Printf("build[%s]: ensuring per-algorithm KMS key", tarPath)
 	if enclaveHostRoleArn == "" {
-		return "", "", fmt.Errorf("ENCLAVE_HOST_ROLE_ARN not configured")
+		return "", fmt.Errorf("ENCLAVE_HOST_ROLE_ARN not configured")
 	}
 	if csavRoleArn == "" {
-		return "", "", fmt.Errorf("CSAV_ROLE_ARN not configured")
+		return "", fmt.Errorf("CSAV_ROLE_ARN not configured")
 	}
-	kmsKeyArn, err = ensureAlgorithmKmsKey(ctx, algorithmId, pcrs, existingKmsKeyArn, enclaveHostRoleArn, csavRoleArn)
+	kmsKeyArn, err := ensureAlgorithmKmsKey(ctx, algorithmId, pcrs, existingKmsKeyArn, enclaveHostRoleArn, csavRoleArn)
 	if err != nil {
-		return "", "", fmt.Errorf("provision KMS key: %w", err)
+		return "", fmt.Errorf("provision KMS key: %w", err)
 	}
 	logEvent(algorithmId, buildId, eventKmsKeyProvisioned, map[string]any{"kmsKeyArn": kmsKeyArn, "reused": existingKmsKeyArn != ""})
 
 	if err := putAlgorithm(ctx, algorithmId, artifactBucket, key, kmsKeyArn); err != nil {
-		return "", "", fmt.Errorf("record algorithm: %w", err)
+		return "", fmt.Errorf("record algorithm: %w", err)
 	}
 	logEvent(algorithmId, buildId, eventAlgorithmRegistered, map[string]any{"key": key})
 
 	log.Printf("build[%s]: done key=%s took=%s", tarPath, key, time.Since(start))
-	return key, kmsKeyArn, nil
+	return key, nil
 }
