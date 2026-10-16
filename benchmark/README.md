@@ -105,6 +105,28 @@ make report    # both
 
 To export one sweep only, move other `results/raw/sweep-*.json` files aside first. Drop or re-run failed reps (`error` in raw JSON, or PDM 500s) before treating the CSV as final.
 
+### Event boundaries
+
+The event contract follows [RADS](../docs/e2e-rads.txt) and [Secure-RADS](../docs/e2e-secure-rads.txt).
+
+| Phase | rads | secure-rads |
+| --- | --- | --- |
+| Host provisioning | `executor-launched` → `executor-ready` | `executor-launched` → `executor-ready` |
+| Algorithm retrieval | `executor-ready` → `artifact-retrieved` | `executor-ready` → `artifact-retrieved` |
+| Enclave boot | — | `artifact-retrieved` → `enclave-started` |
+| SCE unit | — | `enclave-started` → `unit-ready` |
+| Attestation | — | `unit-ready` → `attested` |
+| Data retrieval | `artifact-retrieved` → `records-stored-locally` | `attested` → `records-stored-locally` |
+| Algorithm processing | `records-stored-locally` → `compute-completed` | `records-stored-locally` → `dc-app-completed` |
+| Result delivery | `compute-completed` → `result-persisted` | `output-sent` → `result-persisted` |
+| Total | `run-requested` → `result-persisted` | `run-requested` → `result-persisted` |
+
+`records-fetched` precedes file serialization/writing in both trees. Secure-rads emits `records-decrypted` after decryption and `records-stored-locally` after writing the plaintext file. Its data-retrieval phase includes fetching AWS credentials, fetching records, KMS key unwrapping, record decryption, and writing the file. The CSV includes the individual event timestamps as well as the aggregate phase durations.
+
+`executor-launched` records EC2 launch; secure-rads' `enclave-launched` records a successful `nitro-cli run-enclave`. Host and enclave run concurrently, so `enclave-started` can arrive before the host emits `enclave-launched`; enclave boot therefore ends at `enclave-started`.
+
+Existing committed results use the earlier event contract (`data-decrypted` after the file write, and `enclave-launched` for EC2 launch). They remain historical measurements. Re-exporting those runs with the new exporter leaves phases blank where the new events are absent; deploy the aligned services, rebuild the EIFs, ship the rads host tools, and run a fresh sweep for the new contract.
+
 ## Layout
 
 | Path | Role |

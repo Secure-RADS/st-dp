@@ -4,7 +4,7 @@ RADS is the baseline system. Secure-RADS extends it with the security controls r
 
 ## rads (baseline)
 
-[`rads/`](rads/) is the fully-trusted baseline sibling: no KMS, no Nitro enclave, no verifier. A data controller's docker image tarball is uploaded to the registry-service (`rads/csav/registry-service`), stored raw in S3, and recorded as `algorithmId -> S3 path` in DynamoDB. At run time the execution-service (`rads/sce/execution-service`) launches a plain EC2 executor that docker-loads the image and runs it; the app fetches its records directly from the open PDM and prints a JSON result to stdout, which is delivered asynchronously to the result-consumer. The same log-service records the run timeline.
+[`rads/`](rads/) is the fully-trusted baseline sibling: no KMS, no Nitro enclave, no verifier. A data controller's docker image tarball is uploaded to the registry-service (`rads/csav/registry-service`), stored raw in S3, and recorded as `algorithmId -> S3 path` in DynamoDB. At run time the execution-service (`rads/sce/execution-service`) launches a plain EC2 executor that docker-loads the image, fetches records from PDM into `records.json`, and runs the app with `RECORDS_PATH` / `RESULT_PATH`. The result file is delivered asynchronously to result-consumer; stdout is the diagnostic fallback. The same log-service records the run timeline.
 
 Every rads AWS resource is prefixed `rads-`; every secure-rads resource is prefixed `secure-rads-`, so both systems deploy and run side by side in one account/region.
 

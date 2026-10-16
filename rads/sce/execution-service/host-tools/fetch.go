@@ -21,8 +21,8 @@ type pdmPage struct {
 }
 
 func fetchRecords(args []string) error {
-	if len(args) != 5 {
-		return fmt.Errorf("usage: fetch-records <pdmUrl> <algorithmId> <dest> <runId> <size>")
+	if len(args) != 6 {
+		return fmt.Errorf("usage: fetch-records <pdmUrl> <algorithmId> <dest> <runId> <size> <logEventsUrl>")
 	}
 	base, algorithmID, dest, runID, sizeArg := args[0], args[1], args[2], args[3], args[4]
 
@@ -38,6 +38,9 @@ func fetchRecords(args []string) error {
 	records, pages, err := downloadRecords(base, algorithmID, runID, maxRecords)
 	if err != nil {
 		return err
+	}
+	if err := postCheckpoint(args[5], algorithmID, runID, "records-fetched"); err != nil {
+		fmt.Fprintf(os.Stderr, "pdm: %v\n", err)
 	}
 
 	body, err := json.Marshal(struct {

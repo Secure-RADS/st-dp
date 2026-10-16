@@ -16,13 +16,13 @@ const logEventTimeout = 5 * time.Second
 type runEvent string
 
 const (
-	eventImageUploaded     runEvent = "image-uploaded"
-	eventBuildStarted      runEvent = "build-started"
-	eventEifBuilt          runEvent = "eif-built"
-	eventPcrsRegistered    runEvent = "pcrs-registered"
-	eventKmsKeyProvisioned runEvent = "kms-key-provisioned"
-	eventBuildCompleted    runEvent = "build-completed"
-	eventBuildFailed       runEvent = "build-failed"
+	eventImageUploaded       runEvent = "image-uploaded"
+	eventBuildStarted        runEvent = "build-started"
+	eventAlgorithmRegistered runEvent = "algorithm-registered"
+	eventPcrsRegistered      runEvent = "pcrs-registered"
+	eventKmsKeyProvisioned   runEvent = "kms-key-provisioned"
+	eventBuildCompleted      runEvent = "build-completed"
+	eventBuildFailed         runEvent = "build-failed"
 )
 
 // logEvent fire-and-forgets one timeline event to log-service over its public TLS URL. Best-effort: a logging

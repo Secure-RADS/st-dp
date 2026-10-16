@@ -3,25 +3,28 @@
 // keep them in sync.
 export const RUN_EVENTS = [
   // Build phase (registry-service); runId is the build id.
-  "image-uploaded",
   "build-started",
-  "eif-built",
+  "build-completed",
+  "image-uploaded",
   "pcrs-registered",
   "kms-key-provisioned",
-  "build-completed",
+  "algorithm-registered",
   "build-failed",
   // Execution phase (execution-service).
   "run-requested",
-  "enclave-launched",
+  "executor-launched",
   "executor-ready",
   "artifact-retrieved",
+  "enclave-launched",
   "launch-failed",
+  "executor-finished",
   // Inside the enclave (sce-unit).
   "enclave-started",
   "unit-ready",
   "attested",
   "records-fetched",
-  "data-decrypted",
+  "records-decrypted",
+  "records-stored-locally",
   "dc-app-completed",
   "output-sent",
   "run-failed",

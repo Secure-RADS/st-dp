@@ -36,29 +36,23 @@ func main() {
 	if err != nil {
 		log.Fatalf("sce-unit: load run config: %v", err)
 	}
-	info := readRunInfo()
+	info, err := readRunInfo()
+	if err != nil {
+		failRun(cfg, "", err)
+	}
 	runID := info.RunID
 	logEvent(cfg, runID, eventEnclaveStarted, nil)
 
 	// Must run before any crypto/rand use (attestation, TLS) - see entropy.go.
 	if err := seedEntropy(); err != nil {
-		log.Printf("sce-unit: seed entropy: %v", err)
-	} else {
-		log.Printf("sce-unit: seeded kernel entropy from NSM")
+		failRun(cfg, runID, fmt.Errorf("seed entropy: %w", err))
 	}
+	log.Printf("sce-unit: seeded kernel entropy from NSM")
 	logEvent(cfg, runID, eventUnitReady, nil)
 
 	// Attest, fetch, decrypt, and write records.json before nsjail starts - same file contract as rads.
 	if err := prepareRecordsFile(cfg, runID, info.Size); err != nil {
-		log.Printf("sce-unit: %v", err)
-		logEvent(cfg, runID, eventRunFailed, map[string]any{"error": err.Error()})
-		failure, _ := json.Marshal(struct {
-			Error string `json:"error"`
-		}{Error: err.Error()})
-		if err := sendOutput(append(failure, '\n')); err != nil {
-			log.Printf("sce-unit: send error to host failed: %v", err)
-		}
-		os.Exit(1)
+		failRun(cfg, runID, err)
 	}
 
 	var jailLog bytes.Buffer
@@ -66,7 +60,7 @@ func main() {
 	cmd.Stdout = io.MultiWriter(os.Stdout, &jailLog)
 	cmd.Stderr = io.MultiWriter(os.Stderr, &jailLog)
 	if err := cmd.Start(); err != nil {
-		log.Fatalf("sce-unit: start nsjail: %v", err)
+		failRun(cfg, runID, fmt.Errorf("start nsjail: %w", err))
 	}
 	log.Printf("sce-unit: nsjail started (pid %d)", cmd.Process.Pid)
 
@@ -74,10 +68,17 @@ func main() {
 	log.Printf("sce-unit: nsjail exited: %v", waitErr)
 
 	output, readErr := os.ReadFile(resultFileHost)
-	logEvent(cfg, runID, eventDCAppCompleted, map[string]any{"outputBytes": len(output)})
 
-	failed := readErr != nil || len(output) == 0
+	failed := waitErr != nil || readErr != nil || len(output) == 0
 	if failed {
+		logEvent(cfg, runID, eventRunFailed, map[string]any{
+			"error": fmt.Sprintf("dc app failed: waitErr=%v readErr=%v outputBytes=%d", waitErr, readErr, len(output)),
+		})
+	}
+	if !failed {
+		logEvent(cfg, runID, eventDCAppCompleted, map[string]any{"outputBytes": len(output)})
+	}
+	if readErr != nil || len(output) == 0 {
 		// The enclave console is lost when the host terminates, so deliver the failure and the jailed app's own output.
 		log.Printf("sce-unit: result missing or empty: readErr=%v bytes=%d waitErr=%v", readErr, len(output), waitErr)
 		failure, _ := json.Marshal(struct {
@@ -95,11 +96,25 @@ func main() {
 	}
 	if err := sendOutput(output); err != nil {
 		log.Printf("sce-unit: send output to host failed: %v", err)
+		logEvent(cfg, runID, eventRunFailed, map[string]any{"error": err.Error()})
+		os.Exit(1)
 	}
 	logEvent(cfg, runID, eventOutputSent, nil)
 	if failed {
 		os.Exit(1)
 	}
+}
+
+func failRun(cfg runConfig, runID string, err error) {
+	log.Printf("sce-unit: %v", err)
+	logEvent(cfg, runID, eventRunFailed, map[string]any{"error": err.Error()})
+	failure, _ := json.Marshal(struct {
+		Error string `json:"error"`
+	}{Error: err.Error()})
+	if err := sendOutput(append(failure, '\n')); err != nil {
+		log.Printf("sce-unit: send error to host failed: %v", err)
+	}
+	os.Exit(1)
 }
 
 // prepareRecordsFile attests, fetches ciphertext from pdm-service, decrypts, and writes the rads-shaped
@@ -143,6 +158,7 @@ func prepareRecordsFile(cfg runConfig, runID string, limit int) error {
 		plainRecords = append(plainRecords, pdmRecord{RecordId: rec.RecordId, Data: plain})
 	}
 	log.Printf("sce-unit: decrypted %d records", len(plainRecords))
+	logEvent(cfg, runID, eventRecordsDecrypted, map[string]any{"count": len(plainRecords)})
 
 	body, err := json.Marshal(struct {
 		AlgorithmId string      `json:"algorithmId"`
@@ -160,8 +176,7 @@ func prepareRecordsFile(cfg runConfig, runID string, limit int) error {
 		return fmt.Errorf("write %s: %w", recordsFileHost, err)
 	}
 	log.Printf("sce-unit: wrote %d bytes to %s", len(body), recordsFileHost)
-	// End of data retrieval for benchmarks: fetch + decrypt + write (see export.py data_retrieval).
-	logEvent(cfg, runID, eventDataDecrypted, nil)
+	logEvent(cfg, runID, eventRecordsStoredLocally, nil)
 	return nil
 }
 

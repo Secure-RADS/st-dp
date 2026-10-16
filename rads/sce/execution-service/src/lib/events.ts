@@ -9,6 +9,7 @@ export type RunEvent =
   | "executor-ready"
   | "artifact-retrieved"
   | "records-fetched"
+  | "records-stored-locally"
   | "compute-completed"
   | "executor-finished";
 
