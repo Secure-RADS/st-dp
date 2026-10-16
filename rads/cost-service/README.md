@@ -51,11 +51,11 @@ Partition key `AlgorithmId`, sort key `Sk = <runId>#<timestamp>#<eventId>`. ISO-
 
 ## Prerequisites (manual, one-time, outside this repo's IaC)
 
-- A domain name (`cost.secure-rads.org`) + ACM certificate already provisioned - `serverless.yml` takes these as `domainName`/`certificateArn` params, it does not create them.
+- A domain name (`cost.r.secure-rads.org`) + ACM certificate already provisioned - `serverless.yml` takes these as `domainName`/`certificateArn` params, it does not create them.
 
 ## Deploy
 
 ```
 bun install
-bunx serverless deploy --param="domainName=cost.secure-rads.org" --param="certificateArn=..."
+bunx serverless deploy --param="domainName=cost.r.secure-rads.org" --param="certificateArn=..."
 ```

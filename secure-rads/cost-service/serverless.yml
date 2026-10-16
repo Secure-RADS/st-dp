@@ -57,12 +57,14 @@ functions:
           functionResponseType: ReportBatchItemFailures
   byAlgorithm:
     handler: src/handlers/byAlgorithm.handler
+    timeout: 30
     events:
       - httpApi:
           method: GET
           path: /cost/{algorithmId}
   all:
     handler: src/handlers/all.handler
+    timeout: 30
     events:
       - httpApi:
           method: GET

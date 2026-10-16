@@ -79,7 +79,8 @@ sce-logs:
 REGION ?= ap-southeast-2
 KEY_PATH := $(CURDIR)/.ssh/csav-key.pem
 LOG_HOST ?= log.secure-rads.org
-COST_HOST ?= cost.secure-rads.org
+# Override with cost.r.secure-rads.org when exporting rads costs.
+COST_HOST ?= cost.sr.secure-rads.org
 instance_ip = $(shell aws ec2 describe-instances --region $(REGION) --instance-ids $(shell aws cloudformation describe-stacks \
 	--stack-name $(1) --region $(REGION) --query "Stacks[0].Outputs[?OutputKey=='$(2)'].OutputValue" --output text) \
 	--query 'Reservations[0].Instances[0].PublicIpAddress' --output text)

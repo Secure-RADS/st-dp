@@ -101,5 +101,7 @@ make cost-csv-algo ALGORITHM_ID=<id>                  # one algo -> cost-algo-<i
 make cost-csv-all                                     # whole table -> cost-all.csv
 ```
 
+The Makefile defaults `COST_HOST` to `cost.sr.secure-rads.org`; pass `COST_HOST=cost.r.secure-rads.org` for rads.
+
 The benchmark (`benchmark/`) resolves the cost-service per tree and adds per-service and total cost columns to
 `phase-timings.csv`, plus a `sweep-cost.png` figure. See `benchmark/README.md`.
