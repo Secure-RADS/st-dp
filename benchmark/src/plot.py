@@ -111,13 +111,8 @@ def scaling_figure(df: pd.DataFrame) -> None:
     _save(fig, "sweep-scaling.png")
 
 
-def cost_figure(df: pd.DataFrame) -> None:
-    if "total_cost_usd" not in df.columns:
-        logger.warning("no cost columns in {}; skipping cost figure", PHASE_TIMINGS_CSV)
-        return
-
-    fig, (ax_line, ax_bar) = plt.subplots(1, 2, figsize=(13, 5))
-
+def cost_size_figure(df: pd.DataFrame) -> None:
+    fig, ax = plt.subplots(figsize=(9, 5))
     sns.lineplot(
         data=df,
         x="dataset_size",
@@ -127,25 +122,27 @@ def cost_figure(df: pd.DataFrame) -> None:
         palette={LABELS[t]: c for t, c in PALETTE.items()},
         marker="o",
         errorbar=("ci", 95),
-        ax=ax_line,
+        ax=ax,
     )
-    ax_line.set_xlabel("dataset size (records)")
-    ax_line.set_ylabel("execution cost (USD)")
-    ax_line.set_title("Execution cost vs dataset size")
-    ax_line.legend(title=None, frameon=False)
+    ax.set_xlabel("dataset size (records)")
+    ax.set_ylabel("execution cost (USD)")
+    ax.set_title("Execution cost vs dataset size")
+    ax.legend(title=None, frameon=False)
+    _save(fig, "sweep-cost.png")
 
+
+def cost_services_figure(df: pd.DataFrame) -> None:
     by_service = df.groupby("label", as_index=False)[COST_COLS].mean().set_index("label")
     by_service.columns = [column.removesuffix("_cost_usd") for column in by_service.columns]
     present = [service for service in COST_SERVICES if service in by_service.columns]
     by_service = by_service[present]
-    by_service.plot.barh(stacked=True, color=COST_COLORS, width=0.7, ax=ax_bar)
-    ax_bar.set_xlabel("mean execution cost (USD)")
-    ax_bar.set_ylabel("")
-    ax_bar.set_title("Cost by AWS service")
-    ax_bar.legend(title=None, frameon=False, fontsize=8)
-
-    fig.tight_layout()
-    _save(fig, "sweep-cost.png")
+    fig, ax = plt.subplots(figsize=(9, 5))
+    by_service.plot.barh(stacked=True, color=COST_COLORS, width=0.7, ax=ax)
+    ax.set_xlabel("mean execution cost (USD)")
+    ax.set_ylabel("")
+    ax.set_title("Cost by AWS service")
+    ax.legend(title=None, frameon=False, fontsize=8)
+    _save(fig, "sweep-cost-services.png")
 
 
 def main() -> int:
@@ -155,7 +152,11 @@ def main() -> int:
     logger.info("loaded {} runs across {} sizes", len(df), df["dataset_size"].nunique())
     phases_figure(df)
     scaling_figure(df)
-    cost_figure(df)
+    if "total_cost_usd" in df.columns:
+        cost_size_figure(df)
+        cost_services_figure(df)
+    else:
+        logger.warning("no cost columns in {}; skipping cost figures", PHASE_TIMINGS_CSV)
     return 0
 
 
