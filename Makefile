@@ -343,22 +343,21 @@ logs-csv-all:
 	curl -sS "https://$(LOG_HOST)/logs?format=csv" -o logs-all.csv
 	@echo "wrote logs-all.csv"
 
-# Walk every page of a paginated cost CSV endpoint into OUT, following the x-next-cursor response header and
-# writing the CSV header only once. Used by the cost-csv targets because a single response is capped at 10 MB.
+# Follow x-next-cursor to pull every page of a paginated cost CSV export into OUT.
 cost-fetch:
 	@set -e; : > "$(OUT)"; url="$(URL)"; first=1; \
 	while [ -n "$$url" ]; do \
 		hdr=$$(mktemp); body=$$(mktemp); \
 		curl -sS -D "$$hdr" "$$url" -o "$$body"; \
-		if [ "$$first" -eq 1 ]; then cat "$$body" >> "$(OUT)"; first=0; else tail -n +2 "$$body" >> "$(OUT)"; fi; \
-		next=$$(tr -d '\r' < "$$hdr" | sed -n 's/^[Xx]-next-cursor: *//p'); \
-		base=$${url%%&cursor=*}; \
-		if [ -n "$$next" ]; then url="$$base&cursor=$$next"; else url=""; fi; \
+		if [ "$$first" = 1 ]; then cat "$$body"; else tail -n +2 "$$body"; fi >> "$(OUT)"; \
+		first=0; \
+		next=$$(sed -n 's/^[Xx]-next-cursor: *//p' "$$hdr" | tr -d '\r'); \
+		if [ -n "$$next" ]; then url="$${url%%&cursor=*}&cursor=$$next"; else url=""; fi; \
 		rm -f "$$hdr" "$$body"; \
 	done; \
 	echo "wrote $(OUT)"
 
-# Export one run's metered cost rows to cost-<RUN_ID>.csv (rows are per AWS operation; sum CostUsd for the total).
+# Export one run's metered cost rows to cost-<RUN_ID>.csv.
 cost-csv:
 	@test -n "$(ALGORITHM_ID)" || { echo "ALGORITHM_ID is required"; exit 1; }
 	@test -n "$(RUN_ID)" || { echo "RUN_ID is required"; exit 1; }
@@ -369,6 +368,6 @@ cost-csv-algo:
 	@test -n "$(ALGORITHM_ID)" || { echo "ALGORITHM_ID is required"; exit 1; }
 	@$(MAKE) --no-print-directory cost-fetch URL="https://$(COST_HOST)/cost/$(ALGORITHM_ID)?format=csv" OUT=cost-algo-$(ALGORITHM_ID).csv
 
-# Export the entire cost table across all algorithms to cost-all.csv.
+# Export the entire cost table to cost-all.csv.
 cost-csv-all:
 	@$(MAKE) --no-print-directory cost-fetch URL="https://$(COST_HOST)/cost?format=csv" OUT=cost-all.csv
