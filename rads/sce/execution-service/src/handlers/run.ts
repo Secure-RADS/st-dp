@@ -4,8 +4,8 @@ import { EC2Client, RunInstancesCommand, type RunInstancesCommandInput } from "@
 import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
 import { CostPhase, costEvent, recordRequest } from "@srads/common/cost";
 import { requiredEnv } from "@srads/common/env";
+import { emitEvent } from "@srads/common/log";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
-import { logEvent } from "../lib/events.js";
 import { countAlgorithmRecords } from "../lib/pdmCount.js";
 import { userData } from "../lib/userdata.js";
 
@@ -109,7 +109,7 @@ export const create: APIGatewayProxyHandlerV2 = async (event) => {
       }
     }
 
-    await logEvent(request.algorithmId, runId, "run-requested");
+    await emitEvent(request.algorithmId, runId, "run-requested");
     const launched = await ec2.send(
       new RunInstancesCommand({
         ImageId: executorAmiId,
@@ -148,11 +148,11 @@ export const create: APIGatewayProxyHandlerV2 = async (event) => {
     const instanceId = launched.Instances?.[0]?.InstanceId;
     if (!instanceId) throw new Error("RunInstances returned no instance");
 
-    await logEvent(request.algorithmId, runId, "executor-launched", { instanceId });
+    await emitEvent(request.algorithmId, runId, "executor-launched", { instanceId });
     await recordRequest(request.algorithmId, runId, CostPhase.Execution, startedAt);
     return jsonResponse(202, { runId, algorithmId: request.algorithmId, instanceId, status: "pending" });
   } catch (error) {
-    await logEvent(request.algorithmId, runId, "launch-failed", { error: String(error) });
+    await emitEvent(request.algorithmId, runId, "launch-failed", { error: String(error) });
     await recordRequest(request.algorithmId, runId, CostPhase.Execution, startedAt);
     console.error("launch failed", error);
     return jsonResponse(500, { error: "launch failed" });
