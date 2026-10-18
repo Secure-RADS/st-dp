@@ -1,7 +1,5 @@
-// Run-timeline event names, mirrored from log-service (the ingest authority). result-consumer only needs the
-// type; keep the list in sync with log-service/src/lib/events.ts.
+// Keep this type-only event list in sync with log-service/src/lib/events.ts.
 const RUN_EVENTS = [
-  // Build phase (registry-service); no runId (the build records the algorithm).
   "build-started",
   "build-completed",
   "image-uploaded",
@@ -9,7 +7,6 @@ const RUN_EVENTS = [
   "kms-key-provisioned",
   "algorithm-registered",
   "build-failed",
-  // Execution phase (execution-service).
   "run-requested",
   "executor-launched",
   "executor-ready",
@@ -17,7 +14,6 @@ const RUN_EVENTS = [
   "enclave-launched",
   "launch-failed",
   "executor-finished",
-  // Inside the enclave (sce-unit).
   "enclave-started",
   "unit-ready",
   "attested",
@@ -27,7 +23,6 @@ const RUN_EVENTS = [
   "dc-app-completed",
   "output-sent",
   "run-failed",
-  // Result delivery (result-consumer).
   "result-persisted",
 ] as const;
 

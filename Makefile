@@ -79,7 +79,6 @@ sce-logs:
 REGION ?= ap-southeast-2
 KEY_PATH := $(CURDIR)/.ssh/csav-key.pem
 LOG_HOST ?= log.secure-rads.org
-# Override with cost.r.secure-rads.org when exporting rads costs.
 COST_HOST ?= cost.sr.secure-rads.org
 instance_ip = $(shell aws ec2 describe-instances --region $(REGION) --instance-ids $(shell aws cloudformation describe-stacks \
 	--stack-name $(1) --region $(REGION) --query "Stacks[0].Outputs[?OutputKey=='$(2)'].OutputValue" --output text) \
@@ -357,17 +356,14 @@ cost-fetch:
 	done; \
 	echo "wrote $(OUT)"
 
-# Export one run's metered cost rows to cost-<RUN_ID>.csv.
 cost-csv:
 	@test -n "$(ALGORITHM_ID)" || { echo "ALGORITHM_ID is required"; exit 1; }
 	@test -n "$(RUN_ID)" || { echo "RUN_ID is required"; exit 1; }
 	@$(MAKE) --no-print-directory cost-fetch URL="https://$(COST_HOST)/cost/$(ALGORITHM_ID)?runId=$(RUN_ID)&format=csv" OUT=cost-$(RUN_ID).csv
 
-# Export one algorithm's whole cost history to cost-algo-<ALGORITHM_ID>.csv.
 cost-csv-algo:
 	@test -n "$(ALGORITHM_ID)" || { echo "ALGORITHM_ID is required"; exit 1; }
 	@$(MAKE) --no-print-directory cost-fetch URL="https://$(COST_HOST)/cost/$(ALGORITHM_ID)?format=csv" OUT=cost-algo-$(ALGORITHM_ID).csv
 
-# Export the entire cost table to cost-all.csv.
 cost-csv-all:
 	@$(MAKE) --no-print-directory cost-fetch URL="https://$(COST_HOST)/cost?format=csv" OUT=cost-all.csv

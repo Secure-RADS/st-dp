@@ -78,7 +78,7 @@ export const handler: SQSHandler = async (event) => {
   } finally {
     const first = event.Records.map(messageId).find((ids) => ids !== undefined);
     if (first) {
-      // batchSize is 1: the run owning this message also owns the batch's receive + Lambda cost.
+      // batchSize is 1 so this message can be charged its SQS receive and Lambda costs.
       const bytes = event.Records.reduce((total, record) => total + Buffer.byteLength(record.body), 0);
       await costEvent(first.algorithmId, first.runId, CostPhase.Execution, "sqs", "receive", Math.max(1, bytes));
       await recordLambda(first.algorithmId, first.runId, CostPhase.Execution, startedAt);

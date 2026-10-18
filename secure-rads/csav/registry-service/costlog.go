@@ -13,8 +13,7 @@ import (
 
 const costEventTimeout = time.Second
 
-// costPhase/costService/costOperation mirror cost-service's enums (the ingest authority rejects anything
-// else) - keep in sync with cost-service/src/lib/cost.ts.
+// Keep these values in sync with cost-service/src/lib/cost.ts; its ingest endpoint rejects unknown values.
 type costPhase string
 
 type costService string
@@ -32,9 +31,7 @@ const (
 	opDynamoWrite costOperation = "write"
 )
 
-// costEvent fire-and-forgets one metered AWS operation to cost-service, keyed by algorithmId (a build has no
-// run id). The quantity unit is fixed by the operation (put = requests, read/write = item bytes). Best-effort:
-// a metering failure must never fail a build, so errors are only logged, and an unset COST_HOST is a no-op.
+// Build metering is best-effort because a cost-service failure must not fail registry builds.
 func costEvent(algorithmID string, service costService, operation costOperation, quantity float64) {
 	if costHost == "" || algorithmID == "" {
 		return

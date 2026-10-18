@@ -1,11 +1,10 @@
-// Fire-and-forget run-timeline logging to the log-service. Best-effort: a logging failure must never fail the
-// caller, and if LOG_HOST is unset it is a no-op. Awaited so the request is sent before a Lambda freezes.
 const logHost = process.env.LOG_HOST;
 const eventsUrl = logHost ? `https://${logHost}/events` : undefined;
 const subjectAccessUrl = logHost ? `https://${logHost}/subject-access` : undefined;
 
 const LOG_EVENT_TIMEOUT_MS = 5_000;
 
+// Await best-effort logging so Lambda freeze does not drop timeline events.
 export async function emitEvent(
   algorithmId: string,
   runId: string | null,
@@ -25,7 +24,6 @@ export async function emitEvent(
   }
 }
 
-// DSAR trail: which data subjects a run actually read.
 export async function logSubjectAccess(algorithmId: string, runId: string, dataSubjectIds: string[]): Promise<void> {
   if (!subjectAccessUrl || dataSubjectIds.length === 0) return;
   try {

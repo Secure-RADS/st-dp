@@ -1,8 +1,5 @@
-// Canonical run-timeline event names. Every producer must emit one of these; log-service rejects anything else
-// at ingest. Go producers (registry-service, execution-service, sce-unit) mirror this list as typed constants -
-// keep them in sync.
+// Keep producer event enums in sync with this ingest allowlist.
 export const RUN_EVENTS = [
-  // Build phase (registry-service); no runId (the build records the algorithm).
   "build-started",
   "build-completed",
   "image-uploaded",
@@ -10,7 +7,6 @@ export const RUN_EVENTS = [
   "kms-key-provisioned",
   "algorithm-registered",
   "build-failed",
-  // Execution phase (execution-service).
   "run-requested",
   "executor-launched",
   "executor-ready",
@@ -18,7 +14,6 @@ export const RUN_EVENTS = [
   "enclave-launched",
   "launch-failed",
   "executor-finished",
-  // Inside the enclave (sce-unit).
   "enclave-started",
   "unit-ready",
   "attested",
@@ -28,7 +23,6 @@ export const RUN_EVENTS = [
   "dc-app-completed",
   "output-sent",
   "run-failed",
-  // Result delivery (result-consumer).
   "result-persisted",
 ] as const;
 

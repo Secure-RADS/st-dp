@@ -1,8 +1,7 @@
 import type { AwsService, COST_OPERATIONS, CostUnit } from "@srads/common/cost";
 
-// Pinned list prices so a given commit's estimates are reproducible. Re-check against the AWS Price List API
-// (ap-southeast-2) when this date is old. KMS is deliberately absent: the per-algorithm key is created once and
-// kept, so its cost is documented as excluded rather than metered per run.
+// Pinned ap-southeast-2 list prices keep estimates reproducible; recheck AWS Price List when updating this date.
+// KMS is excluded because per-algorithm keys persist across builds and cannot be attributed per run.
 export const PRICE_REGION = "ap-southeast-2";
 export const PRICE_AS_OF = "2026-10-08";
 

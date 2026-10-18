@@ -24,8 +24,7 @@ function toRow(item: Record<string, unknown>): CostRow {
   };
 }
 
-// Exports the whole table across all algorithms, one page at a time. Pages via `cursor` so the full table
-// (well over the API Gateway response limit) can be walked without a single oversized response.
+// Cursor paging keeps full-table exports below API Gateway's response-size limit.
 export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const format = event.queryStringParameters?.format;
 

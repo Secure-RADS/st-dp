@@ -25,8 +25,7 @@ function toRow(item: Record<string, unknown>): CostRow {
   };
 }
 
-// Exports one algorithm's cost events, optionally narrowed to a single run. Pages via `cursor` so a large
-// algorithm cannot overflow the API Gateway response limit; `totalUsd` sums the returned page.
+// Cursor paging keeps large algorithm histories below API Gateway's response-size limit.
 export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const algorithmId = event.pathParameters?.algorithmId;
   if (!algorithmId) {

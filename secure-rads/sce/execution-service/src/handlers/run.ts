@@ -26,8 +26,7 @@ const logHost = requiredEnv("LOG_HOST");
 const costHost = process.env.COST_HOST ?? "";
 const region = requiredEnv("AWS_REGION");
 
-// DynamoDB counts and lookups are priced per item byte; only the size check page count is exposed, so each
-// scanned record is charged a representative size. Pinned so estimates stay reproducible.
+// Size-check reads use a pinned representative item size because DynamoDB exposes page counts, not bytes.
 const ESTIMATED_RECORD_BYTES = 1024;
 
 interface RunRequest {

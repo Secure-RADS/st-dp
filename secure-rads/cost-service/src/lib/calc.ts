@@ -9,8 +9,6 @@ export function unitFor(service: AwsService, operation: CostOperation): CostUnit
   return priceFor(service, operation).unit;
 }
 
-// Converts a raw metered quantity into USD using the operation's price rule. Byte-metered operations are
-// charged per whole chunk; time-metered operations apply their per-start minimum (EC2's 60s floor).
 export function costUsd(rule: PriceRule, quantity: number): number {
   if (!(quantity > 0)) {
     return 0;

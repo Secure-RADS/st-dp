@@ -24,7 +24,7 @@ export function parseIngestBody(body: unknown): IngestedEvent | { error: string 
       return { error: `${key} must be a non-empty string` };
     }
   }
-  // Build-phase events (e.g. algorithm-registered) have no run, so runId is optional.
+  // Build events have no runId; execution events include one.
   if (runId != null && (typeof runId !== "string" || runId.length === 0)) {
     return { error: "runId must be a non-empty string when present" };
   }

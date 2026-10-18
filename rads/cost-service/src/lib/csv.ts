@@ -34,7 +34,7 @@ export function csvHeaders(nextCursor: string | null): Record<string, string> {
 }
 
 export function toCsv(rows: CostRow[]): string {
-  // detail is an object; flatten it to compact JSON so csv-stringify emits one cell, not [object Object].
+  // Serialize detail objects as JSON so csv-stringify emits one cell instead of [object Object].
   return stringify(
     rows.map((row) => ({ ...row, detail: row.detail == null ? "" : JSON.stringify(row.detail) })),
     { header: true, columns: COLUMNS },

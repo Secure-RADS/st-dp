@@ -1,7 +1,6 @@
 service: rads-cost-service
 
-# Bundled as CJS, not ESM, same as pdm-service - esbuild's ESM output can't interop with plain
-# top-level require() in some deps, and nothing here actually needs ESM at runtime.
+# CJS output avoids ESM interop failures in dependencies using top-level require().
 build:
   esbuild:
     format: cjs
@@ -104,8 +103,7 @@ resources:
         QueueName: rads-cost-events-dlq
         MessageRetentionPeriod: 1209600
 
-    # Plain server-auth TLS only - producers are internal SCE components on a trusted network, and cost is
-    # fire-and-forget metering data, not a secret store, so no client cert is required.
+    # No client cert: only internal SCE producers send non-sensitive metering data here.
     ApiCustomDomain:
       Type: AWS::ApiGatewayV2::DomainName
       Properties:

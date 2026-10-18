@@ -10,7 +10,7 @@ import (
 
 const s3PartBytes = 5 * 1024 * 1024
 
-// s3PutRequests counts the multipart initiation, part uploads, and completion requests.
+// Count multipart initiation, part uploads, and completion as billable S3 PUT requests.
 func s3PutRequests(size int64) float64 {
 	if size <= s3PartBytes {
 		return 1

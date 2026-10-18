@@ -36,18 +36,15 @@ export function isValidOperation(service: AwsService, operation: unknown): opera
   return typeof operation === "string" && (COST_OPERATIONS[service] as readonly string[]).includes(operation);
 }
 
-// The cost-service ingest authority rejects anything outside the enums above, so no free-form service or
-// operation string reaches the table.
 const costEventsUrl = process.env.COST_HOST ? `https://${process.env.COST_HOST}/cost` : undefined;
 
-// Cap the awaited cost POST so a slow cost-service cannot outlast the producer's own Lambda timeout.
+// Bound metering latency so a slow cost-service cannot consume the producer's Lambda timeout.
 const COST_EVENT_TIMEOUT_MS = 1_000;
 
-// The default Lambda memory size; Lambda bills compute as duration x configured memory.
+// Lambda compute cost scales with configured memory, which defaults to 1024 MB here.
 const LAMBDA_MEMORY_MB = 1024;
 
-// Fire-and-forget cost metering. Best-effort: a cost failure must never fail the caller, and if COST_HOST is
-// unset it is a no-op. Awaited so the request is sent before a Lambda freezes, matching the log-service pattern.
+// Await metering before Lambda freeze, but never fail the caller when cost reporting fails.
 export async function costEvent(
   algorithmId: string,
   runId: string,
@@ -93,7 +90,6 @@ function lambdaEvents(algorithmId: string, runId: string, phase: CostPhase, gbSe
   ];
 }
 
-// The cost of handling one HTTP request: the API Gateway request plus the handling Lambda's invocation/compute.
 export async function recordRequest(
   algorithmId: string,
   runId: string,
@@ -106,7 +102,6 @@ export async function recordRequest(
   ]);
 }
 
-// The cost of one async (non-HTTP) Lambda invocation: invocation + compute only.
 export async function recordLambda(
   algorithmId: string,
   runId: string,

@@ -12,7 +12,7 @@ import (
 const logEventTimeout = 5 * time.Second
 
 // runEvent is the constrained set of build-phase timeline events registry-service emits - keep in sync with
-// log-service's RUN_EVENTS (the ingest authority rejects anything else). A build has no run, so runId is null.
+// Keep event names in sync with log-service; build events have no runId.
 type runEvent string
 
 const (

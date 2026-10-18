@@ -22,8 +22,7 @@ export interface IngestedCostEvent {
   receivedAt: string;
 }
 
-// eventId is producer-generated and becomes part of the sort key, so an SQS redelivery overwrites the item
-// instead of double-counting the operation's cost.
+// Including eventId in the sort key makes SQS redelivery overwrite the row instead of double-counting cost.
 export function parseCostBody(body: unknown): IngestedCostEvent | { error: string } {
   if (typeof body !== "object" || body === null) {
     return { error: "body must be a JSON object" };
