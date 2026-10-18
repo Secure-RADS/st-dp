@@ -25,7 +25,7 @@ Input:
 3  cost dynamodb:read-capacity          // execution-service: algorithm lookup
 4  key ← LOOKUP-S3(a) // S3 location of algorithm's TAR
 5  RUN-COUNT-CHECK(n)
-6  cost dynamodb:read-capacity          // PDM Query count, actual consumed capacity
+6  cost dynamodb:read-capacity          // execution-service Query on the PDM table
 7  RunInstances(userdata ← ⟨a, runId, n, key, launchEpoch⟩)
 8  emit executor-launched
 9  cost apigateway:request + lambda     // per control-plane request/poll (GET /run/{runId} too)
@@ -48,7 +48,7 @@ Input:
 8  cost s3:get                          // algorithm artifact
 9  emit artifact-retrieved
 10 records ← FETCH-PDM(a, limit ← n)   // rads-host-tools fetch-records
-11 cost dynamodb:read-capacity          // emitted by pdm-service: records Query pages
+11 cost apigateway:request + lambda:invocation + lambda:compute + dynamodb:read-capacity // PDM /records
 12 emit records-fetched
 13 write records to records.json
 14 emit records-stored-locally
@@ -57,13 +57,15 @@ Input:
 17 publish result to SQS
 18 cost sqs:send                        // message bytes
 19 emit executor-finished
-20 terminate instance
-21 cost ec2:instance                    // seconds from launchEpoch to this terminate call
+20 cost ec2:instance                    // captured before the cost POST and terminate request
+21 terminate instance
 
 
 RADS-RESULT-CONSUMER(result)
 Input:
   result ← processing result returned by the RADS executor
-1  cost sqs:receive + dynamodb:write-capacity // batch receive + result row
+1  SQS delivers result batch; invoke Lambda // receive is billed before the handler runs
 2  persist result to DynamoDB
-3  emit result-persisted
+3  cost dynamodb:write-capacity; emit result-persisted
+4  cost sqs:receive + lambda:invocation + lambda:compute // reported by handler after processing
+5  cost sqs:delete                         // reported on success; Lambda deletes after return

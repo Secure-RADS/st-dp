@@ -31,7 +31,7 @@ Input:
 3  cost dynamodb:read-capacity          // execution-service: algorithm lookup
 4  key ← LOOKUP-EIF(a) // S3 location of algorithm's EIF
 5  RUN-COUNT-CHECK(n)
-6  cost dynamodb:read-capacity          // PDM Query count, actual consumed capacity
+6  cost dynamodb:read-capacity          // execution-service Query on the PDM table
 7  RunInstances(Nitro parent, userdata ← ⟨a, runId, n, key, launchEpoch⟩)
 8  emit executor-launched
 9  cost apigateway:request + lambda     // per control-plane request/poll (GET /run/{runId} too)
@@ -58,8 +58,8 @@ Input:
 12 publish result to SQS
 13 cost sqs:send                        // message bytes
 14 emit executor-finished
-15 terminate instance
-16 cost ec2:instance                    // seconds from launchEpoch to this terminate call
+15 cost ec2:instance                    // captured before the cost POST and terminate request
+16 terminate instance
 
 
 SCE-UNIT(a)
@@ -74,7 +74,7 @@ Input:
 7  emit attested
 8  creds ← FETCH-AWS-CREDS()            // host IMDS proxy, no AWS cost
 9  ⟨records, encDEK⟩ ← FETCH-PDM(a, token, limit ← n)
-10 cost dynamodb:read-capacity          // emitted by pdm-service: data-key GetItem + records Query pages
+10 cost apigateway:request + lambda:invocation + lambda:compute + dynamodb:read-capacity // PDM /records
 11 emit records-fetched
 12 DEK ← KMS-DECRYPT(encDEK, attestation)   // KMS excluded from cost
 13 plaintext ← DECRYPT(records, DEK)
@@ -93,6 +93,8 @@ Input:
 SECURE-RADS-RESULT-CONSUMER(result)
 Input:
   result ← processing result returned by the SCE-UNIT
-1  cost sqs:receive + dynamodb:write-capacity // result-consumer batch
+1  SQS delivers result batch; invoke Lambda // receive is billed before the handler runs
 2  persist result to DynamoDB
-3  emit result-persisted
+3  cost dynamodb:write-capacity; emit result-persisted
+4  cost sqs:receive + lambda:invocation + lambda:compute // reported by handler after processing
+5  cost sqs:delete                         // reported on success; Lambda deletes after return

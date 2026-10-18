@@ -13,7 +13,7 @@ import (
 
 const costEventTimeout = time.Second
 
-// Keep these values in sync with cost-service/src/lib/cost.ts; its ingest endpoint rejects unknown values.
+// Keep these values aligned with packages/common/src/cost.ts; ingest rejects unknown operations.
 type costPhase string
 
 type costService string

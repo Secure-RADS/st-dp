@@ -2,7 +2,7 @@
 set -euo pipefail
 exec > >(tee /var/log/rads-execution-service-run.log) 2>&1
 
-# Cost metering: one event per billable AWS op, keyed by (AlgorithmId, runId). Best-effort.
+# Cost metering reports selected AWS operations, keyed by (AlgorithmId, runId). Best-effort.
 emit_cost() {
   [ -z "{{.CostHost}}" ] && return 0
   curl -sS --fail --max-time 5 -X POST "https://{{.CostHost}}/cost" -H 'content-type: application/json' \
@@ -50,7 +50,7 @@ finish() {
   curl -sS -X POST "https://$LOG_HOST/events" -H 'content-type: application/json' \
     -d @/tmp/log-event.json >/dev/null || true
   emit_cost sqs send "$(wc -c < /tmp/result.json)"
-  # EC2 is billed per second from launch to the shutting-down state; the terminate call below is that edge.
+  # The runtime estimate is captured before this cost POST and the terminate request.
   emit_cost ec2 instance "$(( $(date +%s) - {{.LaunchEpoch}} ))"
   aws ec2 terminate-instances --instance-ids "$INSTANCE_ID" --region "$REGION" || true
 }

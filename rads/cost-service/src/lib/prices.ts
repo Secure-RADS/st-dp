@@ -1,7 +1,7 @@
 import type { AwsService, COST_OPERATIONS, CostUnit } from "@srads/common/cost";
 
 // Pinned ap-southeast-2 list prices keep estimates reproducible; recheck AWS Price List when updating this date.
-// KMS is excluded because per-algorithm keys persist across builds and cannot be attributed per run.
+// KMS is excluded by decision, including its attributable per-run requests.
 export const PRICE_REGION = "ap-southeast-2";
 export const PRICE_AS_OF = "2026-10-08";
 
@@ -50,7 +50,7 @@ export const PRICES: PriceTable = {
   sqs: {
     send: { unit: "byte", usdPerBillableUnit: 0.4 / PER_MILLION, bytesPerBillableUnit: 64 * KIB },
     receive: { unit: "byte", usdPerBillableUnit: 0.4 / PER_MILLION, bytesPerBillableUnit: 64 * KIB },
-    delete: { unit: "byte", usdPerBillableUnit: 0.4 / PER_MILLION, bytesPerBillableUnit: 64 * KIB },
+    delete: { unit: "request", usdPerBillableUnit: 0.4 / PER_MILLION },
   },
   ec2: {
     // c6g.large Linux On-Demand; the per-run executor type on both trees.

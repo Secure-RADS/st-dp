@@ -1,8 +1,8 @@
 # cost-service: metering and per-run cost estimates
 
-`cost-service` turns the AWS operations the SCE performs into per-`(AlgorithmId, runId)` cost estimates. It is a
-fire-and-forget meter, not a billing system: producers POST one typed event per billable AWS operation, a worker
-prices it against a pinned list-price table, and the benchmark sums the rows for a run.
+`cost-service` turns selected, attributable AWS operations the SCE performs into per-`(AlgorithmId, runId)` cost
+estimates. It is an asynchronous meter, not a billing system: producers POST one typed event per metered operation,
+a worker prices it against a pinned list-price table, and the benchmark sums the rows for a run.
 
 It exists in both trees: `secure-rads/cost-service` and `rads/cost-service`. See each service's `README.md` for
 endpoints, deploy, and the event vocabulary.
@@ -59,8 +59,8 @@ rads (`csav/registry-service`, Lambdas):
 - pdm-service `/records`: `apigateway:request`, `lambda:invocation`, `lambda:compute`, `dynamodb:read-capacity`
   (data-key `GetItem` and each records `Query` page).
 - result-consumer (`batchSize` 1, so each run's receive + invoke lands on that run): `sqs:receive` (message
-  bytes), `sqs:delete` (one request after successful processing), `dynamodb:write-capacity`, `lambda:invocation`,
-  `lambda:compute`.
+  bytes), `sqs:delete` (one request when the handler succeeds; Lambda performs the deletion),
+  `dynamodb:write-capacity`, `lambda:invocation`, `lambda:compute`.
 - verifier-service (secure-rads): `/attest` and `/refresh` (the enclave's attestation and token refresh, keyed by
   the run) and `/algorithms` (build-time PCR registration, keyed by `algorithmId`): `dynamodb:read-capacity` and
   `dynamodb:write-capacity` where attributable, plus `apigateway:request`, `lambda:invocation`, `lambda:compute`.
@@ -69,14 +69,20 @@ rads (`csav/registry-service`, Lambdas):
 ## EC2 timing
 
 The executor is the per-run `c6g.large`. Execution-service stamps the launch epoch immediately before calling
-`RunInstances`; the host emits `ec2:instance` with `now - launch` when it calls `terminate-instances` at its last
-step. This slightly overstates billable runtime because EC2 does not bill while the instance is `pending`. The
-price rule applies a 60-second minimum.
+`RunInstances`; the host captures `now - launch` before posting the `ec2:instance` event and calling
+`terminate-instances`. This can overstate runtime by including time before the instance becomes `running`, and
+understate it by excluding the cost-event POST and shutdown time. The net error is unknown; the price rule applies
+a 60-second minimum.
 
 Hard metric: AWS bills per second and stops charging **as soon as the instance state leaves `running` for
-`shutting-down`/`terminated`**; there is no published SLA for that transition (it is seconds). The terminate call
-is therefore a close proxy. `pending -> running` is not billed, and Cost Explorer lag is reporting, not billing.
-Root EBS and data transfer are not included (see below).
+`shutting-down`/`terminated`**; there is no published SLA for that transition (it is seconds). `pending -> running`
+is not billed, and Cost Explorer lag is reporting, not billing. Root EBS and data transfer are not included (see
+below).
+
+Lambda compute events use handler wall time captured before the final metering POSTs. They exclude the billable
+cold-start initialization phase for managed-runtime ZIP functions (billed since August 1, 2025) and the time spent
+posting those cost events, so they are estimates rather than Lambda's billed duration. See [AWS's INIT billing
+announcement](https://aws.amazon.com/blogs/compute/aws-lambda-standardizes-billing-for-init-phase/).
 
 ## Pricing
 
@@ -87,16 +93,17 @@ per-run against Cost Explorer.
 
 ## Excluded costs (documented, not metered)
 
-- **KMS** - excluded by decision. Although per-algorithm keys persist across rebuilds, execution still makes KMS
-  requests for enclave data-key decryption and SSE-KMS artifact downloads; verifier cold starts also decrypt the
-  SSM SecureString signing key. These request charges are not currently attributed.
+- **KMS** - excluded by decision. Build uploads and enclave artifact accesses may make KMS requests for SSE-KMS
+  (the bucket uses S3 Bucket Keys); enclave data-key decryption and verifier cold starts also use KMS. Per-algorithm
+  key storage incurs ongoing cost. None of these KMS costs are currently attributed.
 - verifier-service `/.well-known/jwks.json` and `pdm-service`'s `/subject` DSAR lookup - neither carries an
   `algorithmId` to attribute to.
 - log-service and cost-service self-cost (ingest API Gateway/Lambda/queue/DynamoDB).
 - Ongoing storage (S3 EIF/artifact objects, DynamoDB table storage), CloudWatch Logs ingestion/storage, CloudWatch
   alarms, the persistent CSAV host, and data transfer (internet egress, cross-AZ).
-- SQS queue-cost of result delivery is metered as `sqs:send`, `sqs:receive`, and `sqs:delete`. Polling requests,
-  empty receives, and retry receives from Lambda's event source mapping are not attributed to individual runs.
+- SQS queue-cost of result delivery is metered as `sqs:send`, `sqs:receive`, and `sqs:delete`. Receive requests
+  that invoke the handler with an attributable result are counted, including redeliveries; idle polling, empty
+  receives, and messages without parseable run identifiers cannot be attributed to a run.
 - Attributed DynamoDB events use each response's `ConsumedCapacity.CapacityUnits`; an invalid verifier refresh lookup
   has no algorithm ID to attach to its consumed capacity.
 

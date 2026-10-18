@@ -25,30 +25,31 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const { algorithmId } = request.data;
   const key = `${algorithmId}/image.tar`;
   try {
-    await s3.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
-  } catch (error) {
-    if (error instanceof NotFound) {
-      await recordRequest(algorithmId, algorithmId, CostPhase.Build, startedAt);
-      return jsonResponse(404, { error: "no image uploaded for this algorithmId" });
+    try {
+      await s3.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+    } catch (error) {
+      await costEvent(algorithmId, algorithmId, CostPhase.Build, "s3", "head", 1);
+      if (error instanceof NotFound) return jsonResponse(404, { error: "no image uploaded for this algorithmId" });
+      throw error;
     }
-    throw error;
+    await costEvent(algorithmId, algorithmId, CostPhase.Build, "s3", "head", 1);
+    await costEvent(algorithmId, algorithmId, CostPhase.Build, "s3", "put", 1);
+
+    await emitImageUploaded(algorithmId, bucket, key);
+    const item = { AlgorithmId: algorithmId, Bucket: bucket, Key: key };
+    const write = await ddb.send(new PutCommand({ TableName: table, Item: item, ReturnConsumedCapacity: "TOTAL" }));
+    await costEvent(
+      algorithmId,
+      algorithmId,
+      CostPhase.Build,
+      "dynamodb",
+      "write-capacity",
+      write.ConsumedCapacity?.CapacityUnits ?? 0,
+    );
+    await emitAlgorithmRegistered(algorithmId, bucket, key);
+
+    return jsonResponse(200, { algorithmId, bucket, key });
+  } finally {
+    await recordRequest(algorithmId, algorithmId, CostPhase.Build, startedAt);
   }
-  await costEvent(algorithmId, algorithmId, CostPhase.Build, "s3", "head", 1);
-  await costEvent(algorithmId, algorithmId, CostPhase.Build, "s3", "put", 1);
-
-  await emitImageUploaded(algorithmId, bucket, key);
-  const item = { AlgorithmId: algorithmId, Bucket: bucket, Key: key };
-  const write = await ddb.send(new PutCommand({ TableName: table, Item: item, ReturnConsumedCapacity: "TOTAL" }));
-  await costEvent(
-    algorithmId,
-    algorithmId,
-    CostPhase.Build,
-    "dynamodb",
-    "write-capacity",
-    write.ConsumedCapacity?.CapacityUnits ?? 0,
-  );
-  await emitAlgorithmRegistered(algorithmId, bucket, key);
-
-  await recordRequest(algorithmId, algorithmId, CostPhase.Build, startedAt);
-  return jsonResponse(200, { algorithmId, bucket, key });
 };

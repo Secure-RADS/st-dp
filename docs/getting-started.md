@@ -117,7 +117,8 @@ export VERIFIER_CERT_ARN=<verifier-acm-certificate-arn>
 export VERIFIER_ATTEST_CERT_ARN=<verifier-attest-acm-certificate-arn>
 export PDM_CERT_ARN=<pdm-acm-certificate-arn>
 export LOG_CERT_ARN=<log-acm-certificate-arn>
-export COST_CERT_ARN=<cost-acm-certificate-arn>
+export SECURE_COST_CERT_ARN=<cost.sr-acm-certificate-arn>
+export RADS_COST_CERT_ARN=<cost.r-acm-certificate-arn>
 ```
 
 Deploy the result consumer first because the execution-service stack needs its queue and table:
@@ -188,7 +189,16 @@ Deploy PDM, log, and cost services, create their DNS-only Cloudflare CNAME recor
 (cd secure-rads/cost-service && bun install && bunx serverless deploy \
   --param="region=$REGION" \
   --param="domainName=cost.sr.secure-rads.org" \
-  --param="certificateArn=$COST_CERT_ARN")
+  --param="certificateArn=$SECURE_COST_CERT_ARN")
+```
+
+For the baseline tree, deploy its cost-service separately with the `cost.r.secure-rads.org` certificate:
+
+```sh
+(cd rads/cost-service && bun install && bunx serverless deploy \
+  --param="region=$REGION" \
+  --param="domainName=cost.r.secure-rads.org" \
+  --param="certificateArn=$RADS_COST_CERT_ARN")
 ```
 
 After both DNS records resolve:
