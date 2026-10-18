@@ -1,7 +1,7 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { HeadObjectCommand, NotFound, S3Client } from "@aws-sdk/client-s3";
 import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
-import { CostPhase, costEvent, recordRequest } from "@sce/sdk/cost";
+import { CostPhase, costEvent, recordRequest } from "@srads/common/cost";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { requiredEnv } from "../lib/env.js";
 import { jsonResponse, parseBody } from "../lib/http.js";

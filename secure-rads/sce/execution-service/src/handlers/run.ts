@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { EC2Client, RunInstancesCommand, type RunInstancesCommandInput } from "@aws-sdk/client-ec2";
 import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
-import { CostPhase, costEvent, recordRequest } from "@sce/sdk/cost";
+import { CostPhase, costEvent, recordRequest } from "@srads/common/cost";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { requiredEnv } from "../lib/env.js";
 import { logEvent } from "../lib/events.js";

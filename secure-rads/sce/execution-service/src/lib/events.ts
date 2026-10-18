@@ -1,4 +1,4 @@
-import { emitEvent } from "@sce/sdk/log";
+import { emitEvent } from "@srads/common/log";
 
 export type RunEvent = "run-requested" | "executor-launched" | "launch-failed";
 

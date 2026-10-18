@@ -1,4 +1,4 @@
-import { emitEvent } from "@sce/sdk/log";
+import { emitEvent } from "@srads/common/log";
 import type { RunEvent } from "./events.js";
 
 export function logEvent(

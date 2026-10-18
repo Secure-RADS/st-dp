@@ -7,7 +7,7 @@ import {
   isAwsService,
   isCostPhase,
   isValidOperation,
-} from "@sce/sdk/cost";
+} from "@srads/common/cost";
 
 export interface IngestedCostEvent {
   algorithmId: string;

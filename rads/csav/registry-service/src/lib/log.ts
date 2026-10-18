@@ -1,4 +1,4 @@
-import { emitEvent } from "@sce/sdk/log";
+import { emitEvent } from "@srads/common/log";
 import { RegistryEvent, type RegistryEventName } from "./events.js";
 
 export function emitImageUploaded(algorithmId: string, bucket: string, key: string): Promise<void> {

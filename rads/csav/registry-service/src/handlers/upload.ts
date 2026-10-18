@@ -1,6 +1,6 @@
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { CostPhase, recordRequest } from "@sce/sdk/cost";
+import { CostPhase, recordRequest } from "@srads/common/cost";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { requiredEnv } from "../lib/env.js";
 import { jsonResponse, parseBody } from "../lib/http.js";

@@ -1,4 +1,4 @@
-import { CostPhase, recordRequest } from "@sce/sdk/cost";
+import { CostPhase, recordRequest } from "@srads/common/cost";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { refreshAccessToken } from "../lib/tokens.js";
 

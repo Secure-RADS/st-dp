@@ -1,7 +1,7 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
-import { CostPhase, costEvent, recordRequest } from "@sce/sdk/cost";
-import { logSubjectAccess } from "@sce/sdk/log";
+import { CostPhase, costEvent, recordRequest } from "@srads/common/cost";
+import { logSubjectAccess } from "@srads/common/log";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { requiredEnv } from "../lib/env.js";
 
