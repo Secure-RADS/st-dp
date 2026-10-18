@@ -48,6 +48,7 @@ provider:
     RUN_RESULTS_TABLE: ${param:runResultsTable}
     RUN_RESULTS_QUEUE_URL: ${param:runResultsQueueUrl}
     LOG_HOST: ${param:logHost, 'log.r.secure-rads.org'}
+    COST_HOST: ${param:costHost, 'cost.r.secure-rads.org'}
     PDM_URL: ${param:pdmUrl}
     PDM_TABLE: ${param:pdmTable}
     # Pinned to match secure-rads ENCLAVE_AMI_ID so both trees boot the same AL2023 arm64 build.

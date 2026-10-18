@@ -1,0 +1,128 @@
+service: secure-rads-cost-service
+
+# CJS output avoids ESM interop failures in dependencies using top-level require().
+build:
+  esbuild:
+    format: cjs
+    outExtension:
+      ".js": ".cjs"
+
+provider:
+  name: aws
+  runtime: nodejs24.x
+  region: ${param:region, 'ap-southeast-2'}
+  httpApi:
+    cors: true
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:PutItem
+            - dynamodb:BatchWriteItem
+            - dynamodb:Query
+            - dynamodb:Scan
+          Resource:
+            - !GetAtt CostTable.Arn
+        - Effect: Allow
+          Action:
+            - sqs:SendMessage
+            - sqs:ReceiveMessage
+            - sqs:DeleteMessage
+            - sqs:GetQueueAttributes
+            - sqs:ChangeMessageVisibility
+          Resource:
+            - !GetAtt CostQueue.Arn
+            - !GetAtt CostDeadLetterQueue.Arn
+  environment:
+    COST_TABLE: !Ref CostTable
+    COST_QUEUE_URL: !Ref CostQueue
+
+functions:
+  cost:
+    handler: src/handlers/cost.handler
+    events:
+      - httpApi:
+          method: POST
+          path: /cost
+  worker:
+    handler: src/handlers/worker.handler
+    timeout: 30
+    reservedConcurrency: 5
+    events:
+      - sqs:
+          arn: !GetAtt CostQueue.Arn
+          batchSize: 10
+          functionResponseType: ReportBatchItemFailures
+  byAlgorithm:
+    handler: src/handlers/byAlgorithm.handler
+    timeout: 30
+    events:
+      - httpApi:
+          method: GET
+          path: /cost/{algorithmId}
+  all:
+    handler: src/handlers/all.handler
+    timeout: 30
+    events:
+      - httpApi:
+          method: GET
+          path: /cost
+
+resources:
+  Resources:
+    CostTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: AlgorithmId
+            AttributeType: S
+          - AttributeName: Sk
+            AttributeType: S
+        KeySchema:
+          - AttributeName: AlgorithmId
+            KeyType: HASH
+          - AttributeName: Sk
+            KeyType: RANGE
+
+    # Visibility must exceed the worker timeout so in-flight batches are not redelivered mid-PutItem.
+    CostQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        VisibilityTimeout: 60
+        RedrivePolicy:
+          deadLetterTargetArn: !GetAtt CostDeadLetterQueue.Arn
+          maxReceiveCount: 5
+
+    CostDeadLetterQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        MessageRetentionPeriod: 1209600
+
+    # No client cert: only internal SCE producers send non-sensitive metering data here.
+    ApiCustomDomain:
+      Type: AWS::ApiGatewayV2::DomainName
+      Properties:
+        DomainName: ${param:domainName}
+        DomainNameConfigurations:
+          - CertificateArn: ${param:certificateArn}
+
+    ApiDomainMapping:
+      Type: AWS::ApiGatewayV2::ApiMapping
+      Properties:
+        DomainName: !Ref ApiCustomDomain
+        ApiId: !Ref HttpApi
+        Stage: !Ref HttpApiStage
+
+  Outputs:
+    CostTableName:
+      Value: !Ref CostTable
+    CostQueueUrl:
+      Value: !Ref CostQueue
+    CostDeadLetterQueueUrl:
+      Value: !Ref CostDeadLetterQueue
+    HttpApiUrl:
+      Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com"
+    ApiRegionalDomainName:
+      Value: !GetAtt ApiCustomDomain.RegionalDomainName

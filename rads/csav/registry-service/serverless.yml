@@ -34,6 +34,7 @@ provider:
     ARTIFACT_BUCKET: !Ref ImagesBucket
     DYNAMO_TABLE: !Ref AlgorithmsTable
     LOG_HOST: ${param:logHost, 'log.r.secure-rads.org'}
+    COST_HOST: ${param:costHost, 'cost.r.secure-rads.org'}
 
 functions:
   upload:

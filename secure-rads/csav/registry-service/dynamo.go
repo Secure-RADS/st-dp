@@ -17,7 +17,8 @@ type algorithmRecord struct {
 
 func getAlgorithm(ctx context.Context, algorithmId string) (algorithmRecord, bool, error) {
 	out, err := dynamoClient.GetItem(ctx, &dynamodb.GetItemInput{
-		TableName: &dynamoTable,
+		TableName:              &dynamoTable,
+		ReturnConsumedCapacity: types.ReturnConsumedCapacityTotal,
 		Key: map[string]types.AttributeValue{
 			"AlgorithmId": &types.AttributeValueMemberS{Value: algorithmId},
 		},
@@ -25,6 +26,11 @@ func getAlgorithm(ctx context.Context, algorithmId string) (algorithmRecord, boo
 	if err != nil {
 		return algorithmRecord{}, false, err
 	}
+	capacityUnits := 0.0
+	if out.ConsumedCapacity != nil && out.ConsumedCapacity.CapacityUnits != nil {
+		capacityUnits = *out.ConsumedCapacity.CapacityUnits
+	}
+	costEvent(algorithmId, serviceDynamoDB, opDynamoReadCapacity, capacityUnits)
 	if out.Item == nil {
 		return algorithmRecord{}, false, nil
 	}
@@ -46,9 +52,18 @@ func putAlgorithm(ctx context.Context, algorithmId, bucket, key, kmsKeyArn strin
 		return err
 	}
 
-	_, err = dynamoClient.PutItem(ctx, &dynamodb.PutItemInput{
-		TableName: &dynamoTable,
-		Item:      item,
+	out, err := dynamoClient.PutItem(ctx, &dynamodb.PutItemInput{
+		TableName:              &dynamoTable,
+		Item:                   item,
+		ReturnConsumedCapacity: types.ReturnConsumedCapacityTotal,
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	capacityUnits := 0.0
+	if out.ConsumedCapacity != nil && out.ConsumedCapacity.CapacityUnits != nil {
+		capacityUnits = *out.ConsumedCapacity.CapacityUnits
+	}
+	costEvent(algorithmId, serviceDynamoDB, opDynamoWriteCapacity, capacityUnits)
+	return nil
 }

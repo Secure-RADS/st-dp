@@ -39,6 +39,7 @@ provider:
     ALGORITHM_PCR_TABLE: !Ref AlgorithmPCRTable
     ATTESTATION_SESSION_TABLE: !Ref AttestationSessionTable
     JWT_SIGNING_KEY_PARAM: /secure-rads/verifier-service/jwt-signing-key
+    COST_HOST: ${param:costHost, 'cost.sr.secure-rads.org'}
 
 functions:
   registerAlgorithm:

@@ -14,7 +14,7 @@ Every rads AWS resource is prefixed `rads-`; every secure-rads resource is prefi
 
 **Execution phase (SCE).** A caller POSTs an `algorithmId` to the API Gateway and Lambda execution-service control plane, which launches a per-run Nitro Enclave parent EC2 instance. Inside, the SCE Unit seeds enclave entropy from the NSM, attests to the Verifier Service, and - once attestation passes - fetches that algorithm's records from the PDM Service, decrypts them, and writes `records.json` for the jailed Data Controller app (`RECORDS_PATH` / `RESULT_PATH`, same file contract as rads). Results come back asynchronously: `/run` returns a `runId` immediately, the enclave host publishes the result to SQS, a consumer Lambda persists it, and the caller polls `GET /run/{runId}`.
 
-Throughout both phases every component posts timestamped events to the log-service, so a run's full timeline - build to execution - can be exported for benchmarking. Event-by-event plaintext flows: [`docs/e2e-rads.txt`](docs/e2e-rads.txt), [`docs/e2e-secure-rads.txt`](docs/e2e-secure-rads.txt).
+Throughout both phases every component posts timestamped events to the log-service, so a run's full timeline - build to execution - can be exported for benchmarking. Components also report selected, attributable AWS operations to the cost-service, keyed by the same `(AlgorithmId, runId)`, so their estimated costs can be summed per AWS service ([`docs/cost-service.md`](docs/cost-service.md)). Event-by-event plaintext flows: [`docs/e2e-rads.txt`](docs/e2e-rads.txt), [`docs/e2e-secure-rads.txt`](docs/e2e-secure-rads.txt).
 
 ## Service map
 
@@ -32,6 +32,7 @@ Execution phase (SCE):
 - [`secure-rads/pdm-service/`](secure-rads/pdm-service/README.md) - the Personal Data Management Service; serves records to an attested enclave.
 - [`secure-rads/result-consumer/`](secure-rads/result-consumer/README.md) - SQS-triggered Lambda that persists enclave results to the `RunResults` table.
 - [`secure-rads/log-service/`](secure-rads/log-service/README.md) - fire-and-forget run-timeline logger (SQS + worker, JSON/CSV export).
+- [`secure-rads/cost-service/`](secure-rads/cost-service/README.md) - fire-and-forget AWS cost meter (SQS + worker, per-operation rows summed per run). See [`docs/cost-service.md`](docs/cost-service.md).
 
 Sample assets:
 
@@ -80,6 +81,9 @@ Export a run's timeline (build through execution) as CSV:
 make logs-csv      ALGORITHM_ID=<id> RUN_ID=<runId>   # one run  -> run-<runId>.csv
 make logs-csv-algo ALGORITHM_ID=<id>                  # one algo -> algo-<id>.csv
 make logs-csv-all                                     # whole table -> logs-all.csv
+make cost-csv      ALGORITHM_ID=<id> RUN_ID=<runId>   # one run's cost rows
+make cost-csv-algo ALGORITHM_ID=<id>                  # one algo's cost rows
+make cost-csv-all                                     # whole cost table
 ```
 
 For a new AWS account or a full deployment, follow [`docs/getting-started.md`](docs/getting-started.md). See each service README for service-specific deployment and internals.

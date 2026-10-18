@@ -17,7 +17,7 @@ back to the container's stdout for diagnostics. On exit it publishes
 `{runId, instanceId, algorithmId, status, output, diag?}` to the `rads-run-results` queue (a consumer Lambda
 persists it to the `rads-run-results` table, PK `RunId`) and terminates itself.
 
-`GET /run/{runId}` polls the `rads-run-results` table: `{runId, status: "pending"}` until a result lands, then
+`GET /run/{runId}?algorithmId={algorithmId}` polls the `rads-run-results` table: `{runId, status: "pending"}` until a result lands, then
 the stored result.
 
 Lifecycle events are posted to log-service `POST /events` (the ingest contract

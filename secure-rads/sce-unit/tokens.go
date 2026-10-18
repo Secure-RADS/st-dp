@@ -45,7 +45,7 @@ func CurrentAccessToken() (string, bool) {
 	return tp.AccessToken, true
 }
 
-func refreshLoop(cfg runConfig) {
+func refreshLoop(cfg runConfig, runID string) {
 	for {
 		tp, ok := getTokens()
 		if !ok {
@@ -58,7 +58,7 @@ func refreshLoop(cfg runConfig) {
 			time.Sleep(wait)
 		}
 
-		newTp, err := refreshTokens(cfg, tp.RefreshToken)
+		newTp, err := refreshTokens(cfg, runID, tp.RefreshToken)
 		if err != nil {
 			log.Printf("sce-unit: token refresh failed, retrying in %s: %v", refreshRetryBackoff, err)
 			time.Sleep(refreshRetryBackoff)

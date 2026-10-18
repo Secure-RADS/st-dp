@@ -85,7 +85,9 @@ Before deployment, prepare the selected region with:
   - `verifier-attest.secure-rads.org`
   - `pdm.secure-rads.org`
   - `log.secure-rads.org`
-- DNS-only CNAME records in Cloudflare pointing each name to its API Gateway regional domain output after its service is created. Do not proxy these records: the verifier uses mTLS and the deployed services pin the API Gateway leaf certificate public keys.
+  - `cost.r.secure-rads.org`
+  - `cost.sr.secure-rads.org`
+- DNS-only CNAME records in Cloudflare pointing each name to its API Gateway regional domain output after its service is created. The verifier uses mTLS, and secure-rads pins the verifier, PDM, and log API Gateway certificates; cost-service uses plain TLS and is not pinned.
 
 Create the verifier signing key before deploying the verifier service:
 
@@ -115,6 +117,8 @@ export VERIFIER_CERT_ARN=<verifier-acm-certificate-arn>
 export VERIFIER_ATTEST_CERT_ARN=<verifier-attest-acm-certificate-arn>
 export PDM_CERT_ARN=<pdm-acm-certificate-arn>
 export LOG_CERT_ARN=<log-acm-certificate-arn>
+export SECURE_COST_CERT_ARN=<cost.sr-acm-certificate-arn>
+export RADS_COST_CERT_ARN=<cost.r-acm-certificate-arn>
 ```
 
 Deploy the result consumer first because the execution-service stack needs its queue and table:
@@ -169,7 +173,7 @@ VERIFIER_PIN=$(spki_pin verifier.secure-rads.org)
 VERIFIER_ATTEST_PIN=$(spki_pin verifier-attest.secure-rads.org)
 ```
 
-Deploy PDM and log service, create their DNS-only Cloudflare CNAME records from their outputs, then collect their pins:
+Deploy PDM, log, and cost services, create their DNS-only Cloudflare CNAME records from their outputs, then collect the pins that are baked into the enclave:
 
 ```sh
 (cd secure-rads/pdm-service && bun install && bunx serverless deploy \
@@ -182,6 +186,19 @@ Deploy PDM and log service, create their DNS-only Cloudflare CNAME records from 
   --param="region=$REGION" \
   --param="domainName=log.secure-rads.org" \
   --param="certificateArn=$LOG_CERT_ARN")
+(cd secure-rads/cost-service && bun install && bunx serverless deploy \
+  --param="region=$REGION" \
+  --param="domainName=cost.sr.secure-rads.org" \
+  --param="certificateArn=$SECURE_COST_CERT_ARN")
+```
+
+For the baseline tree, deploy its cost-service separately with the `cost.r.secure-rads.org` certificate:
+
+```sh
+(cd rads/cost-service && bun install && bunx serverless deploy \
+  --param="region=$REGION" \
+  --param="domainName=cost.r.secure-rads.org" \
+  --param="certificateArn=$RADS_COST_CERT_ARN")
 ```
 
 After both DNS records resolve:
@@ -210,7 +227,8 @@ make -C secure-rads/csav/registry-service ship remote-up REGION="$REGION" \
   VERIFIER_HOST=verifier-attest.secure-rads.org \
   VERIFIER_HOST_PUBKEY_SHA256="$VERIFIER_ATTEST_PIN" \
   PDM_HOST=pdm.secure-rads.org PDM_HOST_PUBKEY_SHA256="$PDM_PIN" \
-  LOG_HOST=log.secure-rads.org LOG_HOST_PUBKEY_SHA256="$LOG_PIN"
+  LOG_HOST=log.secure-rads.org LOG_HOST_PUBKEY_SHA256="$LOG_PIN" \
+  COST_HOST=cost.sr.secure-rads.org
 ```
 
 The execution-service deployment creates a new enclave-host role. Rebuild and reseed every algorithm after deployment so its KMS key policy names that role. Once `make secure-rads-run` succeeds through the Lambda API, remove the legacy persistent execution-service EC2 stack:

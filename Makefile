@@ -35,7 +35,7 @@ logs:
 	pids=""; \
 	for target in registry-logs; do make $$target & pids="$$pids $$!"; done; \
 	for group in $$(aws logs describe-log-groups --region "$(REGION)" --log-group-name-prefix /aws/lambda/ --query 'logGroups[].logGroupName' --output text); do \
-		case "$$group" in /aws/lambda/secure-rads-execution-service-dev-*|/aws/lambda/secure-rads-verifier-service-dev-*|/aws/lambda/secure-rads-pdm-service-dev-*|/aws/lambda/secure-rads-log-service-dev-*|/aws/lambda/secure-rads-result-consumer-dev-*|/aws/lambda/rads-registry-service-dev-*|/aws/lambda/rads-pdm-service-dev-*|/aws/lambda/rads-log-service-dev-*|/aws/lambda/rads-result-consumer-dev-*|/aws/lambda/rads-execution-service-dev-*) aws logs tail "$$group" --region "$(REGION)" --follow & pids="$$pids $$!";; esac; \
+		case "$$group" in /aws/lambda/secure-rads-execution-service-dev-*|/aws/lambda/secure-rads-verifier-service-dev-*|/aws/lambda/secure-rads-pdm-service-dev-*|/aws/lambda/secure-rads-log-service-dev-*|/aws/lambda/secure-rads-cost-service-dev-*|/aws/lambda/secure-rads-result-consumer-dev-*|/aws/lambda/rads-registry-service-dev-*|/aws/lambda/rads-pdm-service-dev-*|/aws/lambda/rads-log-service-dev-*|/aws/lambda/rads-cost-service-dev-*|/aws/lambda/rads-result-consumer-dev-*|/aws/lambda/rads-execution-service-dev-*) aws logs tail "$$group" --region "$(REGION)" --follow & pids="$$pids $$!";; esac; \
 	done; \
 	trap 'kill $$pids 2>/dev/null || true' EXIT INT TERM; \
 	for pid in $$pids; do wait "$$pid" || true; done
@@ -79,6 +79,7 @@ sce-logs:
 REGION ?= ap-southeast-2
 KEY_PATH := $(CURDIR)/.ssh/csav-key.pem
 LOG_HOST ?= log.secure-rads.org
+COST_HOST ?= cost.sr.secure-rads.org
 instance_ip = $(shell aws ec2 describe-instances --region $(REGION) --instance-ids $(shell aws cloudformation describe-stacks \
 	--stack-name $(1) --region $(REGION) --query "Stacks[0].Outputs[?OutputKey=='$(2)'].OutputValue" --output text) \
 	--query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
@@ -109,7 +110,7 @@ SAMPLE_APPS := \
 
 .PHONY: registry-logs secure-rads-ready secure-rads-seed secure-rads-build secure-rads-build-all secure-rads-run secure-rads-run-all secure-rads-all \
 	rads-build rads-build-all rads-seed rads-run rads-run-all rads-all rads-status \
-	logs-csv logs-csv-algo logs-csv-all portal-install portal-dev portal-infra portal-deploy portal-status \
+	logs-csv logs-csv-algo logs-csv-all cost-csv cost-csv-algo cost-csv-all cost-fetch portal-install portal-dev portal-infra portal-deploy portal-status \
 	rads-portal-install rads-portal-dev rads-portal-infra rads-portal-deploy rads-portal-status
 
 # Transparency portal (Vite SPA): data-subject lookup + service-authority dashboard.
@@ -220,7 +221,7 @@ secure-rads-run:
 		-d '{"algorithmId":"$(ALGORITHM_ID)"}' | python3 -c 'import sys,json; print(json.load(sys.stdin)["runId"])'); \
 	echo "runId=$$runId"; \
 	for i in $$(seq 1 132); do \
-		res=$$(curl -sS "$$api/run/$$runId"); \
+		res=$$(curl -sS "$$api/run/$$runId?algorithmId=$(ALGORITHM_ID)"); \
 		status=$$(echo "$$res" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("status",""))'); \
 		if [ "$$status" != "pending" ]; then \
 			echo "$$res"; \
@@ -293,7 +294,7 @@ rads-run:
 		-d '{"algorithmId":"$(ALGORITHM_ID)"}' | python3 -c 'import sys,json; print(json.load(sys.stdin)["runId"])'); \
 	echo "runId=$$runId"; \
 	for i in $$(seq 1 132); do \
-		res=$$(curl -sS "$$api/run/$$runId"); \
+		res=$$(curl -sS "$$api/run/$$runId?algorithmId=$(ALGORITHM_ID)"); \
 		status=$$(echo "$$res" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("status",""))'); \
 		if [ "$$status" != "pending" ]; then \
 			echo "$$res"; \
@@ -319,7 +320,7 @@ rads-all:
 
 # Show the rads serverless stack outputs (API URLs and resource names).
 rads-status:
-	@for stack in rads-registry-service-dev rads-pdm-service-dev rads-log-service-dev rads-result-consumer-dev rads-execution-service-dev; do \
+	@for stack in rads-registry-service-dev rads-pdm-service-dev rads-log-service-dev rads-cost-service-dev rads-result-consumer-dev rads-execution-service-dev; do \
 		aws cloudformation describe-stacks --stack-name $$stack --region $(REGION) --query 'Stacks[0].Outputs' --output table; \
 	done
 
@@ -340,3 +341,29 @@ logs-csv-algo:
 logs-csv-all:
 	curl -sS "https://$(LOG_HOST)/logs?format=csv" -o logs-all.csv
 	@echo "wrote logs-all.csv"
+
+# Follow x-next-cursor to pull every page of a paginated cost CSV export into OUT.
+cost-fetch:
+	@set -e; : > "$(OUT)"; url="$(URL)"; first=1; \
+	while [ -n "$$url" ]; do \
+		hdr=$$(mktemp); body=$$(mktemp); \
+		curl -sS -D "$$hdr" "$$url" -o "$$body"; \
+		if [ "$$first" = 1 ]; then cat "$$body"; else tail -n +2 "$$body"; fi >> "$(OUT)"; \
+		first=0; \
+		next=$$(sed -n 's/^[Xx]-next-cursor: *//p' "$$hdr" | tr -d '\r'); \
+		if [ -n "$$next" ]; then url="$${url%%&cursor=*}&cursor=$$next"; else url=""; fi; \
+		rm -f "$$hdr" "$$body"; \
+	done; \
+	echo "wrote $(OUT)"
+
+cost-csv:
+	@test -n "$(ALGORITHM_ID)" || { echo "ALGORITHM_ID is required"; exit 1; }
+	@test -n "$(RUN_ID)" || { echo "RUN_ID is required"; exit 1; }
+	@$(MAKE) --no-print-directory cost-fetch URL="https://$(COST_HOST)/cost/$(ALGORITHM_ID)?runId=$(RUN_ID)&format=csv" OUT=cost-$(RUN_ID).csv
+
+cost-csv-algo:
+	@test -n "$(ALGORITHM_ID)" || { echo "ALGORITHM_ID is required"; exit 1; }
+	@$(MAKE) --no-print-directory cost-fetch URL="https://$(COST_HOST)/cost/$(ALGORITHM_ID)?format=csv" OUT=cost-algo-$(ALGORITHM_ID).csv
+
+cost-csv-all:
+	@$(MAKE) --no-print-directory cost-fetch URL="https://$(COST_HOST)/cost?format=csv" OUT=cost-all.csv

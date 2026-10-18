@@ -7,6 +7,8 @@ const template = readFileSync(join(ROOT, "userdata.sh.tmpl"), "utf8");
 
 export interface UserDataValues {
   algorithmId: string;
+  costHost: string;
+  launchEpoch: number;
   logHost: string;
   pdmUrl: string;
   region: string;
@@ -20,6 +22,8 @@ export interface UserDataValues {
 export function userData(values: UserDataValues): string {
   const replacements: Record<string, string> = {
     AlgorithmId: values.algorithmId,
+    CostHost: values.costHost,
+    LaunchEpoch: values.launchEpoch.toString(),
     LogHost: values.logHost,
     PdmUrl: values.pdmUrl,
     Region: values.region,

@@ -4,7 +4,7 @@ Part of the SCE. API Gateway invokes the TypeScript Lambda control plane. Given 
 
 `POST /run` is fire-and-forget: it assigns a `runId`, looks up the EIF, and — when `size` is set — rejects the request if that count exceeds the rows already seeded for the algorithm in PDM. It then launches the enclave and returns `202 {runId, algorithmId, instanceId, status: "pending"}` immediately. The enclave host sends its result (exit status plus what the DC app returned over vsock) to the run-results SQS queue when it finishes; a consumer Lambda (result-consumer) writes it to the RunResults table.
 
-`GET /run/{runId}` polls for the result: `{runId, status: "pending"}` until it lands, then the stored result once the consumer has written it.
+`GET /run/{runId}?algorithmId={algorithmId}` polls for the result: `{runId, status: "pending"}` until it lands, then the stored result once the consumer has written it. `algorithmId` is required so every poll can be attributed to its run.
 
 The control plane logs `run-requested` and `executor-launched` (or `launch-failed`). The parent logs `executor-ready`, `artifact-retrieved`, `enclave-launched` after `nitro-cli run-enclave` succeeds, and `executor-finished` after publishing the result. It waits for output delivery and enclave exit before publishing. SCE-unit and result-consumer emit the remaining events in [the execution flow](../../../docs/e2e-secure-rads.txt).
 

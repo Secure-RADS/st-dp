@@ -2,6 +2,13 @@
 set -euo pipefail
 exec > >(tee /var/log/rads-execution-service-run.log) 2>&1
 
+# Cost metering reports selected AWS operations, keyed by (AlgorithmId, runId). Best-effort.
+emit_cost() {
+  [ -z "{{.CostHost}}" ] && return 0
+  curl -sS --fail --max-time 5 -X POST "https://{{.CostHost}}/cost" -H 'content-type: application/json' \
+    -d "{\"algorithmId\":\"{{.AlgorithmId}}\",\"runId\":\"{{.RunId}}\",\"eventId\":\"$(cat /proc/sys/kernel/random/uuid)\",\"phase\":\"execution\",\"service\":\"$1\",\"operation\":\"$2\",\"quantity\":$3,\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)\"}" >/dev/null || true
+}
+
 # Per-run plain Docker executor; the host owns the data path and result delivery.
 RUN_ID="{{.RunId}}"
 ALGORITHM_ID="{{.AlgorithmId}}"
@@ -42,6 +49,9 @@ finish() {
   "$TOOLS_BIN" executor-finished "$STATUS" "$INSTANCE_ID" "$ALGORITHM_ID" "$RUN_ID" > /tmp/log-event.json
   curl -sS -X POST "https://$LOG_HOST/events" -H 'content-type: application/json' \
     -d @/tmp/log-event.json >/dev/null || true
+  emit_cost sqs send "$(wc -c < /tmp/result.json)"
+  # The runtime estimate is captured before this cost POST and the terminate request.
+  emit_cost ec2 instance "$(( $(date +%s) - {{.LaunchEpoch}} ))"
   aws ec2 terminate-instances --instance-ids "$INSTANCE_ID" --region "$REGION" || true
 }
 trap finish EXIT
@@ -55,10 +65,12 @@ for attempt in 1 2 3 4 5 6; do docker info >/dev/null 2>&1 && break; sleep 5; do
 mkdir -p /opt/rads/bin "$RUN_DIR"
 aws s3 cp "s3://$S3_BUCKET/$TOOLS_S3_KEY" "$TOOLS_BIN" --region "$REGION"
 chmod +x "$TOOLS_BIN"
+emit_cost s3 get 1
 emit_event executor-ready
 
 # Pull the algorithm artifact first, so the run steps follow the same order as secure-rads (artifact, data, compute).
 aws s3 cp "s3://$S3_BUCKET/$S3_KEY" /tmp/app.tar --region "$REGION"
+emit_cost s3 get 1
 docker load < /tmp/app.tar > "$DOCKER_LOAD_LOG"
 IMAGE=$(tail -n 1 "$DOCKER_LOAD_LOG" | sed -n 's/^Loaded image: //p')
 if [ -z "$IMAGE" ]; then

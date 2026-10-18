@@ -20,7 +20,8 @@ provider:
           Resource: !GetAtt RunResultsTable.Arn
   environment:
     RUN_RESULTS_TABLE: !Ref RunResultsTable
-    LOG_EVENTS_URL: ${param:logEventsUrl, 'https://log.sr.secure-rads.org/events'}
+    LOG_HOST: ${param:logHost, 'log.sr.secure-rads.org'}
+    COST_HOST: ${param:costHost, 'cost.sr.secure-rads.org'}
 
 functions:
   consume:
@@ -28,7 +29,7 @@ functions:
     events:
       - sqs:
           arn: !GetAtt RunResultsQueue.Arn
-          batchSize: 10
+          batchSize: 1
 
 resources:
   Resources:

@@ -1,7 +1,7 @@
 import { createPublicKey } from "node:crypto";
 import { GetParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
+import { requiredEnv } from "@srads/common/env";
 import { calculateJwkThumbprint, exportJWK, importPKCS8, SignJWT } from "jose";
-import { requiredEnv } from "./env.js";
 
 const ssm = new SSMClient({});
 const signingKeyParam = requiredEnv("JWT_SIGNING_KEY_PARAM");

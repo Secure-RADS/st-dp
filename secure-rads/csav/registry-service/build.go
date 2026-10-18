@@ -7,8 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 // buildAndPush unpacks the uploaded image, jails the Data Controller's app
@@ -20,12 +18,10 @@ func buildAndPush(ctx context.Context, algorithmId, tarPath, existingKmsKeyArn s
 	start := time.Now()
 	log.Printf("build[%s]: start", tarPath)
 
-	// buildId is the runId under which this build's timeline is recorded (a build has no execution runId).
-	buildId := uuid.NewString()
-	logEvent(algorithmId, buildId, eventBuildStarted, nil)
+	logEvent(algorithmId, eventBuildStarted, nil)
 	defer func() {
 		if err != nil {
-			logEvent(algorithmId, buildId, eventBuildFailed, map[string]any{"error": err.Error()})
+			logEvent(algorithmId, eventBuildFailed, map[string]any{"error": err.Error()})
 		}
 	}()
 
@@ -96,7 +92,7 @@ func buildAndPush(ctx context.Context, algorithmId, tarPath, existingKmsKeyArn s
 	if err != nil {
 		return "", fmt.Errorf("build EIF: %w", err)
 	}
-	logEvent(algorithmId, buildId, eventBuildCompleted, map[string]any{"pcr0": pcrs.PCR0})
+	logEvent(algorithmId, eventBuildCompleted, map[string]any{"pcr0": pcrs.PCR0})
 
 	f, err := os.Open(eifPath)
 	if err != nil {
@@ -106,16 +102,21 @@ func buildAndPush(ctx context.Context, algorithmId, tarPath, existingKmsKeyArn s
 
 	key = algorithmId + ".eif"
 	log.Printf("build[%s]: uploading to s3 key=%s", tarPath, key)
+	size := int64(0)
+	if fi, statErr := f.Stat(); statErr == nil {
+		size = fi.Size()
+	}
 	if err := uploadToS3(ctx, key, f); err != nil {
 		return "", fmt.Errorf("upload EIF: %w", err)
 	}
-	logEvent(algorithmId, buildId, eventImageUploaded, map[string]any{"bucket": artifactBucket, "key": key})
+	costEvent(algorithmId, serviceS3, opS3Put, s3PutRequests(size))
+	logEvent(algorithmId, eventImageUploaded, map[string]any{"bucket": artifactBucket, "key": key})
 
 	log.Printf("build[%s]: registering PCRs with verifier-service", tarPath)
 	if err := registerPCRs(ctx, algorithmId, pcrs); err != nil {
 		return "", fmt.Errorf("register PCRs: %w", err)
 	}
-	logEvent(algorithmId, buildId, eventPcrsRegistered, nil)
+	logEvent(algorithmId, eventPcrsRegistered, nil)
 
 	log.Printf("build[%s]: ensuring per-algorithm KMS key", tarPath)
 	if enclaveHostRoleArn == "" {
@@ -128,12 +129,12 @@ func buildAndPush(ctx context.Context, algorithmId, tarPath, existingKmsKeyArn s
 	if err != nil {
 		return "", fmt.Errorf("provision KMS key: %w", err)
 	}
-	logEvent(algorithmId, buildId, eventKmsKeyProvisioned, map[string]any{"kmsKeyArn": kmsKeyArn, "reused": existingKmsKeyArn != ""})
+	logEvent(algorithmId, eventKmsKeyProvisioned, map[string]any{"kmsKeyArn": kmsKeyArn, "reused": existingKmsKeyArn != ""})
 
 	if err := putAlgorithm(ctx, algorithmId, artifactBucket, key, kmsKeyArn); err != nil {
 		return "", fmt.Errorf("record algorithm: %w", err)
 	}
-	logEvent(algorithmId, buildId, eventAlgorithmRegistered, map[string]any{"key": key})
+	logEvent(algorithmId, eventAlgorithmRegistered, map[string]any{"key": key})
 
 	log.Printf("build[%s]: done key=%s took=%s", tarPath, key, time.Since(start))
 	return key, nil

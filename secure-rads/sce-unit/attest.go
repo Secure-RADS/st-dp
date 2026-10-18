@@ -19,7 +19,7 @@ import (
 
 const attestRequestTimeout = 30 * time.Second
 
-func attest(cfg runConfig) (tokenPair, error) {
+func attest(cfg runConfig, runID string) (tokenPair, error) {
 	priv, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
 	if err != nil {
 		return tokenPair{}, fmt.Errorf("generate ephemeral key: %w", err)
@@ -50,9 +50,11 @@ func attest(cfg runConfig) (tokenPair, error) {
 
 	body, err := json.Marshal(struct {
 		AlgorithmId         string `json:"algorithmId"`
+		RunId               string `json:"runId"`
 		AttestationDocument string `json:"attestationDocument"`
 	}{
 		AlgorithmId:         cfg.AlgorithmId,
+		RunId:               runID,
 		AttestationDocument: base64.StdEncoding.EncodeToString(res.Attestation.Document),
 	})
 	if err != nil {
@@ -64,10 +66,11 @@ func attest(cfg runConfig) (tokenPair, error) {
 
 // refreshTokens exchanges a still-valid refresh token for a new access token, without a fresh attestation
 // document - see verifier-service's /refresh handler.
-func refreshTokens(cfg runConfig, refreshToken string) (tokenPair, error) {
+func refreshTokens(cfg runConfig, runID, refreshToken string) (tokenPair, error) {
 	body, err := json.Marshal(struct {
+		RunId        string `json:"runId"`
 		RefreshToken string `json:"refreshToken"`
-	}{RefreshToken: refreshToken})
+	}{RunId: runID, RefreshToken: refreshToken})
 	if err != nil {
 		return tokenPair{}, err
 	}

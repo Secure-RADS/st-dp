@@ -22,7 +22,8 @@ provider:
           Resource: !GetAtt PersonalDataTable.Arn
   environment:
     PDM_TABLE: !Ref PersonalDataTable
-    LOG_SERVICE_URL: ${param:logServiceUrl, 'https://log.r.secure-rads.org'}
+    LOG_HOST: ${param:logHost, 'log.r.secure-rads.org'}
+    COST_HOST: ${param:costHost, 'cost.r.secure-rads.org'}
 
 functions:
   records:
