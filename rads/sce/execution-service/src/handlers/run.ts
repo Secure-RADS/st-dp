@@ -25,9 +25,6 @@ const executorSecurityGroupId = requiredEnv("EXECUTOR_SECURITY_GROUP_ID");
 const executorInstanceProfileArn = requiredEnv("EXECUTOR_INSTANCE_PROFILE_ARN");
 const region = requiredEnv("AWS_REGION");
 
-// Size-check reads use a pinned representative item size because DynamoDB exposes page counts, not bytes.
-const ESTIMATED_RECORD_BYTES = 1024;
-
 interface RunRequest {
   algorithmId: string;
   size?: number;
@@ -92,14 +89,19 @@ export const create: APIGatewayProxyHandlerV2 = async (event) => {
     }
 
     if (request.size !== undefined) {
-      const available = await countAlgorithmRecords(ddb, pdmTable, request.algorithmId, request.size);
+      const { count: available, readCapacityUnits } = await countAlgorithmRecords(
+        ddb,
+        pdmTable,
+        request.algorithmId,
+        request.size,
+      );
       await costEvent(
         request.algorithmId,
         runId,
         CostPhase.Execution,
         "dynamodb",
-        "read",
-        available * ESTIMATED_RECORD_BYTES,
+        "read-capacity",
+        readCapacityUnits,
       );
       if (request.size > available) {
         await recordRequest(request.algorithmId, runId, CostPhase.Execution, startedAt);

@@ -40,6 +40,7 @@ export const PRICES: PriceTable = {
       bytesPerBillableUnit: 4 * KIB,
       billableUnitsPerChunk: 0.5,
     },
+    "read-capacity": { unit: "read-capacity-unit", usdPerBillableUnit: 0.1425 / PER_MILLION },
     write: { unit: "byte", usdPerBillableUnit: 0.71 / PER_MILLION, bytesPerBillableUnit: KIB },
   },
   sqs: {

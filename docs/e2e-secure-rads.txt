@@ -31,7 +31,7 @@ Input:
 3  cost dynamodb:read                   // execution-service: algorithm lookup
 4  key ← LOOKUP-EIF(a) // S3 location of algorithm's EIF
 5  RUN-COUNT-CHECK(n)
-6  cost dynamodb:read                   // PDM Query count, bytes estimated per row
+6  cost dynamodb:read-capacity          // PDM Query count, actual consumed capacity
 7  RunInstances(Nitro parent, userdata ← ⟨a, runId, n, key, launchEpoch⟩)
 8  emit executor-launched
 9  cost apigateway:request + lambda     // per control-plane request/poll (GET /run/{runId} too)

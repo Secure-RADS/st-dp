@@ -9,12 +9,12 @@ export type CostPhase = (typeof CostPhase)[keyof typeof CostPhase];
 export const AWS_SERVICES = ["s3", "dynamodb", "sqs", "ec2", "lambda", "apigateway"] as const;
 export type AwsService = (typeof AWS_SERVICES)[number];
 
-const COST_UNITS = ["request", "byte", "second", "gb-second"] as const;
+const COST_UNITS = ["request", "byte", "read-capacity-unit", "second", "gb-second"] as const;
 export type CostUnit = (typeof COST_UNITS)[number];
 
 export const COST_OPERATIONS = {
   s3: ["put", "get", "head", "list"],
-  dynamodb: ["read", "write"],
+  dynamodb: ["read", "read-capacity", "write"],
   sqs: ["send", "receive", "delete"],
   ec2: ["instance"],
   lambda: ["invocation", "compute"],
