@@ -1,8 +1,8 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
+import { requiredEnv } from "@srads/common/env";
 import type { SQSHandler } from "aws-lambda";
 import { costUsd, priceFor, unitFor } from "../lib/calc.js";
-import { requiredEnv } from "../lib/env.js";
 import type { IngestedCostEvent } from "../lib/ingest.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));

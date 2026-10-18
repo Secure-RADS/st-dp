@@ -1,8 +1,8 @@
 import { createHash, X509Certificate } from "node:crypto";
 import https from "node:https";
 import type { PeerCertificate } from "node:tls";
+import { requiredEnv } from "@srads/common/env";
 import { createLocalJWKSet, jwtVerify } from "jose";
-import { requiredEnv } from "./env.js";
 
 interface JsonWebKeySet {
   keys: { kty: string; pub: string; kid: string; alg: string; use: string }[];

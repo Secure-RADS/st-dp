@@ -1,9 +1,9 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
+import { requiredEnv } from "@srads/common/env";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { type CostRow, csvHeaders, toCsv } from "../lib/csv.js";
 import { decodeCursor, encodeCursor, PAGE_SIZE } from "../lib/cursor.js";
-import { requiredEnv } from "../lib/env.js";
 import { PRICE_AS_OF, PRICE_REGION } from "../lib/prices.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));

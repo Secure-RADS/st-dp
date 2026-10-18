@@ -1,8 +1,8 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { BatchWriteCommand, DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+import { requiredEnv } from "@srads/common/env";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { retryAsync } from "ts-retry";
-import { requiredEnv } from "../lib/env.js";
 import { parseSubjectAccessBody, toItem } from "../lib/subjectAccess.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));

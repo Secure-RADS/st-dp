@@ -1,9 +1,9 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { CostPhase, costEvent, recordRequest } from "@srads/common/cost";
+import { requiredEnv } from "@srads/common/env";
 import { logSubjectAccess } from "@srads/common/log";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
-import { requiredEnv } from "../lib/env.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const table = requiredEnv("PDM_TABLE");

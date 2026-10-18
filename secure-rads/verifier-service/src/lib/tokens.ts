@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, PutCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
-import { requiredEnv } from "./env.js";
+import { requiredEnv } from "@srads/common/env";
 import { JWT_AUDIENCE, JWT_ISSUER, signAccessToken } from "./jwt.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));

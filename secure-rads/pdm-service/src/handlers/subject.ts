@@ -1,5 +1,5 @@
+import { requiredEnv } from "@srads/common/env";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
-import { requiredEnv } from "../lib/env.js";
 
 const logHost = requiredEnv("LOG_HOST");
 

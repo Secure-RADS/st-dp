@@ -1,8 +1,8 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
 import { CostPhase, recordRequest } from "@srads/common/cost";
+import { requiredEnv } from "@srads/common/env";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
-import { requiredEnv } from "../lib/env.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const tableName = requiredEnv("ALGORITHM_PCR_TABLE");

@@ -1,7 +1,7 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+import { requiredEnv } from "@srads/common/env";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
-import { requiredEnv } from "../lib/env.js";
 import { scanAllAccesses } from "../lib/subjectAccessRows.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));

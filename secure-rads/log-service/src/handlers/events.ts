@@ -1,6 +1,6 @@
 import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
+import { requiredEnv } from "@srads/common/env";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
-import { requiredEnv } from "../lib/env.js";
 import { parseIngestBody } from "../lib/ingest.js";
 
 const sqs = new SQSClient({});

@@ -8,6 +8,10 @@
       "types": "./src/cost.ts",
       "import": "./src/cost.ts"
     },
+    "./env": {
+      "types": "./src/env.ts",
+      "import": "./src/env.ts"
+    },
     "./log": {
       "types": "./src/log.ts",
       "import": "./src/log.ts"

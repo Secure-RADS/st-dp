@@ -1,7 +1,7 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
+import { requiredEnv } from "@srads/common/env";
 import type { SQSHandler } from "aws-lambda";
-import { requiredEnv } from "../lib/env.js";
 import type { IngestedEvent } from "../lib/ingest.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
