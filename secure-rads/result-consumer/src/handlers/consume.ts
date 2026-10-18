@@ -2,8 +2,8 @@ import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
 import { CostPhase, costEvent, recordLambda } from "@srads/common/cost";
 import { requiredEnv } from "@srads/common/env";
+import { emitEvent } from "@srads/common/log";
 import type { SQSHandler, SQSRecord } from "aws-lambda";
-import { logEvent } from "../lib/log.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const table = requiredEnv("RUN_RESULTS_TABLE");
@@ -61,7 +61,7 @@ async function persist(record: SQSRecord): Promise<void> {
       "write",
       Buffer.byteLength(JSON.stringify(item)),
     );
-    await logEvent(message.algorithmId, message.runId, "result-persisted", { status: message.status });
+    await emitEvent(message.algorithmId, message.runId, "result-persisted", { status: message.status });
   }
 }
 
