@@ -165,24 +165,24 @@ export const result: APIGatewayProxyHandlerV2 = async (event) => {
   const startedAt = process.hrtime.bigint();
   const runId = event.pathParameters?.runId;
   if (!runId) return jsonResponse(400, { error: "runId is required" });
+  const algorithmId = event.queryStringParameters?.algorithmId;
+  if (!algorithmId) return jsonResponse(400, { error: "algorithmId is required" });
 
   try {
     const response = await ddb.send(
       new GetCommand({ TableName: runResultsTable, Key: { RunId: runId }, ReturnConsumedCapacity: "TOTAL" }),
     );
     const item = response.Item as RunResult | undefined;
-    const algorithmId = item?.AlgorithmId ?? event.queryStringParameters?.algorithmId;
-    if (algorithmId) {
-      await costEvent(
-        algorithmId,
-        runId,
-        CostPhase.Execution,
-        "dynamodb",
-        "read-capacity",
-        response.ConsumedCapacity?.CapacityUnits ?? 0,
-      );
-      await recordRequest(algorithmId, runId, CostPhase.Execution, startedAt);
-    }
+    const costAlgorithmId = item?.AlgorithmId ?? algorithmId;
+    await costEvent(
+      costAlgorithmId,
+      runId,
+      CostPhase.Execution,
+      "dynamodb",
+      "read-capacity",
+      response.ConsumedCapacity?.CapacityUnits ?? 0,
+    );
+    await recordRequest(costAlgorithmId, runId, CostPhase.Execution, startedAt);
     if (!item) return jsonResponse(200, { runId, status: "pending" });
     return jsonResponse(200, {
       runId: item.RunId,

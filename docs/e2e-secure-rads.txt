@@ -34,7 +34,7 @@ Input:
 6  cost dynamodb:read-capacity          // execution-service Query on the PDM table
 7  RunInstances(Nitro parent, userdata ← ⟨a, runId, n, key, launchEpoch⟩)
 8  emit executor-launched
-9  cost apigateway:request + lambda     // per control-plane request/poll (GET /run/{runId} too)
+9  cost apigateway:request + lambda     // per control-plane request/poll (GET /run/{runId}?algorithmId=... too)
 10 return runId
 
 

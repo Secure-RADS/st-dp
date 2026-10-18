@@ -52,8 +52,8 @@ rads (`csav/registry-service`, Lambdas):
 - execution-service `POST /run`: `apigateway:request`, `lambda:invocation`, `lambda:compute`,
   `dynamodb:read-capacity` (algorithm lookup and record-count check; actual `ConsumedCapacity.CapacityUnits`).
   It also stamps the launch epoch into the host user-data.
-- execution-service `GET /run/{runId}` (each poll): `apigateway:request`, `lambda:invocation`, `lambda:compute`,
-  `dynamodb:read-capacity`. The harness passes `?algorithmId=` so polls are attributable.
+- execution-service `GET /run/{runId}?algorithmId={algorithmId}` (each poll): `apigateway:request`, `lambda:invocation`,
+  `lambda:compute`, `dynamodb:read-capacity`. `algorithmId` is required so pending-run polls can be attributed.
 - executor host (user-data, both trees): `s3:get` (artifact; rads also the host tools), `sqs:send` (result),
   `ec2:instance` (seconds from launch to the terminate call).
 - pdm-service `/records`: `apigateway:request`, `lambda:invocation`, `lambda:compute`, `dynamodb:read-capacity`
