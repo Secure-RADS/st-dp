@@ -120,14 +120,14 @@ func failRun(cfg runConfig, runID string, err error) {
 // prepareRecordsFile attests, fetches ciphertext from pdm-service, decrypts, and writes the rads-shaped
 // records.json the DC app loads via RECORDS_PATH.
 func prepareRecordsFile(cfg runConfig, runID string, limit int) error {
-	tp, err := attest(cfg)
+	tp, err := attest(cfg, runID)
 	if err != nil {
 		return fmt.Errorf("attestation failed: %w", err)
 	}
 	log.Printf("sce-unit: attested successfully, access token expires %s", tp.AccessTokenExpiresAt.Format(time.RFC3339))
 	logEvent(cfg, runID, eventAttested, nil)
 	setTokens(tp)
-	go refreshLoop(cfg)
+	go refreshLoop(cfg, runID)
 
 	creds, err := fetchAWSCreds()
 	if err != nil {

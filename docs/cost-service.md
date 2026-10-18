@@ -60,6 +60,9 @@ rads (`csav/registry-service`, Lambdas):
   (data-key `GetItem` and each records `Query` page, metered in item bytes).
 - result-consumer (`batchSize` 1, so each run's receive + invoke lands on that run): `sqs:receive` (message
   bytes), `dynamodb:write`, `lambda:invocation`, `lambda:compute`.
+- verifier-service (secure-rads): `/attest` and `/refresh` (the enclave's attestation and token refresh, keyed by
+  the run) and `/algorithms` (build-time PCR registration, keyed by `algorithmId`): `apigateway:request`,
+  `lambda:invocation`, `lambda:compute`.
 - sce-unit (in the enclave) performs no billable AWS operations other than KMS (excluded) - nothing to meter.
 
 ## EC2 timing
@@ -84,8 +87,8 @@ per-run against Cost Explorer.
 
 - **KMS** - the per-algorithm key is created once and kept across rebuilds, so it is not attributed per run. This is
   the one deliberate exclusion.
-- verifier-service API Gateway + Lambda (attestation / registration), and `pdm-service`'s `/subject` DSAR lookup
-  (no `algorithmId` to attribute to).
+- verifier-service `/.well-known/jwks.json` and `pdm-service`'s `/subject` DSAR lookup - neither carries an
+  `algorithmId` to attribute to.
 - log-service and cost-service self-cost (ingest API Gateway/Lambda/queue/DynamoDB).
 - Ongoing storage (S3 EIF/artifact objects, DynamoDB table storage), CloudWatch Logs ingestion/storage, CloudWatch
   alarms, the persistent CSAV host, and data transfer (internet egress, cross-AZ).

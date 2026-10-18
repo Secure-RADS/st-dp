@@ -91,11 +91,19 @@ async function findByRefreshHash(refreshToken: string): Promise<RefreshSession |
   };
 }
 
-export async function refreshAccessToken(refreshToken: string): Promise<TokenPair | null> {
+export interface RefreshedSession {
+  algorithmId: string;
+  tokens: TokenPair;
+}
+
+export async function refreshAccessToken(refreshToken: string): Promise<RefreshedSession | null> {
   const session = await findByRefreshHash(refreshToken);
   if (!session || session.revoked) return null;
   if (new Date(session.refreshTokenExpiresAt) < new Date()) return null;
 
   const access = await mintAccessToken(session.algorithmId);
-  return { accessToken: access.accessToken, refreshToken, accessTokenExpiresAt: access.accessTokenExpiresAt };
+  return {
+    algorithmId: session.algorithmId,
+    tokens: { accessToken: access.accessToken, refreshToken, accessTokenExpiresAt: access.accessTokenExpiresAt },
+  };
 }

@@ -12,7 +12,7 @@ Input:
 8  UPLOAD EIF to S3
 9  cost s3:put                          // multipart initiation, parts, and completion
 10 emit image-uploaded
-11 REGISTER-PCRS(a, PCRs)               // mTLS to Verifier (verifier API GW/Lambda not metered)
+11 REGISTER-PCRS(a, PCRs)               // mTLS to Verifier (verifier API GW/Lambda metered)
 12 emit pcrs-registered
 13 kmsArn ← CREATE-OR-REUSE-KMS-KEY(a)  // KMS excluded from cost
 14 emit kms-key-provisioned
@@ -70,7 +70,7 @@ Input:
 3  emit enclave-started
 4  SEED-ENTROPY from NSM                 // no AWS cost
 5  emit unit-ready
-6  token ← ATTEST(Verifier)             // verifier API GW/Lambda not metered
+6  token ← ATTEST(Verifier, runId)      // verifier API GW/Lambda metered
 7  emit attested
 8  creds ← FETCH-AWS-CREDS()            // host IMDS proxy, no AWS cost
 9  ⟨records, encDEK⟩ ← FETCH-PDM(a, token, limit ← n)
