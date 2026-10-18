@@ -10,7 +10,11 @@ const COST_EVENT_TIMEOUT_MS = 1_000;
 // The default Lambda memory size; Lambda bills compute as duration x configured memory.
 const LAMBDA_MEMORY_MB = 1024;
 
-type CostPhase = "build" | "execution";
+export const CostPhase = {
+  Build: "build",
+  Execution: "execution",
+} as const;
+export type CostPhase = (typeof CostPhase)[keyof typeof CostPhase];
 
 async function costEvent(
   algorithmId: string,

@@ -1,7 +1,7 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
-import { recordRequest } from "../lib/cost.js";
+import { CostPhase, recordRequest } from "../lib/cost.js";
 import { requiredEnv } from "../lib/env.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -50,6 +50,6 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     }),
   );
 
-  await recordRequest(body.algorithmId, body.algorithmId, "build", startedAt);
+  await recordRequest(body.algorithmId, body.algorithmId, CostPhase.Build, startedAt);
   return { statusCode: 201, body: JSON.stringify({ algorithmId: body.algorithmId }) };
 };

@@ -3,7 +3,7 @@ import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { EC2Client, RunInstancesCommand, type RunInstancesCommandInput } from "@aws-sdk/client-ec2";
 import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
-import { costEvent, recordRequest } from "../lib/cost.js";
+import { CostPhase, costEvent, recordRequest } from "../lib/cost.js";
 import { requiredEnv } from "../lib/env.js";
 import { logEvent } from "../lib/events.js";
 import { countAlgorithmRecords } from "../lib/pdmCount.js";
@@ -83,21 +83,28 @@ export const create: APIGatewayProxyHandlerV2 = async (event) => {
     await costEvent(
       request.algorithmId,
       runId,
-      "execution",
+      CostPhase.Execution,
       "dynamodb",
       "read",
       record ? Buffer.byteLength(JSON.stringify(record)) : 1,
     );
     if (!record?.S3Bucket || !record.S3Key) {
-      await recordRequest(request.algorithmId, runId, "execution", startedAt);
+      await recordRequest(request.algorithmId, runId, CostPhase.Execution, startedAt);
       return jsonResponse(404, { error: "algorithm not found" });
     }
 
     if (request.size !== undefined) {
       const available = await countAlgorithmRecords(ddb, pdmTable, request.algorithmId, request.size);
-      await costEvent(request.algorithmId, runId, "execution", "dynamodb", "read", available * ESTIMATED_RECORD_BYTES);
+      await costEvent(
+        request.algorithmId,
+        runId,
+        CostPhase.Execution,
+        "dynamodb",
+        "read",
+        available * ESTIMATED_RECORD_BYTES,
+      );
       if (request.size > available) {
-        await recordRequest(request.algorithmId, runId, "execution", startedAt);
+        await recordRequest(request.algorithmId, runId, CostPhase.Execution, startedAt);
         return jsonResponse(400, {
           error: `size ${request.size} exceeds seeded dataset (${available} records)`,
         });
@@ -146,11 +153,11 @@ export const create: APIGatewayProxyHandlerV2 = async (event) => {
     if (!instanceId) throw new Error("RunInstances returned no instance");
 
     await logEvent(request.algorithmId, runId, "executor-launched", { instanceId });
-    await recordRequest(request.algorithmId, runId, "execution", startedAt);
+    await recordRequest(request.algorithmId, runId, CostPhase.Execution, startedAt);
     return jsonResponse(202, { runId, algorithmId: request.algorithmId, instanceId, status: "pending" });
   } catch (error) {
     await logEvent(request.algorithmId, runId, "launch-failed", { error: String(error) });
-    await recordRequest(request.algorithmId, runId, "execution", startedAt);
+    await recordRequest(request.algorithmId, runId, CostPhase.Execution, startedAt);
     console.error("launch failed", error);
     return jsonResponse(500, { error: "launch failed" });
   }
@@ -169,12 +176,12 @@ export const result: APIGatewayProxyHandlerV2 = async (event) => {
       await costEvent(
         algorithmId,
         runId,
-        "execution",
+        CostPhase.Execution,
         "dynamodb",
         "read",
         item ? Buffer.byteLength(JSON.stringify(item)) : 1,
       );
-      await recordRequest(algorithmId, runId, "execution", startedAt);
+      await recordRequest(algorithmId, runId, CostPhase.Execution, startedAt);
     }
     if (!item) return jsonResponse(200, { runId, status: "pending" });
     return jsonResponse(200, {

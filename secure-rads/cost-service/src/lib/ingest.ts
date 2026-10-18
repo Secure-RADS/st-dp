@@ -2,9 +2,8 @@ import {
   AWS_SERVICES,
   type AwsService,
   COST_OPERATIONS,
-  COST_PHASES,
   type CostOperation,
-  type CostPhase,
+  CostPhase,
   isAwsService,
   isCostPhase,
   isValidOperation,
@@ -45,7 +44,7 @@ export function parseCostBody(body: unknown): IngestedCostEvent | { error: strin
     }
   }
   if (!isCostPhase(phase)) {
-    return { error: `unknown phase: ${String(phase)}; allowed: ${COST_PHASES.join(", ")}` };
+    return { error: `unknown phase: ${String(phase)}; allowed: ${Object.values(CostPhase).join(", ")}` };
   }
   if (!isAwsService(service)) {
     return { error: `unknown service: ${String(service)}; allowed: ${AWS_SERVICES.join(", ")}` };

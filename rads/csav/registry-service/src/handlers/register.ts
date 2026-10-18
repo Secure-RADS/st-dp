@@ -2,7 +2,7 @@ import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { HeadObjectCommand, NotFound, S3Client } from "@aws-sdk/client-s3";
 import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
-import { costEvent, recordRequest } from "../lib/cost.js";
+import { CostPhase, costEvent, recordRequest } from "../lib/cost.js";
 import { requiredEnv } from "../lib/env.js";
 import { jsonResponse, parseBody } from "../lib/http.js";
 import { emitAlgorithmRegistered, emitImageUploaded } from "../lib/log.js";
@@ -28,20 +28,27 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     await s3.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
   } catch (error) {
     if (error instanceof NotFound) {
-      await recordRequest(algorithmId, algorithmId, "build", startedAt);
+      await recordRequest(algorithmId, algorithmId, CostPhase.Build, startedAt);
       return jsonResponse(404, { error: "no image uploaded for this algorithmId" });
     }
     throw error;
   }
-  await costEvent(algorithmId, algorithmId, "build", "s3", "head", 1);
-  await costEvent(algorithmId, algorithmId, "build", "s3", "put", 1);
+  await costEvent(algorithmId, algorithmId, CostPhase.Build, "s3", "head", 1);
+  await costEvent(algorithmId, algorithmId, CostPhase.Build, "s3", "put", 1);
 
   await emitImageUploaded(algorithmId, bucket, key);
   const item = { AlgorithmId: algorithmId, Bucket: bucket, Key: key };
   await ddb.send(new PutCommand({ TableName: table, Item: item }));
-  await costEvent(algorithmId, algorithmId, "build", "dynamodb", "write", Buffer.byteLength(JSON.stringify(item)));
+  await costEvent(
+    algorithmId,
+    algorithmId,
+    CostPhase.Build,
+    "dynamodb",
+    "write",
+    Buffer.byteLength(JSON.stringify(item)),
+  );
   await emitAlgorithmRegistered(algorithmId, bucket, key);
 
-  await recordRequest(algorithmId, algorithmId, "build", startedAt);
+  await recordRequest(algorithmId, algorithmId, CostPhase.Build, startedAt);
   return jsonResponse(200, { algorithmId, bucket, key });
 };

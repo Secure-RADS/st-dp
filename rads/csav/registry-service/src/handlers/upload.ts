@@ -1,7 +1,7 @@
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
-import { recordRequest } from "../lib/cost.js";
+import { CostPhase, recordRequest } from "../lib/cost.js";
 import { requiredEnv } from "../lib/env.js";
 import { jsonResponse, parseBody } from "../lib/http.js";
 import { algorithmRequestSchema } from "../lib/schema.js";
@@ -29,6 +29,6 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   );
 
   // rads has no build runId in the log timeline; cost keys the build under the algorithmId.
-  await recordRequest(algorithmId, algorithmId, "build", startedAt);
+  await recordRequest(algorithmId, algorithmId, CostPhase.Build, startedAt);
   return jsonResponse(200, { algorithmId, bucket, key, uploadUrl });
 };

@@ -1,5 +1,5 @@
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
-import { recordRequest } from "../lib/cost.js";
+import { CostPhase, recordRequest } from "../lib/cost.js";
 import { refreshAccessToken } from "../lib/tokens.js";
 
 interface RefreshBody {
@@ -35,6 +35,6 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     return { statusCode: 401, body: "refresh token invalid, expired, or revoked" };
   }
 
-  await recordRequest(result.algorithmId, body.runId, "execution", startedAt);
+  await recordRequest(result.algorithmId, body.runId, CostPhase.Execution, startedAt);
   return { statusCode: 200, body: JSON.stringify(result.tokens) };
 };

@@ -1,7 +1,7 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
 import type { SQSHandler, SQSRecord } from "aws-lambda";
-import { costEvent, recordLambda } from "../lib/cost.js";
+import { CostPhase, costEvent, recordLambda } from "../lib/cost.js";
 import { requiredEnv } from "../lib/env.js";
 import { logEvent } from "../lib/log.js";
 
@@ -56,7 +56,7 @@ async function persist(record: SQSRecord): Promise<void> {
     await costEvent(
       message.algorithmId,
       message.runId,
-      "execution",
+      CostPhase.Execution,
       "dynamodb",
       "write",
       Buffer.byteLength(JSON.stringify(item)),
@@ -74,8 +74,8 @@ export const handler: SQSHandler = async (event) => {
     if (first) {
       // batchSize is 1: the run owning this message also owns the batch's receive + Lambda cost.
       const bytes = event.Records.reduce((total, record) => total + Buffer.byteLength(record.body), 0);
-      await costEvent(first.algorithmId, first.runId, "execution", "sqs", "receive", Math.max(1, bytes));
-      await recordLambda(first.algorithmId, first.runId, "execution", startedAt);
+      await costEvent(first.algorithmId, first.runId, CostPhase.Execution, "sqs", "receive", Math.max(1, bytes));
+      await recordLambda(first.algorithmId, first.runId, CostPhase.Execution, startedAt);
     }
   }
 };

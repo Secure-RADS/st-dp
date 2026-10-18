@@ -1,7 +1,7 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
-import { costEvent, recordRequest } from "../lib/cost.js";
+import { CostPhase, costEvent, recordRequest } from "../lib/cost.js";
 import { requiredEnv } from "../lib/env.js";
 import { verifyAccessToken } from "../lib/jwt.js";
 
@@ -73,14 +73,14 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     await costEvent(
       validation.algorithmId,
       runId,
-      "execution",
+      CostPhase.Execution,
       "dynamodb",
       "read",
       keyItem.Item ? Buffer.byteLength(JSON.stringify(keyItem.Item)) : 1,
     );
     const stored = keyItem.Item?.DataKey;
     if (typeof stored !== "string" || stored.length === 0) {
-      await recordRequest(validation.algorithmId, runId, "execution", startedAt);
+      await recordRequest(validation.algorithmId, runId, CostPhase.Execution, startedAt);
       return jsonResponse(500, { error: "missing data key" });
     }
     dataKey = stored;
@@ -98,7 +98,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   await costEvent(
     validation.algorithmId,
     runId,
-    "execution",
+    CostPhase.Execution,
     "dynamodb",
     "read",
     Math.max(1, Buffer.byteLength(JSON.stringify(result.Items ?? []))),
@@ -116,6 +116,6 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     ? Buffer.from(JSON.stringify(result.LastEvaluatedKey)).toString("base64url")
     : null;
 
-  await recordRequest(validation.algorithmId, runId, "execution", startedAt);
+  await recordRequest(validation.algorithmId, runId, CostPhase.Execution, startedAt);
   return jsonResponse(200, { algorithmId: validation.algorithmId, records, dataKey, nextCursor });
 };

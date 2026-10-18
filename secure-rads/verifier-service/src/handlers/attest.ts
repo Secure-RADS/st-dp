@@ -2,7 +2,7 @@ import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { type AttestationDocument, pcrHex, verifyAttestationDocument } from "../lib/attestation.js";
-import { recordRequest } from "../lib/cost.js";
+import { CostPhase, recordRequest } from "../lib/cost.js";
 import { requiredEnv } from "../lib/env.js";
 import { issueTokenPair } from "../lib/tokens.js";
 
@@ -63,6 +63,6 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     const tokens = await issueTokenPair(body.algorithmId);
     return { statusCode: 200, body: JSON.stringify(tokens) };
   } finally {
-    await recordRequest(body.algorithmId, body.runId, "execution", startedAt);
+    await recordRequest(body.algorithmId, body.runId, CostPhase.Execution, startedAt);
   }
 };

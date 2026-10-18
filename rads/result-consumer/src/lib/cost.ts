@@ -7,7 +7,11 @@ const costEventsUrl = process.env.COST_HOST ? `https://${process.env.COST_HOST}/
 // Cap the awaited cost POST so a slow cost-service cannot outlast the producer's own Lambda timeout.
 const COST_EVENT_TIMEOUT_MS = 1_000;
 
-export type CostPhase = "build" | "execution";
+export const CostPhase = {
+  Build: "build",
+  Execution: "execution",
+} as const;
+export type CostPhase = (typeof CostPhase)[keyof typeof CostPhase];
 export type AwsService = "s3" | "dynamodb" | "sqs" | "ec2" | "lambda" | "apigateway";
 export type CostOperation =
   | "put"

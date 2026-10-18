@@ -1,7 +1,7 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
-import { costEvent, recordRequest } from "../lib/cost.js";
+import { CostPhase, costEvent, recordRequest } from "../lib/cost.js";
 import { requiredEnv } from "../lib/env.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -69,7 +69,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   await costEvent(
     algorithmId,
     runId,
-    "execution",
+    CostPhase.Execution,
     "dynamodb",
     "read",
     Math.max(1, Buffer.byteLength(JSON.stringify(result.Items ?? []))),
@@ -87,6 +87,6 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     ? Buffer.from(JSON.stringify(result.LastEvaluatedKey)).toString("base64url")
     : null;
 
-  await recordRequest(algorithmId, runId, "execution", startedAt);
+  await recordRequest(algorithmId, runId, CostPhase.Execution, startedAt);
   return jsonResponse(200, { algorithmId, records, nextCursor });
 };
