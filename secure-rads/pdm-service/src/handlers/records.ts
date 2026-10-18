@@ -52,15 +52,19 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   let dataKey: string | undefined;
   if (!cursor) {
     const keyItem = await ddb.send(
-      new GetCommand({ TableName: dataKeyTable, Key: { AlgorithmId: validation.algorithmId } }),
+      new GetCommand({
+        TableName: dataKeyTable,
+        Key: { AlgorithmId: validation.algorithmId },
+        ReturnConsumedCapacity: "TOTAL",
+      }),
     );
     await costEvent(
       validation.algorithmId,
       runId,
       CostPhase.Execution,
       "dynamodb",
-      "read",
-      keyItem.Item ? Buffer.byteLength(JSON.stringify(keyItem.Item)) : 1,
+      "read-capacity",
+      keyItem.ConsumedCapacity?.CapacityUnits ?? 0,
     );
     const stored = keyItem.Item?.DataKey;
     if (typeof stored !== "string" || stored.length === 0) {
@@ -77,6 +81,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       ExpressionAttributeValues: { ":a": validation.algorithmId },
       Limit: PAGE_SIZE,
       ExclusiveStartKey: exclusiveStartKey,
+      ReturnConsumedCapacity: "TOTAL",
     }),
   );
   await costEvent(
@@ -84,8 +89,8 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     runId,
     CostPhase.Execution,
     "dynamodb",
-    "read",
-    Math.max(1, Buffer.byteLength(JSON.stringify(result.Items ?? []))),
+    "read-capacity",
+    result.ConsumedCapacity?.CapacityUnits ?? 0,
   );
 
   const dataSubjectIds = (result.Items ?? [])

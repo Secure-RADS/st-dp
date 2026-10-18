@@ -2,7 +2,7 @@ SECURE-RADS-BUILD(a, tar)
 Input:
   a  ← algorithm id
   tar ← algorithm’s Docker image packaged as TAR 
-1  cost dynamodb:read                   // registry getAlgorithm (existing key)
+1  cost dynamodb:read-capacity          // registry getAlgorithm (existing key)
 2  emit build-started
 3  oci ← CONVERT-TO-OCI(tar)             // skopeo
 4  rootfs ← UNPACK(oci)                 // umoci
@@ -12,12 +12,12 @@ Input:
 8  UPLOAD EIF to S3
 9  cost s3:put                          // multipart initiation, parts, and completion
 10 emit image-uploaded
-11 REGISTER-PCRS(a, PCRs)               // mTLS to Verifier (verifier API GW/Lambda metered)
+11 REGISTER-PCRS(a, PCRs)               // verifier API GW/Lambda and DynamoDB write metered
 12 emit pcrs-registered
 13 kmsArn ← CREATE-OR-REUSE-KMS-KEY(a)  // KMS excluded from cost
 14 emit kms-key-provisioned
 15 write a ↦ ⟨S3-path, kmsArn⟩ to DynamoDB
-16 cost dynamodb:write
+16 cost dynamodb:write-capacity
 17 emit algorithm-registered
 18 return
 
@@ -28,7 +28,7 @@ Input:
   n ← dataset size (# of records)
 1  runId ← NEW-ID()
 2  emit run-requested
-3  cost dynamodb:read                   // execution-service: algorithm lookup
+3  cost dynamodb:read-capacity          // execution-service: algorithm lookup
 4  key ← LOOKUP-EIF(a) // S3 location of algorithm's EIF
 5  RUN-COUNT-CHECK(n)
 6  cost dynamodb:read-capacity          // PDM Query count, actual consumed capacity
@@ -70,11 +70,11 @@ Input:
 3  emit enclave-started
 4  SEED-ENTROPY from NSM                 // no AWS cost
 5  emit unit-ready
-6  token ← ATTEST(Verifier, runId)      // verifier API GW/Lambda metered
+6  token ← ATTEST(Verifier, runId)      // verifier API GW/Lambda and DynamoDB metered
 7  emit attested
 8  creds ← FETCH-AWS-CREDS()            // host IMDS proxy, no AWS cost
 9  ⟨records, encDEK⟩ ← FETCH-PDM(a, token, limit ← n)
-10 cost dynamodb:read                   // emitted by pdm-service: data-key GetItem + records Query pages
+10 cost dynamodb:read-capacity          // emitted by pdm-service: data-key GetItem + records Query pages
 11 emit records-fetched
 12 DEK ← KMS-DECRYPT(encDEK, attestation)   // KMS excluded from cost
 13 plaintext ← DECRYPT(records, DEK)
@@ -93,6 +93,6 @@ Input:
 SECURE-RADS-RESULT-CONSUMER(result)
 Input:
   result ← processing result returned by the SCE-UNIT
-1  cost sqs:receive + dynamodb:write    // result-consumer batch
+1  cost sqs:receive + dynamodb:write-capacity // result-consumer batch
 2  persist result to DynamoDB
 3  emit result-persisted

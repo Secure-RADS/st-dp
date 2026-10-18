@@ -50,7 +50,7 @@ async function persist(record: SQSRecord): Promise<void> {
   };
 
   // PutItem is idempotent on RunId, so a batch retry on a DynamoDB error is safe.
-  await ddb.send(new PutCommand({ TableName: table, Item: item }));
+  const write = await ddb.send(new PutCommand({ TableName: table, Item: item, ReturnConsumedCapacity: "TOTAL" }));
 
   if (message.algorithmId) {
     await costEvent(
@@ -58,8 +58,8 @@ async function persist(record: SQSRecord): Promise<void> {
       message.runId,
       CostPhase.Execution,
       "dynamodb",
-      "write",
-      Buffer.byteLength(JSON.stringify(item)),
+      "write-capacity",
+      write.ConsumedCapacity?.CapacityUnits ?? 0,
     );
     await emitEvent(message.algorithmId, message.runId, "result-persisted", { status: message.status });
   }

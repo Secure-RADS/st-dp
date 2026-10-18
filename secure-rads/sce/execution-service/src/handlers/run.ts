@@ -73,7 +73,11 @@ export const create: APIGatewayProxyHandlerV2 = async (event) => {
   const runId = randomUUID();
   try {
     const algorithm = await ddb.send(
-      new GetCommand({ TableName: algorithmTable, Key: { AlgorithmId: request.algorithmId } }),
+      new GetCommand({
+        TableName: algorithmTable,
+        Key: { AlgorithmId: request.algorithmId },
+        ReturnConsumedCapacity: "TOTAL",
+      }),
     );
     const record = algorithm.Item as AlgorithmRecord | undefined;
     await costEvent(
@@ -81,8 +85,8 @@ export const create: APIGatewayProxyHandlerV2 = async (event) => {
       runId,
       CostPhase.Execution,
       "dynamodb",
-      "read",
-      record ? Buffer.byteLength(JSON.stringify(record)) : 1,
+      "read-capacity",
+      algorithm.ConsumedCapacity?.CapacityUnits ?? 0,
     );
     if (!record?.S3Bucket || !record.S3Key) {
       await recordRequest(request.algorithmId, runId, CostPhase.Execution, startedAt);
@@ -96,14 +100,7 @@ export const create: APIGatewayProxyHandlerV2 = async (event) => {
         request.algorithmId,
         request.size,
       );
-      await costEvent(
-        request.algorithmId,
-        runId,
-        CostPhase.Execution,
-        "dynamodb",
-        "read-capacity",
-        readCapacityUnits,
-      );
+      await costEvent(request.algorithmId, runId, CostPhase.Execution, "dynamodb", "read-capacity", readCapacityUnits);
       if (request.size > available) {
         await recordRequest(request.algorithmId, runId, CostPhase.Execution, startedAt);
         return jsonResponse(400, {
@@ -170,7 +167,9 @@ export const result: APIGatewayProxyHandlerV2 = async (event) => {
   if (!runId) return jsonResponse(400, { error: "runId is required" });
 
   try {
-    const response = await ddb.send(new GetCommand({ TableName: runResultsTable, Key: { RunId: runId } }));
+    const response = await ddb.send(
+      new GetCommand({ TableName: runResultsTable, Key: { RunId: runId }, ReturnConsumedCapacity: "TOTAL" }),
+    );
     const item = response.Item as RunResult | undefined;
     const algorithmId = item?.AlgorithmId ?? event.queryStringParameters?.algorithmId;
     if (algorithmId) {
@@ -179,8 +178,8 @@ export const result: APIGatewayProxyHandlerV2 = async (event) => {
         runId,
         CostPhase.Execution,
         "dynamodb",
-        "read",
-        item ? Buffer.byteLength(JSON.stringify(item)) : 1,
+        "read-capacity",
+        response.ConsumedCapacity?.CapacityUnits ?? 0,
       );
       await recordRequest(algorithmId, runId, CostPhase.Execution, startedAt);
     }

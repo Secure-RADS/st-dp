@@ -11,7 +11,7 @@ export interface PriceRule {
   usdPerBillableUnit: number;
   // Byte-metered operations are charged per whole chunk of this size.
   bytesPerBillableUnit?: number;
-  // Billable units consumed per chunk; DynamoDB eventually-consistent reads are 0.5 RRU per 4 KB.
+  // Billable units consumed per chunk.
   billableUnitsPerChunk?: number;
   // Per-start minimum on time-metered operations (EC2 bills a 60s minimum).
   minBillableUnits?: number;
@@ -40,8 +40,12 @@ export const PRICES: PriceTable = {
       bytesPerBillableUnit: 4 * KIB,
       billableUnitsPerChunk: 0.5,
     },
-    "read-capacity": { unit: "read-capacity-unit", usdPerBillableUnit: 0.1425 / PER_MILLION },
+    "read-capacity": {
+      unit: "read-request-unit",
+      usdPerBillableUnit: 0.1425 / PER_MILLION,
+    },
     write: { unit: "byte", usdPerBillableUnit: 0.71 / PER_MILLION, bytesPerBillableUnit: KIB },
+    "write-capacity": { unit: "write-request-unit", usdPerBillableUnit: 0.71 / PER_MILLION },
   },
   sqs: {
     send: { unit: "byte", usdPerBillableUnit: 0.4 / PER_MILLION, bytesPerBillableUnit: 64 * KIB },

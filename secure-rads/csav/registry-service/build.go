@@ -134,7 +134,6 @@ func buildAndPush(ctx context.Context, algorithmId, tarPath, existingKmsKeyArn s
 	if err := putAlgorithm(ctx, algorithmId, artifactBucket, key, kmsKeyArn); err != nil {
 		return "", fmt.Errorf("record algorithm: %w", err)
 	}
-	costEvent(algorithmId, serviceDynamoDB, opDynamoWrite, float64(len(algorithmId)+len(artifactBucket)+len(key)+len(kmsKeyArn)+64))
 	logEvent(algorithmId, eventAlgorithmRegistered, map[string]any{"key": key})
 
 	log.Printf("build[%s]: done key=%s took=%s", tarPath, key, time.Since(start))

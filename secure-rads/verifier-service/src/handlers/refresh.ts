@@ -30,7 +30,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     return { statusCode: 400, body: "expected refreshToken and runId as strings" };
   }
 
-  const result = await refreshAccessToken(body.refreshToken);
+  const result = await refreshAccessToken(body.refreshToken, body.runId);
   if (!result) {
     return { statusCode: 401, body: "refresh token invalid, expired, or revoked" };
   }

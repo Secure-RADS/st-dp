@@ -20,7 +20,7 @@ The ingest authority rejects anything outside these enums, so no free-form servi
 - `service`: `s3` | `dynamodb` | `sqs` | `ec2` | `lambda` | `apigateway`
 - `operation` (per service):
   - `s3`: `put` | `get` | `head` | `list` (quantity = requests)
-  - `dynamodb`: `read` (item bytes) | `read-capacity` (`ConsumedCapacity.CapacityUnits`) | `write` (item bytes)
+  - `dynamodb`: `read-capacity` | `write-capacity` (quantity = `ConsumedCapacity.CapacityUnits`); legacy `read`/`write` byte events remain accepted during rollout
   - `sqs`: `send` | `receive` | `delete` (quantity = message bytes; billed per 64 KB chunk)
   - `ec2`: `instance` (quantity = seconds; 60s minimum per start)
   - `lambda`: `invocation` (quantity = requests) | `compute` (quantity = GB-seconds)

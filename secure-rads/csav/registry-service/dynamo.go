@@ -17,7 +17,8 @@ type algorithmRecord struct {
 
 func getAlgorithm(ctx context.Context, algorithmId string) (algorithmRecord, bool, error) {
 	out, err := dynamoClient.GetItem(ctx, &dynamodb.GetItemInput{
-		TableName: &dynamoTable,
+		TableName:              &dynamoTable,
+		ReturnConsumedCapacity: types.ReturnConsumedCapacityTotal,
 		Key: map[string]types.AttributeValue{
 			"AlgorithmId": &types.AttributeValueMemberS{Value: algorithmId},
 		},
@@ -25,16 +26,18 @@ func getAlgorithm(ctx context.Context, algorithmId string) (algorithmRecord, boo
 	if err != nil {
 		return algorithmRecord{}, false, err
 	}
+	capacityUnits := 0.0
+	if out.ConsumedCapacity != nil && out.ConsumedCapacity.CapacityUnits != nil {
+		capacityUnits = *out.ConsumedCapacity.CapacityUnits
+	}
+	costEvent(algorithmId, serviceDynamoDB, opDynamoReadCapacity, capacityUnits)
 	if out.Item == nil {
-		costEvent(algorithmId, serviceDynamoDB, opDynamoRead, 1)
 		return algorithmRecord{}, false, nil
 	}
 	var record algorithmRecord
 	if err := attributevalue.UnmarshalMap(out.Item, &record); err != nil {
 		return algorithmRecord{}, false, err
 	}
-	// Estimate item size from the string values plus 64 bytes for attribute names and DynamoDB encoding overhead.
-	costEvent(algorithmId, serviceDynamoDB, opDynamoRead, float64(len(record.AlgorithmId)+len(record.S3Bucket)+len(record.S3Key)+len(record.KmsKeyArn)+64))
 	return record, true, nil
 }
 
@@ -49,9 +52,18 @@ func putAlgorithm(ctx context.Context, algorithmId, bucket, key, kmsKeyArn strin
 		return err
 	}
 
-	_, err = dynamoClient.PutItem(ctx, &dynamodb.PutItemInput{
-		TableName: &dynamoTable,
-		Item:      item,
+	out, err := dynamoClient.PutItem(ctx, &dynamodb.PutItemInput{
+		TableName:              &dynamoTable,
+		Item:                   item,
+		ReturnConsumedCapacity: types.ReturnConsumedCapacityTotal,
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	capacityUnits := 0.0
+	if out.ConsumedCapacity != nil && out.ConsumedCapacity.CapacityUnits != nil {
+		capacityUnits = *out.ConsumedCapacity.CapacityUnits
+	}
+	costEvent(algorithmId, serviceDynamoDB, opDynamoWriteCapacity, capacityUnits)
+	return nil
 }

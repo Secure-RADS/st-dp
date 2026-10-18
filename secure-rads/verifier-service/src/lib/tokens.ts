@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, PutCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
+import { CostPhase, costEvent } from "@srads/common/cost";
 import { requiredEnv } from "@srads/common/env";
 import { JWT_AUDIENCE, JWT_ISSUER, signAccessToken } from "./jwt.js";
 
@@ -41,13 +42,13 @@ async function mintAccessToken(algorithmId: string): Promise<{ accessToken: stri
   return { accessToken, accessTokenExpiresAt: new Date(exp * 1000).toISOString() };
 }
 
-export async function issueTokenPair(algorithmId: string): Promise<TokenPair> {
+export async function issueTokenPair(algorithmId: string, runId: string): Promise<TokenPair> {
   const sessionId = randomBytes(16).toString("hex");
   const refreshToken = newRefreshToken();
   const now = Date.now();
   const access = await mintAccessToken(algorithmId);
 
-  await ddb.send(
+  const write = await ddb.send(
     new PutCommand({
       TableName: tableName,
       Item: {
@@ -58,7 +59,16 @@ export async function issueTokenPair(algorithmId: string): Promise<TokenPair> {
         Revoked: false,
         CreatedAt: new Date(now).toISOString(),
       },
+      ReturnConsumedCapacity: "TOTAL",
     }),
+  );
+  await costEvent(
+    algorithmId,
+    runId,
+    CostPhase.Execution,
+    "dynamodb",
+    "write-capacity",
+    write.ConsumedCapacity?.CapacityUnits ?? 0,
   );
 
   return { accessToken: access.accessToken, refreshToken, accessTokenExpiresAt: access.accessTokenExpiresAt };
@@ -71,7 +81,7 @@ interface RefreshSession {
   revoked: boolean;
 }
 
-async function findByRefreshHash(refreshToken: string): Promise<RefreshSession | null> {
+async function findByRefreshHash(refreshToken: string, runId: string): Promise<RefreshSession | null> {
   const out = await ddb.send(
     new QueryCommand({
       TableName: tableName,
@@ -79,10 +89,19 @@ async function findByRefreshHash(refreshToken: string): Promise<RefreshSession |
       KeyConditionExpression: "RefreshTokenHash = :h",
       ExpressionAttributeValues: { ":h": hashToken(refreshToken) },
       Limit: 1,
+      ReturnConsumedCapacity: "TOTAL",
     }),
   );
   const item = out.Items?.[0];
   if (!item) return null;
+  await costEvent(
+    item.AlgorithmId,
+    runId,
+    CostPhase.Execution,
+    "dynamodb",
+    "read-capacity",
+    out.ConsumedCapacity?.CapacityUnits ?? 0,
+  );
   return {
     sessionId: item.SessionId,
     algorithmId: item.AlgorithmId,
@@ -96,8 +115,8 @@ export interface RefreshedSession {
   tokens: TokenPair;
 }
 
-export async function refreshAccessToken(refreshToken: string): Promise<RefreshedSession | null> {
-  const session = await findByRefreshHash(refreshToken);
+export async function refreshAccessToken(refreshToken: string, runId: string): Promise<RefreshedSession | null> {
+  const session = await findByRefreshHash(refreshToken, runId);
   if (!session || session.revoked) return null;
   if (new Date(session.refreshTokenExpiresAt) < new Date()) return null;
 

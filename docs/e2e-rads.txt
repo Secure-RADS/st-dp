@@ -10,7 +10,7 @@ Input:
 6  cost s3:put                          // single presigned PutObject request
 7  emit image-uploaded
 8  write a ↦ ⟨bucket, key⟩ to DynamoDB
-9  cost dynamodb:write
+9  cost dynamodb:write-capacity
 10 emit algorithm-registered
 11 cost apigateway:request + lambda     // /register request
 12 return
@@ -22,7 +22,7 @@ Input:
   n ← dataset size (# of records)
 1  runId ← NEW-ID()
 2  emit run-requested
-3  cost dynamodb:read                   // execution-service: algorithm lookup
+3  cost dynamodb:read-capacity          // execution-service: algorithm lookup
 4  key ← LOOKUP-S3(a) // S3 location of algorithm's TAR
 5  RUN-COUNT-CHECK(n)
 6  cost dynamodb:read-capacity          // PDM Query count, actual consumed capacity
@@ -41,14 +41,14 @@ Input:
 1  install docker, awscli
 2  start docker
 3  pull rads-host-tools from S3
-4  cost s3:get
+4  cost s3:get                          // rads-host-tools bundle, before the algorithm artifact
 5  emit executor-ready
 6  tar ← GET-S3(key)
 7  DOCKER-LOAD(tar)
 8  cost s3:get                          // algorithm artifact
 9  emit artifact-retrieved
 10 records ← FETCH-PDM(a, limit ← n)   // rads-host-tools fetch-records
-11 cost dynamodb:read                   // emitted by pdm-service: records Query pages
+11 cost dynamodb:read-capacity          // emitted by pdm-service: records Query pages
 12 emit records-fetched
 13 write records to records.json
 14 emit records-stored-locally
@@ -64,6 +64,6 @@ Input:
 RADS-RESULT-CONSUMER(result)
 Input:
   result ← processing result returned by the RADS executor
-1  cost sqs:receive + dynamodb:write    // batch receive + result row
+1  cost sqs:receive + dynamodb:write-capacity // batch receive + result row
 2  persist result to DynamoDB
 3  emit result-persisted

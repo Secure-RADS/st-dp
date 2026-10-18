@@ -1,6 +1,6 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
-import { CostPhase, recordRequest } from "@srads/common/cost";
+import { CostPhase, costEvent, recordRequest } from "@srads/common/cost";
 import { requiredEnv } from "@srads/common/env";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { type AttestationDocument, pcrHex, verifyAttestationDocument } from "../lib/attestation.js";
@@ -40,7 +40,19 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
 
   try {
     const registered = await ddb.send(
-      new GetCommand({ TableName: algorithmPcrTable, Key: { AlgorithmId: body.algorithmId } }),
+      new GetCommand({
+        TableName: algorithmPcrTable,
+        Key: { AlgorithmId: body.algorithmId },
+        ReturnConsumedCapacity: "TOTAL",
+      }),
+    );
+    await costEvent(
+      body.algorithmId,
+      body.runId,
+      CostPhase.Execution,
+      "dynamodb",
+      "read-capacity",
+      registered.ConsumedCapacity?.CapacityUnits ?? 0,
     );
     if (!registered.Item) {
       return { statusCode: 404, body: "algorithmId not registered" };
@@ -60,7 +72,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       return { statusCode: 401, body: "PCR mismatch: enclave measurements do not match registered algorithm" };
     }
 
-    const tokens = await issueTokenPair(body.algorithmId);
+    const tokens = await issueTokenPair(body.algorithmId, body.runId);
     return { statusCode: 200, body: JSON.stringify(tokens) };
   } finally {
     await recordRequest(body.algorithmId, body.runId, CostPhase.Execution, startedAt);

@@ -48,6 +48,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       ExpressionAttributeValues: { ":a": algorithmId },
       Limit: PAGE_SIZE,
       ExclusiveStartKey: exclusiveStartKey,
+      ReturnConsumedCapacity: "TOTAL",
     }),
   );
   await costEvent(
@@ -55,8 +56,8 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     runId,
     CostPhase.Execution,
     "dynamodb",
-    "read",
-    Math.max(1, Buffer.byteLength(JSON.stringify(result.Items ?? []))),
+    "read-capacity",
+    result.ConsumedCapacity?.CapacityUnits ?? 0,
   );
 
   const dataSubjectIds = (result.Items ?? [])

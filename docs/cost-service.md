@@ -35,34 +35,34 @@ both trees, and its log events carry a null `runId`.
 
 secure-rads (`csav/registry-service`, Go, on the CSAV host):
 
-- `dynamodb:read` - `getAlgorithm` (existing-key lookup).
+- `dynamodb:read-capacity` - `getAlgorithm` (existing-key lookup).
 - `s3:put` - EIF upload; quantity counts the multipart initiation, part uploads, and completion requests.
-- `dynamodb:write` - `putAlgorithm` (algorithm record).
+- `dynamodb:write-capacity` - `putAlgorithm` (algorithm record).
 - KMS key lifecycle and STS are **not** metered (KMS is excluded by decision; STS is free).
 - The CSAV host's own compute is not metered (persistent shared host, excluded).
 
 rads (`csav/registry-service`, Lambdas):
 
 - `/upload`: `apigateway:request`, `lambda:invocation`, `lambda:compute`. The presign is local, so no S3 call.
-- `/register`: `s3:head`, `s3:put` (the client's single presigned `PutObject` request), `dynamodb:write`,
+- `/register`: `s3:head`, `s3:put` (the client's single presigned `PutObject` request), `dynamodb:write-capacity`,
   `apigateway:request`, `lambda:invocation`, `lambda:compute`.
 
 ### Execution phase (both trees)
 
-- execution-service `POST /run`: `apigateway:request`, `lambda:invocation`, `lambda:compute`, `dynamodb:read`
-  (algorithm lookup), `dynamodb:read-capacity` (record-count check; actual `ConsumedCapacity.CapacityUnits`).
+- execution-service `POST /run`: `apigateway:request`, `lambda:invocation`, `lambda:compute`,
+  `dynamodb:read-capacity` (algorithm lookup and record-count check; actual `ConsumedCapacity.CapacityUnits`).
   It also stamps the launch epoch into the host user-data.
 - execution-service `GET /run/{runId}` (each poll): `apigateway:request`, `lambda:invocation`, `lambda:compute`,
-  `dynamodb:read`. The harness passes `?algorithmId=` so polls are attributable.
+  `dynamodb:read-capacity`. The harness passes `?algorithmId=` so polls are attributable.
 - executor host (user-data, both trees): `s3:get` (artifact; rads also the host tools), `sqs:send` (result),
   `ec2:instance` (seconds from launch to the terminate call).
-- pdm-service `/records`: `apigateway:request`, `lambda:invocation`, `lambda:compute`, `dynamodb:read`
-  (data-key `GetItem` and each records `Query` page, metered in item bytes).
+- pdm-service `/records`: `apigateway:request`, `lambda:invocation`, `lambda:compute`, `dynamodb:read-capacity`
+  (data-key `GetItem` and each records `Query` page).
 - result-consumer (`batchSize` 1, so each run's receive + invoke lands on that run): `sqs:receive` (message
-  bytes), `dynamodb:write`, `lambda:invocation`, `lambda:compute`.
+  bytes), `dynamodb:write-capacity`, `lambda:invocation`, `lambda:compute`.
 - verifier-service (secure-rads): `/attest` and `/refresh` (the enclave's attestation and token refresh, keyed by
-  the run) and `/algorithms` (build-time PCR registration, keyed by `algorithmId`): `apigateway:request`,
-  `lambda:invocation`, `lambda:compute`.
+  the run) and `/algorithms` (build-time PCR registration, keyed by `algorithmId`): `dynamodb:read-capacity` and
+  `dynamodb:write-capacity` where attributable, plus `apigateway:request`, `lambda:invocation`, `lambda:compute`.
 - sce-unit (in the enclave) performs no billable AWS operations other than KMS (excluded) - nothing to meter.
 
 ## EC2 timing
@@ -94,7 +94,8 @@ per-run against Cost Explorer.
   alarms, the persistent CSAV host, and data transfer (internet egress, cross-AZ).
 - SQS queue-cost of the result delivery is metered as `sqs:send` + `sqs:receive`; the message-delete request is not
   emitted.
-- DynamoDB sizes for small lookups and count queries are estimated, not measured exactly.
+- Attributed DynamoDB events use each response's `ConsumedCapacity.CapacityUnits`; an invalid verifier refresh lookup
+  has no algorithm ID to attach to its consumed capacity.
 
 ## Querying
 

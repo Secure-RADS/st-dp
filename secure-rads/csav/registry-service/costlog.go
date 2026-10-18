@@ -26,9 +26,9 @@ const (
 	serviceS3       costService = "s3"
 	serviceDynamoDB costService = "dynamodb"
 
-	opS3Put       costOperation = "put"
-	opDynamoRead  costOperation = "read"
-	opDynamoWrite costOperation = "write"
+	opS3Put               costOperation = "put"
+	opDynamoReadCapacity  costOperation = "read-capacity"
+	opDynamoWriteCapacity costOperation = "write-capacity"
 )
 
 // Build metering is best-effort because a cost-service failure must not fail registry builds.

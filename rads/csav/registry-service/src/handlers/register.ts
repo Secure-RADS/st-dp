@@ -38,14 +38,14 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
 
   await emitImageUploaded(algorithmId, bucket, key);
   const item = { AlgorithmId: algorithmId, Bucket: bucket, Key: key };
-  await ddb.send(new PutCommand({ TableName: table, Item: item }));
+  const write = await ddb.send(new PutCommand({ TableName: table, Item: item, ReturnConsumedCapacity: "TOTAL" }));
   await costEvent(
     algorithmId,
     algorithmId,
     CostPhase.Build,
     "dynamodb",
-    "write",
-    Buffer.byteLength(JSON.stringify(item)),
+    "write-capacity",
+    write.ConsumedCapacity?.CapacityUnits ?? 0,
   );
   await emitAlgorithmRegistered(algorithmId, bucket, key);
 
