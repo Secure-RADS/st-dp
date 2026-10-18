@@ -1,4 +1,4 @@
-import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
+import { type DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
 
 export async function countAlgorithmRecords(
   ddb: DynamoDBDocumentClient,
