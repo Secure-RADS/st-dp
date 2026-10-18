@@ -23,7 +23,7 @@ const verifierHost = requiredEnv("VERIFIER_HOST");
 const pdmHost = requiredEnv("PDM_HOST");
 const pdmTable = requiredEnv("PDM_TABLE");
 const logHost = requiredEnv("LOG_HOST");
-const costHost = process.env.COST_HOST ?? "";
+const costHost = requiredEnv("COST_HOST");
 const region = requiredEnv("AWS_REGION");
 
 // Size-check reads use a pinned representative item size because DynamoDB exposes page counts, not bytes.
