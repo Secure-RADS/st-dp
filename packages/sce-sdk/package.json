@@ -1,0 +1,26 @@
+{
+  "name": "@sce/sdk",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./cost": {
+      "types": "./src/cost.ts",
+      "import": "./src/cost.ts"
+    },
+    "./log": {
+      "types": "./src/log.ts",
+      "import": "./src/log.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check src",
+    "lint:fix": "biome check --write src"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.10",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  }
+}

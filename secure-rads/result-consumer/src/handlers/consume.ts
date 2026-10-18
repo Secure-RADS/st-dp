@@ -1,7 +1,7 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
+import { CostPhase, costEvent, recordLambda } from "@sce/sdk/cost";
 import type { SQSHandler, SQSRecord } from "aws-lambda";
-import { CostPhase, costEvent, recordLambda } from "../lib/cost.js";
 import { requiredEnv } from "../lib/env.js";
 import { logEvent } from "../lib/log.js";
 

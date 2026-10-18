@@ -1,35 +1,19 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
+import { CostPhase, costEvent, recordRequest } from "@sce/sdk/cost";
+import { logSubjectAccess } from "@sce/sdk/log";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
-import { CostPhase, costEvent, recordRequest } from "../lib/cost.js";
 import { requiredEnv } from "../lib/env.js";
 import { verifyAccessToken } from "../lib/jwt.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const table = requiredEnv("PDM_TABLE");
 const dataKeyTable = requiredEnv("DATA_KEY_TABLE");
-const logServiceUrl = requiredEnv("LOG_SERVICE_URL");
 
 const PAGE_SIZE = 500;
 
 function jsonResponse(statusCode: number, body: unknown) {
   return { statusCode, headers: { "content-type": "application/json" }, body: JSON.stringify(body) };
-}
-
-// DSAR trail: which data subjects a run actually read. Errors are swallowed so a log-service failure
-// can't fail the records response, but the call is awaited so the request is actually sent before the
-// handler returns - an un-awaited fetch can be frozen, and dropped, when Lambda freezes the environment.
-async function logSubjectAccess(algorithmId: string, runId: string, dataSubjectIds: string[]): Promise<void> {
-  if (dataSubjectIds.length === 0) return;
-  try {
-    await fetch(`${logServiceUrl}/subject-access`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ algorithmId, runId, dataSubjectIds, timestamp: new Date().toISOString() }),
-    });
-  } catch (error) {
-    console.error("subject-access log failed", error);
-  }
 }
 
 function decodeCursor(cursor: string): Record<string, unknown> | undefined {

@@ -1,7 +1,7 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
+import { CostPhase, recordRequest } from "@sce/sdk/cost";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
-import { CostPhase, recordRequest } from "../lib/cost.js";
 import { requiredEnv } from "../lib/env.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));

@@ -1,6 +1,4 @@
-import { requiredEnv } from "./env.js";
-
-const logEventsUrl = `https://${requiredEnv("LOG_HOST")}/events`;
+import { emitEvent } from "@sce/sdk/log";
 
 export type RunEvent =
   | "run-requested"
@@ -13,20 +11,11 @@ export type RunEvent =
   | "compute-completed"
   | "executor-finished";
 
-export async function logEvent(
+export function logEvent(
   algorithmId: string,
   runId: string,
   event: RunEvent,
   detail?: Record<string, unknown>,
 ): Promise<void> {
-  try {
-    await fetch(logEventsUrl, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ algorithmId, runId, event, timestamp: new Date().toISOString(), detail }),
-      signal: AbortSignal.timeout(5_000),
-    });
-  } catch (error) {
-    console.error(`log event ${event} failed`, error);
-  }
+  return emitEvent(algorithmId, runId, event, detail);
 }

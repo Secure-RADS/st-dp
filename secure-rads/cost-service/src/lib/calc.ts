@@ -1,4 +1,4 @@
-import type { AwsService, CostOperation, CostUnit } from "./cost.js";
+import type { AwsService, CostOperation, CostUnit } from "@sce/sdk/cost";
 import { PRICES, type PriceRule } from "./prices.js";
 
 export function priceFor(service: AwsService, operation: CostOperation): PriceRule {

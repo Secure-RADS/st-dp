@@ -1,4 +1,4 @@
-import type { AwsService, COST_OPERATIONS, CostUnit } from "./cost.js";
+import type { AwsService, COST_OPERATIONS, CostUnit } from "@sce/sdk/cost";
 
 // Pinned list prices so a given commit's estimates are reproducible. Re-check against the AWS Price List API
 // (ap-southeast-2) when this date is old. KMS is deliberately absent: the per-algorithm key is created once and

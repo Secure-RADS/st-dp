@@ -8,6 +8,7 @@
         "@aws-sdk/client-dynamodb": "^3.700.0",
         "@aws-sdk/client-sqs": "^3.1121.0",
         "@aws-sdk/lib-dynamodb": "^3.700.0",
+        "@sce/sdk": "file:../../packages/sce-sdk",
         "csv-stringify": "^6.8.3",
       },
       "devDependencies": {
@@ -170,6 +171,8 @@
     "@oxc-resolver/binding-win32-arm64-msvc": ["@oxc-resolver/binding-win32-arm64-msvc@11.24.2", "", { "os": "win32", "cpu": "arm64" }, "sha512-uokJqro2iBqkFvJdKQLP7d8/BUmFwESQFVmIJUQKj1Xn1a/LysJoe1vmeECLF5b3jsV8CAL5sEMJXX6SdK9Nhg=="],
 
     "@oxc-resolver/binding-win32-x64-msvc": ["@oxc-resolver/binding-win32-x64-msvc@11.24.2", "", { "os": "win32", "cpu": "x64" }, "sha512-UqGPmo56KDfLlfXFAFIrNflHT8tFxWGEivWg3Zeyp4Uy2NlKN1FGPr6/BxcLGG3+kZ6Wp14g5Uj+n71boqZfiw=="],
+
+    "@sce/sdk": ["@sce/sdk@file:../../packages/sce-sdk", { "devDependencies": { "@types/node": "^22.0.0", "typescript": "^5.7.0" } }],
 
     "@smithy/core": ["@smithy/core@3.35.1", "", { "dependencies": { "@smithy/types": "^4.19.0", "tslib": "^2.6.2" } }, "sha512-i4YPS4B6ts7bjn7UwLnGjiZdprOvHvgGobFZsYK3GIY3E5hIqtj0rReU69BcTpGp+fvtraSNXeG1l+jtJvF55w=="],
 

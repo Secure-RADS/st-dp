@@ -1,7 +1,7 @@
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { requiredEnv } from "../lib/env.js";
 
-const logServiceUrl = requiredEnv("LOG_SERVICE_URL");
+const logHost = requiredEnv("LOG_HOST");
 
 function jsonResponse(statusCode: number, body: unknown) {
   return { statusCode, headers: { "content-type": "application/json" }, body: JSON.stringify(body) };
@@ -14,7 +14,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
 
   let response: Response;
   try {
-    response = await fetch(`${logServiceUrl}/subject-access/${encodeURIComponent(dataSubjectId)}`);
+    response = await fetch(`https://${logHost}/subject-access/${encodeURIComponent(dataSubjectId)}`);
   } catch (error) {
     console.error("log-service lookup failed", error);
     return jsonResponse(502, { error: "log-service lookup failed" });

@@ -1,8 +1,8 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
+import { CostPhase, recordRequest } from "@sce/sdk/cost";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { type AttestationDocument, pcrHex, verifyAttestationDocument } from "../lib/attestation.js";
-import { CostPhase, recordRequest } from "../lib/cost.js";
 import { requiredEnv } from "../lib/env.js";
 import { issueTokenPair } from "../lib/tokens.js";
 
