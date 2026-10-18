@@ -2,7 +2,7 @@
 // at ingest. Go producers (registry-service, execution-service, sce-unit) mirror this list as typed constants -
 // keep them in sync.
 export const RUN_EVENTS = [
-  // Build phase (registry-service); runId is the build id.
+  // Build phase (registry-service); no runId (the build records the algorithm).
   "build-started",
   "build-completed",
   "image-uploaded",

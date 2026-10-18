@@ -1,7 +1,7 @@
 // Run-timeline event names, mirrored from log-service (the ingest authority). result-consumer only needs the
 // type; keep the list in sync with log-service/src/lib/events.ts.
 const RUN_EVENTS = [
-  // Build phase (registry-service); runId is the build id.
+  // Build phase (registry-service); no runId (the build records the algorithm).
   "build-started",
   "build-completed",
   "image-uploaded",

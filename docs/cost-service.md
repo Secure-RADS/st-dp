@@ -26,8 +26,8 @@ producer emits for its own calls only, so nothing is double-counted.
 4. The benchmark reads `GET /cost/{algorithmId}?runId={runId}` and sums `CostUsd` by service. The raw per-operation
    rows are the source of truth; the run total is derived.
 
-Phases: `build` (registry) and `execution` (run). A build's cost is keyed by its build id; in secure-rads that is
-the registry's generated build UUID, in rads there is no build run id so the algorithm id is used.
+Phases: `build` (registry) and `execution` (run). A build has no run, so its cost is keyed by `algorithmId` on
+both trees, and its log events carry a null `runId`.
 
 ## Emission points
 
@@ -108,4 +108,5 @@ response limit.
 The Makefile defaults `COST_HOST` to `cost.sr.secure-rads.org`; pass `COST_HOST=cost.r.secure-rads.org` for rads.
 
 The benchmark (`benchmark/`) resolves the cost-service per tree and adds per-service and total cost columns to
-`phase-timings.csv`, plus a `sweep-cost.png` figure. See `benchmark/README.md`.
+`phase-timings.csv`, plus `sweep-cost.png` (total vs size) and `sweep-cost-services.png` (by service). See
+`benchmark/README.md`.

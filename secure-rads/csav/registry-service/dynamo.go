@@ -15,7 +15,7 @@ type algorithmRecord struct {
 	KmsKeyArn   string `dynamodbav:"KmsKeyArn"`
 }
 
-func getAlgorithm(ctx context.Context, algorithmId, runId string) (algorithmRecord, bool, error) {
+func getAlgorithm(ctx context.Context, algorithmId string) (algorithmRecord, bool, error) {
 	out, err := dynamoClient.GetItem(ctx, &dynamodb.GetItemInput{
 		TableName: &dynamoTable,
 		Key: map[string]types.AttributeValue{
@@ -26,14 +26,14 @@ func getAlgorithm(ctx context.Context, algorithmId, runId string) (algorithmReco
 		return algorithmRecord{}, false, err
 	}
 	if out.Item == nil {
-		costEvent(algorithmId, runId, serviceDynamoDB, opDynamoRead, 1)
+		costEvent(algorithmId, serviceDynamoDB, opDynamoRead, 1)
 		return algorithmRecord{}, false, nil
 	}
 	var record algorithmRecord
 	if err := attributevalue.UnmarshalMap(out.Item, &record); err != nil {
 		return algorithmRecord{}, false, err
 	}
-	costEvent(algorithmId, runId, serviceDynamoDB, opDynamoRead, float64(len(record.AlgorithmId)+len(record.S3Bucket)+len(record.S3Key)+len(record.KmsKeyArn)+64))
+	costEvent(algorithmId, serviceDynamoDB, opDynamoRead, float64(len(record.AlgorithmId)+len(record.S3Bucket)+len(record.S3Key)+len(record.KmsKeyArn)+64))
 	return record, true, nil
 }
 

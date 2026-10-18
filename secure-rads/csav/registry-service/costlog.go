@@ -32,11 +32,11 @@ const (
 	opDynamoWrite costOperation = "write"
 )
 
-// costEvent fire-and-forgets one metered AWS operation to cost-service, keyed by (algorithmId, buildId). The
-// quantity unit is fixed by the operation (put = requests, read/write = item bytes). Best-effort: a metering
-// failure must never fail a build, so errors are only logged, and an unset COST_HOST is a no-op.
-func costEvent(algorithmID, runID string, service costService, operation costOperation, quantity float64) {
-	if costHost == "" || runID == "" {
+// costEvent fire-and-forgets one metered AWS operation to cost-service, keyed by algorithmId (a build has no
+// run id). The quantity unit is fixed by the operation (put = requests, read/write = item bytes). Best-effort:
+// a metering failure must never fail a build, so errors are only logged, and an unset COST_HOST is a no-op.
+func costEvent(algorithmID string, service costService, operation costOperation, quantity float64) {
+	if costHost == "" || algorithmID == "" {
 		return
 	}
 
@@ -49,7 +49,7 @@ func costEvent(algorithmID, runID string, service costService, operation costOpe
 		Operation   costOperation `json:"operation"`
 		Quantity    float64       `json:"quantity"`
 		Timestamp   string        `json:"timestamp"`
-	}{algorithmID, runID, uuid.NewString(), phaseBuild, service, operation, quantity, time.Now().UTC().Format(time.RFC3339Nano)})
+	}{algorithmID, algorithmID, uuid.NewString(), phaseBuild, service, operation, quantity, time.Now().UTC().Format(time.RFC3339Nano)})
 	if err != nil {
 		return
 	}

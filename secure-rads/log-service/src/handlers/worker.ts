@@ -14,7 +14,7 @@ async function persist(item: IngestedEvent): Promise<void> {
       Item: {
         AlgorithmId: item.algorithmId,
         // Event name instead of a random nonce, so a redelivered message overwrites rather than duplicates.
-        Sk: `${item.runId}#${item.timestamp}#${item.event}`,
+        Sk: `${item.runId ?? ""}#${item.timestamp}#${item.event}`,
         RunId: item.runId,
         Event: item.event,
         Timestamp: item.timestamp,

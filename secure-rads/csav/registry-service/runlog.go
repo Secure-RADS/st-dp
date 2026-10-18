@@ -12,7 +12,7 @@ import (
 const logEventTimeout = 5 * time.Second
 
 // runEvent is the constrained set of build-phase timeline events registry-service emits - keep in sync with
-// log-service's RUN_EVENTS (the ingest authority rejects anything else). The runId here is the build id.
+// log-service's RUN_EVENTS (the ingest authority rejects anything else). A build has no run, so runId is null.
 type runEvent string
 
 const (
@@ -27,18 +27,18 @@ const (
 
 // logEvent fire-and-forgets one timeline event to log-service over its public TLS URL. Best-effort: a logging
 // failure must never fail a build, so errors are only logged.
-func logEvent(algorithmId, buildId string, event runEvent, detail map[string]any) {
+func logEvent(algorithmId string, event runEvent, detail map[string]any) {
 	if logHost == "" {
 		return
 	}
 
 	body, err := json.Marshal(struct {
 		AlgorithmId string         `json:"algorithmId"`
-		RunId       string         `json:"runId"`
+		RunId       *string        `json:"runId"`
 		Event       runEvent       `json:"event"`
 		Timestamp   string         `json:"timestamp"`
 		Detail      map[string]any `json:"detail,omitempty"`
-	}{algorithmId, buildId, event, time.Now().UTC().Format(time.RFC3339Nano), detail})
+	}{algorithmId, nil, event, time.Now().UTC().Format(time.RFC3339Nano), detail})
 	if err != nil {
 		return
 	}
