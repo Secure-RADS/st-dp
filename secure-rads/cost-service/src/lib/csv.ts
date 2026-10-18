@@ -28,6 +28,11 @@ const COLUMNS = [
   "detail",
 ];
 
+// CSV can't carry a cursor in the body, so the next-page token rides on a response header for clients that page.
+export function csvHeaders(nextCursor: string | null): Record<string, string> {
+  return nextCursor ? { "content-type": "text/csv", "x-next-cursor": nextCursor } : { "content-type": "text/csv" };
+}
+
 export function toCsv(rows: CostRow[]): string {
   // detail is an object; flatten it to compact JSON so csv-stringify emits one cell, not [object Object].
   return stringify(

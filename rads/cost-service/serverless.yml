@@ -127,5 +127,7 @@ resources:
       Value: !Ref CostQueue
     CostDeadLetterQueueUrl:
       Value: !Ref CostDeadLetterQueue
+    HttpApiUrl:
+      Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com"
     ApiRegionalDomainName:
       Value: !GetAtt ApiCustomDomain.RegionalDomainName

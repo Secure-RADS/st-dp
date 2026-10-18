@@ -67,13 +67,15 @@ async function persist(record: SQSRecord): Promise<void> {
 
 export const handler: SQSHandler = async (event) => {
   const startedAt = process.hrtime.bigint();
-  await Promise.all(event.Records.map(persist));
-
-  const first = event.Records.map(messageId).find((ids) => ids !== undefined);
-  if (first) {
-    // One ReceiveMessage request returns the whole batch, billed per 64KB of returned payload.
-    const bytes = event.Records.reduce((total, record) => total + Buffer.byteLength(record.body), 0);
-    await costEvent(first.algorithmId, first.runId, "execution", "sqs", "receive", Math.max(1, bytes));
-    await recordLambda(first.algorithmId, first.runId, "execution", startedAt);
+  try {
+    await Promise.all(event.Records.map(persist));
+  } finally {
+    const first = event.Records.map(messageId).find((ids) => ids !== undefined);
+    if (first) {
+      // batchSize is 1: the run owning this message also owns the batch's receive + Lambda cost.
+      const bytes = event.Records.reduce((total, record) => total + Buffer.byteLength(record.body), 0);
+      await costEvent(first.algorithmId, first.runId, "execution", "sqs", "receive", Math.max(1, bytes));
+      await recordLambda(first.algorithmId, first.runId, "execution", startedAt);
+    }
   }
 };

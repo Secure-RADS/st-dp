@@ -10,7 +10,7 @@ The table stores **one row per AWS operation**, not per run. Callers (the benchm
 - `GET /cost/{algorithmId}` - one algorithm's cost rows. `?runId=` narrows to a run; the JSON response also carries `totalUsd` plus `priceRegion`/`priceAsOf` provenance.
 - `GET /cost` - the whole table.
 
-Both export routes take `?format=csv` (`text/csv`) or default to JSON. CSV columns: `algorithmId,runId,phase,service,operation,quantity,unit,costUsd,timestamp,receivedAt,detail`.
+Both GET routes page via `?cursor=` (the previous response's `nextCursor`) and return at most one page, so a large history cannot overflow the 10 MB API Gateway response cap. They take `?format=csv` (`text/csv`) or default to JSON; on CSV the next-page token rides the `x-next-cursor` response header. CSV columns: `algorithmId,runId,phase,service,operation,quantity,unit,costUsd,timestamp,receivedAt,detail`.
 
 ## Event vocabulary
 

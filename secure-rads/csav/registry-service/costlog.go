@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 )
 
-const costEventTimeout = 5 * time.Second
+const costEventTimeout = time.Second
 
 // costPhase/costService/costOperation mirror cost-service's enums (the ingest authority rejects anything
 // else) - keep in sync with cost-service/src/lib/cost.ts.
@@ -66,6 +66,9 @@ func costEvent(algorithmID, runID string, service costService, operation costOpe
 	if err != nil {
 		log.Printf("registry-service: cost event %s:%s failed: %v", service, operation, err)
 		return
+	}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		log.Printf("registry-service: cost event %s:%s rejected with %s", service, operation, resp.Status)
 	}
 	resp.Body.Close()
 }

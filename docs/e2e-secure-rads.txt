@@ -3,15 +3,15 @@ Input:
   a  ← algorithm id
   tar ← algorithm’s Docker image packaged as TAR 
 1  buildId ← NEW-ID()
-2  emit build-started
-3  oci ← CONVERT-TO-OCI(tar)             // skopeo
-4  rootfs ← UNPACK(oci)                 // umoci
-5  LAYER sce-unit, nsjail onto rootfs
-6  ⟨EIF, PCRs⟩ ← EIF-BUILD(rootfs)
-7  emit build-completed
-8  cost dynamodb:read                   // registry getAlgorithm (existing key)
+2  cost dynamodb:read                   // registry getAlgorithm (existing key)
+3  emit build-started
+4  oci ← CONVERT-TO-OCI(tar)             // skopeo
+5  rootfs ← UNPACK(oci)                 // umoci
+6  LAYER sce-unit, nsjail onto rootfs
+7  ⟨EIF, PCRs⟩ ← EIF-BUILD(rootfs)
+8  emit build-completed
 9  UPLOAD EIF to S3
-10 cost s3:put                          // quantity = multipart parts of the EIF
+10 cost s3:put                          // multipart initiation, parts, and completion
 11 emit image-uploaded
 12 REGISTER-PCRS(a, PCRs)               // mTLS to Verifier (verifier API GW/Lambda not metered)
 13 emit pcrs-registered

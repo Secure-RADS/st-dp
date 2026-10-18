@@ -29,7 +29,8 @@ functions:
     events:
       - sqs:
           arn: !GetAtt RunResultsQueue.Arn
-          batchSize: 10
+          # One result message = one run, so batchSize 1 attributes each run's receive+invoke cost to itself.
+          batchSize: 1
 
 resources:
   Resources:

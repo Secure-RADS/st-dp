@@ -87,7 +87,7 @@ Before deployment, prepare the selected region with:
   - `log.secure-rads.org`
   - `cost.r.secure-rads.org`
   - `cost.sr.secure-rads.org`
-- DNS-only CNAME records in Cloudflare pointing each name to its API Gateway regional domain output after its service is created. Do not proxy these records: the verifier uses mTLS and the deployed services pin the API Gateway leaf certificate public keys.
+- DNS-only CNAME records in Cloudflare pointing each name to its API Gateway regional domain output after its service is created. The verifier uses mTLS, and secure-rads pins the verifier, PDM, and log API Gateway certificates; cost-service uses plain TLS and is not pinned.
 
 Create the verifier signing key before deploying the verifier service:
 

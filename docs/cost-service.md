@@ -36,7 +36,7 @@ the registry's generated build UUID, in rads there is no build run id so the alg
 secure-rads (`csav/registry-service`, Go, on the CSAV host):
 
 - `dynamodb:read` - `getAlgorithm` (existing-key lookup).
-- `s3:put` - EIF upload; quantity is the multipart part count derived from the EIF size.
+- `s3:put` - EIF upload; quantity counts the multipart initiation, part uploads, and completion requests.
 - `dynamodb:write` - `putAlgorithm` (algorithm record).
 - KMS key lifecycle and STS are **not** metered (KMS is excluded by decision; STS is free).
 - The CSAV host's own compute is not metered (persistent shared host, excluded).
@@ -44,8 +44,8 @@ secure-rads (`csav/registry-service`, Go, on the CSAV host):
 rads (`csav/registry-service`, Lambdas):
 
 - `/upload`: `apigateway:request`, `lambda:invocation`, `lambda:compute`. The presign is local, so no S3 call.
-- `/register`: `s3:head`, `s3:put` (the client's actual tarball upload, attributed from the object size returned by
-  `HeadObject`), `dynamodb:write`, `apigateway:request`, `lambda:invocation`, `lambda:compute`.
+- `/register`: `s3:head`, `s3:put` (the client's single presigned `PutObject` request), `dynamodb:write`,
+  `apigateway:request`, `lambda:invocation`, `lambda:compute`.
 
 ### Execution phase (both trees)
 
@@ -58,8 +58,8 @@ rads (`csav/registry-service`, Lambdas):
   `ec2:instance` (seconds from launch to the terminate call).
 - pdm-service `/records`: `apigateway:request`, `lambda:invocation`, `lambda:compute`, `dynamodb:read`
   (data-key `GetItem` and each records `Query` page, metered in item bytes).
-- result-consumer: `sqs:receive` (one event per batch, in returned bytes), `dynamodb:write`, `lambda:invocation`,
-  `lambda:compute`.
+- result-consumer (`batchSize` 1, so each run's receive + invoke lands on that run): `sqs:receive` (message
+  bytes), `dynamodb:write`, `lambda:invocation`, `lambda:compute`.
 - sce-unit (in the enclave) performs no billable AWS operations other than KMS (excluded) - nothing to meter.
 
 ## EC2 timing
@@ -100,6 +100,10 @@ make cost-csv      ALGORITHM_ID=<id> RUN_ID=<runId>   # one run  -> cost-<runId>
 make cost-csv-algo ALGORITHM_ID=<id>                  # one algo -> cost-algo-<id>.csv
 make cost-csv-all                                     # whole table -> cost-all.csv
 ```
+
+These walk every page automatically: the GET routes cap each response at one DynamoDB page and expose the next
+token as `nextCursor` (JSON) or `x-next-cursor` (CSV), so a full export never trips the 10 MB API Gateway
+response limit.
 
 The Makefile defaults `COST_HOST` to `cost.sr.secure-rads.org`; pass `COST_HOST=cost.r.secure-rads.org` for rads.
 

@@ -4,6 +4,9 @@ import { randomUUID } from "node:crypto";
 // unset it is a no-op. Awaited so the request is sent before a Lambda freezes, matching the log-service pattern.
 const costEventsUrl = process.env.COST_HOST ? `https://${process.env.COST_HOST}/cost` : undefined;
 
+// Cap the awaited cost POST so a slow cost-service cannot outlast the producer's own Lambda timeout.
+const COST_EVENT_TIMEOUT_MS = 1_000;
+
 export type CostPhase = "build" | "execution";
 export type AwsService = "s3" | "dynamodb" | "sqs" | "ec2" | "lambda" | "apigateway";
 export type CostOperation =
@@ -35,7 +38,7 @@ export async function costEvent(
 ): Promise<void> {
   if (!costEventsUrl || !algorithmId || !runId || quantity < 0) return;
   try {
-    await fetch(costEventsUrl, {
+    const response = await fetch(costEventsUrl, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -49,8 +52,9 @@ export async function costEvent(
         timestamp: new Date().toISOString(),
         detail,
       }),
-      signal: AbortSignal.timeout(5_000),
+      signal: AbortSignal.timeout(COST_EVENT_TIMEOUT_MS),
     });
+    if (!response.ok) console.error(`cost event ${service}:${operation} rejected with HTTP ${response.status}`);
   } catch (error) {
     console.error(`cost event ${service}:${operation} failed`, error);
   }

@@ -7,10 +7,10 @@ Input:
 3  client PUTs tar to S3
 4  /register: HEAD a in S3
 5  cost s3:head
-6  cost s3:put                          // client upload attributed from HeadObject size
-7  write a ↦ ⟨bucket, key⟩ to DynamoDB
-8  cost dynamodb:write
-9  emit image-uploaded
+6  cost s3:put                          // single presigned PutObject request
+7  emit image-uploaded
+8  write a ↦ ⟨bucket, key⟩ to DynamoDB
+9  cost dynamodb:write
 10 emit algorithm-registered
 11 cost apigateway:request + lambda     // /register request
 12 return

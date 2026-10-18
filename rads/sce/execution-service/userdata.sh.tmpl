@@ -5,7 +5,7 @@ exec > >(tee /var/log/rads-execution-service-run.log) 2>&1
 # Cost metering: one event per billable AWS op, keyed by (AlgorithmId, runId). Best-effort.
 emit_cost() {
   [ -z "{{.CostHost}}" ] && return 0
-  curl -sS -X POST "https://{{.CostHost}}/cost" -H 'content-type: application/json' \
+  curl -sS --fail --max-time 5 -X POST "https://{{.CostHost}}/cost" -H 'content-type: application/json' \
     -d "{\"algorithmId\":\"{{.AlgorithmId}}\",\"runId\":\"{{.RunId}}\",\"eventId\":\"$(cat /proc/sys/kernel/random/uuid)\",\"phase\":\"execution\",\"service\":\"$1\",\"operation\":\"$2\",\"quantity\":$3,\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)\"}" >/dev/null || true
 }
 

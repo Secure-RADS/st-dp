@@ -111,7 +111,7 @@ SAMPLE_APPS := \
 
 .PHONY: registry-logs secure-rads-ready secure-rads-seed secure-rads-build secure-rads-build-all secure-rads-run secure-rads-run-all secure-rads-all \
 	rads-build rads-build-all rads-seed rads-run rads-run-all rads-all rads-status \
-	logs-csv logs-csv-algo logs-csv-all cost-csv cost-csv-algo cost-csv-all portal-install portal-dev portal-infra portal-deploy portal-status \
+	logs-csv logs-csv-algo logs-csv-all cost-csv cost-csv-algo cost-csv-all cost-fetch portal-install portal-dev portal-infra portal-deploy portal-status \
 	rads-portal-install rads-portal-dev rads-portal-infra rads-portal-deploy rads-portal-status
 
 # Transparency portal (Vite SPA): data-subject lookup + service-authority dashboard.
@@ -222,7 +222,7 @@ secure-rads-run:
 		-d '{"algorithmId":"$(ALGORITHM_ID)"}' | python3 -c 'import sys,json; print(json.load(sys.stdin)["runId"])'); \
 	echo "runId=$$runId"; \
 	for i in $$(seq 1 132); do \
-		res=$$(curl -sS "$$api/run/$$runId"); \
+		res=$$(curl -sS "$$api/run/$$runId?algorithmId=$(ALGORITHM_ID)"); \
 		status=$$(echo "$$res" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("status",""))'); \
 		if [ "$$status" != "pending" ]; then \
 			echo "$$res"; \
@@ -295,7 +295,7 @@ rads-run:
 		-d '{"algorithmId":"$(ALGORITHM_ID)"}' | python3 -c 'import sys,json; print(json.load(sys.stdin)["runId"])'); \
 	echo "runId=$$runId"; \
 	for i in $$(seq 1 132); do \
-		res=$$(curl -sS "$$api/run/$$runId"); \
+		res=$$(curl -sS "$$api/run/$$runId?algorithmId=$(ALGORITHM_ID)"); \
 		status=$$(echo "$$res" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("status",""))'); \
 		if [ "$$status" != "pending" ]; then \
 			echo "$$res"; \
@@ -343,20 +343,32 @@ logs-csv-all:
 	curl -sS "https://$(LOG_HOST)/logs?format=csv" -o logs-all.csv
 	@echo "wrote logs-all.csv"
 
+# Walk every page of a paginated cost CSV endpoint into OUT, following the x-next-cursor response header and
+# writing the CSV header only once. Used by the cost-csv targets because a single response is capped at 10 MB.
+cost-fetch:
+	@set -e; : > "$(OUT)"; url="$(URL)"; first=1; \
+	while [ -n "$$url" ]; do \
+		hdr=$$(mktemp); body=$$(mktemp); \
+		curl -sS -D "$$hdr" "$$url" -o "$$body"; \
+		if [ "$$first" -eq 1 ]; then cat "$$body" >> "$(OUT)"; first=0; else tail -n +2 "$$body" >> "$(OUT)"; fi; \
+		next=$$(tr -d '\r' < "$$hdr" | sed -n 's/^[Xx]-next-cursor: *//p'); \
+		base=$${url%%&cursor=*}; \
+		if [ -n "$$next" ]; then url="$$base&cursor=$$next"; else url=""; fi; \
+		rm -f "$$hdr" "$$body"; \
+	done; \
+	echo "wrote $(OUT)"
+
 # Export one run's metered cost rows to cost-<RUN_ID>.csv (rows are per AWS operation; sum CostUsd for the total).
 cost-csv:
 	@test -n "$(ALGORITHM_ID)" || { echo "ALGORITHM_ID is required"; exit 1; }
 	@test -n "$(RUN_ID)" || { echo "RUN_ID is required"; exit 1; }
-	curl -sS "https://$(COST_HOST)/cost/$(ALGORITHM_ID)?runId=$(RUN_ID)&format=csv" -o cost-$(RUN_ID).csv
-	@echo "wrote cost-$(RUN_ID).csv"
+	@$(MAKE) --no-print-directory cost-fetch URL="https://$(COST_HOST)/cost/$(ALGORITHM_ID)?runId=$(RUN_ID)&format=csv" OUT=cost-$(RUN_ID).csv
 
 # Export one algorithm's whole cost history to cost-algo-<ALGORITHM_ID>.csv.
 cost-csv-algo:
 	@test -n "$(ALGORITHM_ID)" || { echo "ALGORITHM_ID is required"; exit 1; }
-	curl -sS "https://$(COST_HOST)/cost/$(ALGORITHM_ID)?format=csv" -o cost-algo-$(ALGORITHM_ID).csv
-	@echo "wrote cost-algo-$(ALGORITHM_ID).csv"
+	@$(MAKE) --no-print-directory cost-fetch URL="https://$(COST_HOST)/cost/$(ALGORITHM_ID)?format=csv" OUT=cost-algo-$(ALGORITHM_ID).csv
 
 # Export the entire cost table across all algorithms to cost-all.csv.
 cost-csv-all:
-	curl -sS "https://$(COST_HOST)/cost?format=csv" -o cost-all.csv
-	@echo "wrote cost-all.csv"
+	@$(MAKE) --no-print-directory cost-fetch URL="https://$(COST_HOST)/cost?format=csv" OUT=cost-all.csv

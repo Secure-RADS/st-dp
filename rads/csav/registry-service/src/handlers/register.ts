@@ -13,12 +13,6 @@ const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const bucket = requiredEnv("ARTIFACT_BUCKET");
 const table = requiredEnv("DYNAMO_TABLE");
 
-const S3_PART_BYTES = 5 * 1024 * 1024;
-
-function s3PutRequests(size: number): number {
-  return size <= S3_PART_BYTES ? 1 : Math.ceil(size / S3_PART_BYTES);
-}
-
 // Second half of the upload: /upload signs the PUT, the client sends the tarball to S3, and this verifies the
 // object landed before recording AlgorithmId -> (bucket, key).
 export const handler: APIGatewayProxyHandlerV2 = async (event) => {
@@ -30,10 +24,8 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
 
   const { algorithmId } = request.data;
   const key = `${algorithmId}/image.tar`;
-  let size = 0;
   try {
-    const head = await s3.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
-    size = head.ContentLength ?? 0;
+    await s3.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
   } catch (error) {
     if (error instanceof NotFound) {
       await recordRequest(algorithmId, algorithmId, "build", startedAt);
@@ -42,8 +34,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     throw error;
   }
   await costEvent(algorithmId, algorithmId, "build", "s3", "head", 1);
-  // rads has no build runId in the log timeline; cost keys the build under the algorithmId.
-  await costEvent(algorithmId, algorithmId, "build", "s3", "put", s3PutRequests(size));
+  await costEvent(algorithmId, algorithmId, "build", "s3", "put", 1);
 
   await emitImageUploaded(algorithmId, bucket, key);
   const item = { AlgorithmId: algorithmId, Bucket: bucket, Key: key };
