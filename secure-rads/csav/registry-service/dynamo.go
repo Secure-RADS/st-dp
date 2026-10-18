@@ -33,6 +33,7 @@ func getAlgorithm(ctx context.Context, algorithmId string) (algorithmRecord, boo
 	if err := attributevalue.UnmarshalMap(out.Item, &record); err != nil {
 		return algorithmRecord{}, false, err
 	}
+	// Estimate item size from the string values plus 64 bytes for attribute names and DynamoDB encoding overhead.
 	costEvent(algorithmId, serviceDynamoDB, opDynamoRead, float64(len(record.AlgorithmId)+len(record.S3Bucket)+len(record.S3Key)+len(record.KmsKeyArn)+64))
 	return record, true, nil
 }
