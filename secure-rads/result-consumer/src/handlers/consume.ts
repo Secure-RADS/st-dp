@@ -67,10 +67,10 @@ async function persist(record: SQSRecord): Promise<void> {
 
 export const handler: SQSHandler = async (event) => {
   const startedAt = process.hrtime.bigint();
+  const first = event.Records.map(messageId).find((ids) => ids !== undefined);
   try {
     await Promise.all(event.Records.map(persist));
   } finally {
-    const first = event.Records.map(messageId).find((ids) => ids !== undefined);
     if (first) {
       // batchSize is 1 so this message can be charged its SQS receive and Lambda costs.
       const bytes = event.Records.reduce((total, record) => total + Buffer.byteLength(record.body), 0);
@@ -78,4 +78,6 @@ export const handler: SQSHandler = async (event) => {
       await recordLambda(first.algorithmId, first.runId, CostPhase.Execution, startedAt);
     }
   }
+
+  if (first) await costEvent(first.algorithmId, first.runId, CostPhase.Execution, "sqs", "delete", 1);
 };
