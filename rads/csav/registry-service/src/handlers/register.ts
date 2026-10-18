@@ -3,9 +3,10 @@ import { HeadObjectCommand, NotFound, S3Client } from "@aws-sdk/client-s3";
 import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
 import { CostPhase, costEvent, recordRequest } from "@srads/common/cost";
 import { requiredEnv } from "@srads/common/env";
+import { emitEvent } from "@srads/common/log";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
+import { RegistryEvent } from "../lib/events.js";
 import { jsonResponse, parseBody } from "../lib/http.js";
-import { emitAlgorithmRegistered, emitImageUploaded } from "../lib/log.js";
 import { algorithmRequestSchema } from "../lib/schema.js";
 
 const s3 = new S3Client({});
@@ -35,7 +36,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     await costEvent(algorithmId, algorithmId, CostPhase.Build, "s3", "head", 1);
     await costEvent(algorithmId, algorithmId, CostPhase.Build, "s3", "put", 1);
 
-    await emitImageUploaded(algorithmId, bucket, key);
+    await emitEvent(algorithmId, null, RegistryEvent.ImageUploaded, { bucket, key });
     const item = { AlgorithmId: algorithmId, Bucket: bucket, Key: key };
     const write = await ddb.send(new PutCommand({ TableName: table, Item: item, ReturnConsumedCapacity: "TOTAL" }));
     await costEvent(
@@ -46,7 +47,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       "write-capacity",
       write.ConsumedCapacity?.CapacityUnits ?? 0,
     );
-    await emitAlgorithmRegistered(algorithmId, bucket, key);
+    await emitEvent(algorithmId, null, RegistryEvent.AlgorithmRegistered, { bucket, key });
 
     return jsonResponse(200, { algorithmId, bucket, key });
   } finally {
