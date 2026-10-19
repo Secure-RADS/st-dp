@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 
+	sharedcost "github.com/Secure-RADS/GDPR/packages/go-common/cost"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
@@ -30,7 +31,14 @@ func getAlgorithm(ctx context.Context, algorithmId string) (algorithmRecord, boo
 	if out.ConsumedCapacity != nil && out.ConsumedCapacity.CapacityUnits != nil {
 		capacityUnits = *out.ConsumedCapacity.CapacityUnits
 	}
-	costEvent(algorithmId, serviceDynamoDB, opDynamoReadCapacity, capacityUnits)
+	sharedcost.Client{Host: costHost}.Emit(sharedcost.Event{
+		AlgorithmID: algorithmId,
+		RunID:       algorithmId,
+		Phase:       sharedcost.Build,
+		Service:     sharedcost.DynamoDB,
+		Operation:   sharedcost.DynamoDBReadCapacity,
+		Quantity:    capacityUnits,
+	})
 	if out.Item == nil {
 		return algorithmRecord{}, false, nil
 	}
@@ -64,6 +72,13 @@ func putAlgorithm(ctx context.Context, algorithmId, bucket, key, kmsKeyArn strin
 	if out.ConsumedCapacity != nil && out.ConsumedCapacity.CapacityUnits != nil {
 		capacityUnits = *out.ConsumedCapacity.CapacityUnits
 	}
-	costEvent(algorithmId, serviceDynamoDB, opDynamoWriteCapacity, capacityUnits)
+	sharedcost.Client{Host: costHost}.Emit(sharedcost.Event{
+		AlgorithmID: algorithmId,
+		RunID:       algorithmId,
+		Phase:       sharedcost.Build,
+		Service:     sharedcost.DynamoDB,
+		Operation:   sharedcost.DynamoDBWriteCapacity,
+		Quantity:    capacityUnits,
+	})
 	return nil
 }

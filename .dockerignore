@@ -1,0 +1,10 @@
+.git
+.github
+.aws
+**/.aws
+.ssh
+**/.ssh
+.env
+**/.env
+**/node_modules
+**/.serverless
