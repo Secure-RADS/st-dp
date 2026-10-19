@@ -136,12 +136,13 @@ def cost_services_figure(df: pd.DataFrame) -> None:
     by_service.columns = [column.removesuffix("_cost_usd") for column in by_service.columns]
     present = [service for service in COST_SERVICES if service in by_service.columns]
     by_service = by_service[present]
-    fig, ax = plt.subplots(figsize=(9, 5))
+    fig, ax = plt.subplots(figsize=(10, 5))
     by_service.plot.barh(stacked=True, color=COST_COLORS, width=0.7, ax=ax)
     ax.set_xlabel("mean execution cost (USD)")
     ax.set_ylabel("")
     ax.set_title("Cost by AWS service")
-    ax.legend(title=None, frameon=False, fontsize=8)
+    ax.legend(title=None, loc="center left", bbox_to_anchor=(1.02, 0.5), frameon=False, fontsize=8)
+    fig.subplots_adjust(right=0.78)
     _save(fig, "sweep-cost-services.png")
 
 
