@@ -3,7 +3,7 @@ module registry-service
 go 1.25.0
 
 require (
-	github.com/rukshangithub/GDPR/packages/go-common v0.0.0
+	github.com/Secure-RADS/GDPR/packages/go-common v0.0.0
 	github.com/aws/aws-sdk-go-v2 v1.44.0
 	github.com/aws/aws-sdk-go-v2/config v1.32.35
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.20.59
@@ -15,7 +15,7 @@ require (
 	github.com/google/uuid v1.6.0
 )
 
-replace github.com/rukshangithub/GDPR/packages/go-common => ../../../packages/go-common
+replace github.com/Secure-RADS/GDPR/packages/go-common => ../../../packages/go-common
 
 require (
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.16 // indirect

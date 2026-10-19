@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	sharedenv "github.com/Secure-RADS/GDPR/packages/go-common/env"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
@@ -13,7 +14,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	sharedenv "github.com/rukshangithub/GDPR/packages/go-common/env"
 )
 
 var (

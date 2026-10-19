@@ -13,6 +13,16 @@ import (
 
 const requestTimeout = 5 * time.Second
 
+const (
+	EventImageUploaded       = "image-uploaded"
+	EventBuildStarted        = "build-started"
+	EventAlgorithmRegistered = "algorithm-registered"
+	EventPCRsRegistered      = "pcrs-registered"
+	EventKMSKeyProvisioned   = "kms-key-provisioned"
+	EventBuildCompleted      = "build-completed"
+	EventBuildFailed         = "build-failed"
+)
+
 type Client struct {
 	Host       string
 	HTTPClient *http.Client
