@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"time"
 
+	sharedlog "github.com/rukshangithub/GDPR/packages/go-common/log"
 	"golang.org/x/sys/unix"
 )
 
@@ -36,23 +37,27 @@ func main() {
 	if err != nil {
 		log.Fatalf("sce-unit: load run config: %v", err)
 	}
+	var timelineLog *sharedlog.Client
+	if cfg.LogHost != "" {
+		timelineLog = &sharedlog.Client{Host: cfg.LogHost, HTTPClient: cfg.logSvc().client()}
+	}
 	info, err := readRunInfo()
 	if err != nil {
-		failRun(cfg, "", err)
+		failRun(timelineLog, cfg.AlgorithmId, "", err)
 	}
 	runID := info.RunID
-	logEvent(cfg, runID, eventEnclaveStarted, nil)
+	timelineLog.EmitEvent(cfg.AlgorithmId, &runID, eventEnclaveStarted, nil)
 
 	// Must run before any crypto/rand use (attestation, TLS) - see entropy.go.
 	if err := seedEntropy(); err != nil {
-		failRun(cfg, runID, fmt.Errorf("seed entropy: %w", err))
+		failRun(timelineLog, cfg.AlgorithmId, runID, fmt.Errorf("seed entropy: %w", err))
 	}
 	log.Printf("sce-unit: seeded kernel entropy from NSM")
-	logEvent(cfg, runID, eventUnitReady, nil)
+	timelineLog.EmitEvent(cfg.AlgorithmId, &runID, eventUnitReady, nil)
 
 	// Attest, fetch, decrypt, and write records.json before nsjail starts - same file contract as rads.
-	if err := prepareRecordsFile(cfg, runID, info.Size); err != nil {
-		failRun(cfg, runID, err)
+	if err := prepareRecordsFile(cfg, timelineLog, runID, info.Size); err != nil {
+		failRun(timelineLog, cfg.AlgorithmId, runID, err)
 	}
 
 	var jailLog bytes.Buffer
@@ -60,7 +65,7 @@ func main() {
 	cmd.Stdout = io.MultiWriter(os.Stdout, &jailLog)
 	cmd.Stderr = io.MultiWriter(os.Stderr, &jailLog)
 	if err := cmd.Start(); err != nil {
-		failRun(cfg, runID, fmt.Errorf("start nsjail: %w", err))
+		failRun(timelineLog, cfg.AlgorithmId, runID, fmt.Errorf("start nsjail: %w", err))
 	}
 	log.Printf("sce-unit: nsjail started (pid %d)", cmd.Process.Pid)
 
@@ -71,12 +76,12 @@ func main() {
 
 	failed := waitErr != nil || readErr != nil || len(output) == 0
 	if failed {
-		logEvent(cfg, runID, eventRunFailed, map[string]any{
+		timelineLog.EmitEvent(cfg.AlgorithmId, &runID, eventRunFailed, map[string]any{
 			"error": fmt.Sprintf("dc app failed: waitErr=%v readErr=%v outputBytes=%d", waitErr, readErr, len(output)),
 		})
 	}
 	if !failed {
-		logEvent(cfg, runID, eventDCAppCompleted, map[string]any{"outputBytes": len(output)})
+		timelineLog.EmitEvent(cfg.AlgorithmId, &runID, eventDCAppCompleted, map[string]any{"outputBytes": len(output)})
 	}
 	if readErr != nil || len(output) == 0 {
 		// The enclave console is lost when the host terminates, so deliver the failure and the jailed app's own output.
@@ -96,18 +101,20 @@ func main() {
 	}
 	if err := sendOutput(output); err != nil {
 		log.Printf("sce-unit: send output to host failed: %v", err)
-		logEvent(cfg, runID, eventRunFailed, map[string]any{"error": err.Error()})
+		timelineLog.EmitEvent(cfg.AlgorithmId, &runID, eventRunFailed, map[string]any{"error": err.Error()})
 		os.Exit(1)
 	}
-	logEvent(cfg, runID, eventOutputSent, nil)
+	timelineLog.EmitEvent(cfg.AlgorithmId, &runID, eventOutputSent, nil)
 	if failed {
 		os.Exit(1)
 	}
 }
 
-func failRun(cfg runConfig, runID string, err error) {
+func failRun(timelineLog *sharedlog.Client, algorithmID, runID string, err error) {
 	log.Printf("sce-unit: %v", err)
-	logEvent(cfg, runID, eventRunFailed, map[string]any{"error": err.Error()})
+	if runID != "" {
+		timelineLog.EmitEvent(algorithmID, &runID, eventRunFailed, map[string]any{"error": err.Error()})
+	}
 	failure, _ := json.Marshal(struct {
 		Error string `json:"error"`
 	}{Error: err.Error()})
@@ -119,13 +126,13 @@ func failRun(cfg runConfig, runID string, err error) {
 
 // prepareRecordsFile attests, fetches ciphertext from pdm-service, decrypts, and writes the rads-shaped
 // records.json the DC app loads via RECORDS_PATH.
-func prepareRecordsFile(cfg runConfig, runID string, limit int) error {
+func prepareRecordsFile(cfg runConfig, timelineLog *sharedlog.Client, runID string, limit int) error {
 	tp, err := attest(cfg, runID)
 	if err != nil {
 		return fmt.Errorf("attestation failed: %w", err)
 	}
 	log.Printf("sce-unit: attested successfully, access token expires %s", tp.AccessTokenExpiresAt.Format(time.RFC3339))
-	logEvent(cfg, runID, eventAttested, nil)
+	timelineLog.EmitEvent(cfg.AlgorithmId, &runID, eventAttested, nil)
 	setTokens(tp)
 	go refreshLoop(cfg, runID)
 
@@ -139,7 +146,7 @@ func prepareRecordsFile(cfg runConfig, runID string, limit int) error {
 		return fmt.Errorf("fetch records: %w", err)
 	}
 	log.Printf("sce-unit: fetched %d records from pdm-service", len(records))
-	logEvent(cfg, runID, eventRecordsFetched, map[string]any{"count": len(records)})
+	timelineLog.EmitEvent(cfg.AlgorithmId, &runID, eventRecordsFetched, map[string]any{"count": len(records)})
 
 	// pdm-service only ever returns ciphertext; the data key that unwraps it is obtained from KMS under
 	// this enclave's attestation. Only the measured image can do this - see the per-algorithm key policy.
@@ -158,7 +165,7 @@ func prepareRecordsFile(cfg runConfig, runID string, limit int) error {
 		plainRecords = append(plainRecords, pdmRecord{RecordId: rec.RecordId, Data: plain})
 	}
 	log.Printf("sce-unit: decrypted %d records", len(plainRecords))
-	logEvent(cfg, runID, eventRecordsDecrypted, map[string]any{"count": len(plainRecords)})
+	timelineLog.EmitEvent(cfg.AlgorithmId, &runID, eventRecordsDecrypted, map[string]any{"count": len(plainRecords)})
 
 	body, err := json.Marshal(struct {
 		AlgorithmId string      `json:"algorithmId"`
@@ -176,7 +183,7 @@ func prepareRecordsFile(cfg runConfig, runID string, limit int) error {
 		return fmt.Errorf("write %s: %w", recordsFileHost, err)
 	}
 	log.Printf("sce-unit: wrote %d bytes to %s", len(body), recordsFileHost)
-	logEvent(cfg, runID, eventRecordsStoredLocally, nil)
+	timelineLog.EmitEvent(cfg.AlgorithmId, &runID, eventRecordsStoredLocally, nil)
 	return nil
 }
 

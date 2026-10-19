@@ -60,7 +60,7 @@ clean:
 
 # Pre-built asset baked into the app image at build time - rebuild only when sce-unit itself changes, not per upload.
 sce-unit-base:
-	docker build --platform linux/arm64 -t sce-unit-base:latest ../../sce-unit
+	docker build --platform linux/arm64 -f ../../sce-unit/Dockerfile -t sce-unit-base:latest ../../..
 
 # eif_build + kernel/init blobs - rebuild only when eif-build/ itself changes.
 eif-build-base:
@@ -76,7 +76,7 @@ gen-client-cert:
 
 # Build the docker image locally (arm64, matches the t4g.nano host).
 image: sce-unit-base eif-build-base
-	docker build --platform linux/arm64 -t $(IMAGE) .
+	docker build --platform linux/arm64 -f Dockerfile -t $(IMAGE) ../../..
 
 # Save the image + .env (bucket/region/pins for compose var substitution) and scp
 # those to the instance. docker-compose.yml is baked at CSAV boot (UserData) — not shipped.

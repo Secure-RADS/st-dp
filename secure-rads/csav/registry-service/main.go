@@ -13,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	sharedenv "github.com/rukshangithub/GDPR/packages/go-common/env"
 )
 
 var (
@@ -31,9 +32,15 @@ func main() {
 		panic(err)
 	}
 	s3Client = s3.NewFromConfig(cfg)
-	artifactBucket = os.Getenv("ARTIFACT_BUCKET")
+	artifactBucket, err = sharedenv.Required("ARTIFACT_BUCKET")
+	if err != nil {
+		panic(err)
+	}
 	dynamoClient = dynamodb.NewFromConfig(cfg)
-	dynamoTable = os.Getenv("DYNAMO_TABLE")
+	dynamoTable, err = sharedenv.Required("DYNAMO_TABLE")
+	if err != nil {
+		panic(err)
+	}
 	kmsClient = kms.NewFromConfig(cfg)
 	stsClient = sts.NewFromConfig(cfg)
 	enclaveHostRoleArn = os.Getenv("ENCLAVE_HOST_ROLE_ARN")
@@ -46,15 +53,6 @@ func main() {
 	})
 
 	r.POST("/upload", func(c *gin.Context) {
-		if artifactBucket == "" {
-			c.String(http.StatusInternalServerError, "ARTIFACT_BUCKET not configured")
-			return
-		}
-		if dynamoTable == "" {
-			c.String(http.StatusInternalServerError, "DYNAMO_TABLE not configured")
-			return
-		}
-
 		fileHeader, err := c.FormFile("image")
 		if err != nil {
 			c.String(http.StatusBadRequest, "missing 'image' form field: %v", err)
