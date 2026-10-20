@@ -153,6 +153,8 @@ def scaling_figure(df: pd.DataFrame) -> None:
     ax.set_ylabel("total execution time (seconds)")
     ax.set_title("End-to-end execution time vs dataset size")
     ax.legend(title=None, frameon=False)
+    ax.set_xticks([10_000, 30_000, 50_000, 70_000, 90_000, 110_000, 130_000, 150_000])
+    ax.set_xticklabels([f"{x // 1000}K" for x in ax.get_xticks()])
     _save(fig, "sweep-scaling.png")
 
 
