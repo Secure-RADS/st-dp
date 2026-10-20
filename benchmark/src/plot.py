@@ -92,7 +92,7 @@ def phases_figure(df: pd.DataFrame) -> None:
 
 
 def phases_figure_selected(df: pd.DataFrame) -> None:
-    selected_sizes = [10_000, 40_000, 80_000, 120_000, 150_000]
+    selected_sizes = [10_000, 50_000, 100_000, 150_000]
     selected_df = df[df["dataset_size"].isin(selected_sizes)]
 
     means = (
