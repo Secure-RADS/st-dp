@@ -91,6 +91,51 @@ def phases_figure(df: pd.DataFrame) -> None:
     _save(fig, "sweep-phases.png", tight=False)
 
 
+def phases_figure_selected(df: pd.DataFrame) -> None:
+    selected_sizes = [10_000, 40_000, 80_000, 120_000, 150_000]
+    selected_df = df[df["dataset_size"].isin(selected_sizes)]
+
+    means = (
+        selected_df.groupby(
+            ["dataset_size", "tree", "label"], as_index=False
+        )[[*PHASES, "total_s"]]
+        .mean()
+        .sort_values(["dataset_size", "tree"])
+    )
+
+    means["row"] = means.apply(
+        lambda r: f"{r.dataset_size // 1000}K  {r.label}  ({r.total_s:.0f}s)",
+        axis=1,
+    )
+    plot_df = means.set_index("row")[list(PHASES)].rename(columns=PHASES)
+
+    # Same title, labels, colours, legend, and footnote as the original.
+    fig, ax = plt.subplots(figsize=(11, 9.5))
+    plot_df.plot.barh(
+        stacked=True, color=PHASE_COLORS, width=0.8, ax=ax, legend=False
+    )
+
+    ax.invert_yaxis()
+    ax.set_xlabel("seconds (mean per run)")
+    ax.set_ylabel("")
+    ax.set_title("Where an execution's wall clock goes, by dataset size")
+
+    fig.subplots_adjust(left=0.28, right=0.98, top=0.9, bottom=0.34)
+    ax.legend(
+        list(PHASES.values()),
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.22),
+        ncol=4,
+        frameon=False,
+        fontsize=8.5,
+    )
+    fig.text(0.5, 0.06, NOTE, ha="center", va="bottom",
+             fontsize=8, color="#555555")
+
+    _save(fig, "sweep-phases-selected.png", tight=False)
+
+
+
 def scaling_figure(df: pd.DataFrame) -> None:
     fig, ax = plt.subplots(figsize=(9, 5))
     sns.lineplot(
@@ -152,6 +197,7 @@ def main() -> int:
     df = load()
     logger.info("loaded {} runs across {} sizes", len(df), df["dataset_size"].nunique())
     phases_figure(df)
+    phases_figure_selected(df)
     scaling_figure(df)
     if "total_cost_usd" in df.columns:
         cost_size_figure(df)
