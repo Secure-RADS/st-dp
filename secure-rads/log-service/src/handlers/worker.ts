@@ -3,6 +3,7 @@ import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
 import { requiredEnv } from "@srads/common/env";
 import type { SQSHandler } from "aws-lambda";
 import type { IngestedEvent } from "../lib/ingest.js";
+import { LOG_PARTITION } from "../lib/runLog.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const table = requiredEnv("RUN_LOG_TABLE");
@@ -16,6 +17,10 @@ async function persist(item: IngestedEvent): Promise<void> {
         // Event name instead of a random nonce, so a redelivered message overwrites rather than duplicates.
         Sk: `${item.runId ?? ""}#${item.timestamp}#${item.event}`,
         RunId: item.runId,
+        LogPartition: LOG_PARTITION,
+        // Only set for execution events. A GSI key attribute carrying the wrong type (NULL) would make
+        // DynamoDB reject the write, so build events omit it and stay out of RunIndex entirely.
+        ...(item.runId ? { RunIdKey: item.runId } : {}),
         Event: item.event,
         Timestamp: item.timestamp,
         ReceivedAt: item.receivedAt,

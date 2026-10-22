@@ -34,3 +34,28 @@ export async function scanAllAccesses(ddb: DynamoDBDocumentClient, table: string
   } while (exclusiveStartKey);
   return rows;
 }
+
+// Inverse direction of queryAccesses, served by AlgorithmIndex. The index sort key is the base table's
+// Sk (timestamp-first), so rows come back chronological for the algorithm.
+export async function queryAccessesByAlgorithm(
+  ddb: DynamoDBDocumentClient,
+  table: string,
+  algorithmId: string,
+): Promise<SubjectAccessRow[]> {
+  const rows: SubjectAccessRow[] = [];
+  let exclusiveStartKey: Record<string, unknown> | undefined;
+  do {
+    const result = await ddb.send(
+      new QueryCommand({
+        TableName: table,
+        IndexName: "AlgorithmIndex",
+        KeyConditionExpression: "AlgorithmId = :a",
+        ExpressionAttributeValues: { ":a": algorithmId },
+        ExclusiveStartKey: exclusiveStartKey,
+      }),
+    );
+    for (const item of result.Items ?? []) rows.push(toRow(item));
+    exclusiveStartKey = result.LastEvaluatedKey;
+  } while (exclusiveStartKey);
+  return rows;
+}

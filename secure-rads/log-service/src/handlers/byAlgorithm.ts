@@ -3,20 +3,10 @@ import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { requiredEnv } from "@srads/common/env";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { type EventRow, toCsv } from "../lib/csv.js";
+import { toRow } from "../lib/runLog.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const table = requiredEnv("RUN_LOG_TABLE");
-
-function toRow(item: Record<string, unknown>): EventRow {
-  return {
-    algorithmId: item.AlgorithmId as string,
-    runId: item.RunId as string,
-    event: item.Event as string,
-    timestamp: item.Timestamp as string,
-    receivedAt: item.ReceivedAt as string,
-    detail: item.Detail ?? null,
-  };
-}
 
 // Exports one algorithm's timeline, optionally narrowed to a single run. Pages through every result so an
 // export is never silently truncated; the SK gives a chronological (runId, timestamp) sort for free.

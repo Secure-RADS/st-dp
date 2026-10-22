@@ -26,6 +26,9 @@ provider:
           Resource:
             - !GetAtt RunLogTable.Arn
             - !GetAtt SubjectAccessTable.Arn
+            # Querying a GSI needs the index ARN, which is not covered by the table ARN.
+            - !Sub "${RunLogTable.Arn}/index/*"
+            - !Sub "${SubjectAccessTable.Arn}/index/*"
         - Effect: Allow
           Action:
             - sqs:SendMessage
@@ -69,6 +72,12 @@ functions:
       - httpApi:
           method: GET
           path: /logs
+  byRun:
+    handler: src/handlers/byRun.handler
+    events:
+      - httpApi:
+          method: GET
+          path: /runs/{runId}
   subjectAccessIngest:
     handler: src/handlers/subjectAccessIngest.handler
     events:
@@ -87,9 +96,17 @@ functions:
       - httpApi:
           method: GET
           path: /subject-access
+  subjectAccessByAlgorithm:
+    handler: src/handlers/subjectAccessByAlgorithm.handler
+    events:
+      - httpApi:
+          method: GET
+          path: /subject-access/by-algorithm/{algorithmId}
 
 resources:
   Resources:
+    # Two GSIs here. DynamoDB builds at most one index per UpdateTable, so on an already-deployed stack
+    # these must land in two separate deploys; on a fresh create both are built at once.
     RunLogTable:
       Type: AWS::DynamoDB::Table
       Properties:
@@ -99,11 +116,39 @@ resources:
             AttributeType: S
           - AttributeName: Sk
             AttributeType: S
+          - AttributeName: LogPartition
+            AttributeType: S
+          - AttributeName: RunIdKey
+            AttributeType: S
+          - AttributeName: Timestamp
+            AttributeType: S
         KeySchema:
           - AttributeName: AlgorithmId
             KeyType: HASH
           - AttributeName: Sk
             KeyType: RANGE
+        GlobalSecondaryIndexes:
+          # Cross-algorithm chronological export. The partition key is the constant "EVENT" so every event
+          # lands in one partition ordered by Timestamp - a deliberate hot partition, acceptable because this
+          # log is low-rate benchmarking data and the alternative is sorting a full scan in the Lambda.
+          - IndexName: TimelineIndex
+            KeySchema:
+              - AttributeName: LogPartition
+                KeyType: HASH
+              - AttributeName: Timestamp
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+          # Per-run timeline across algorithms. Sparse: RunIdKey is only written for execution events, so
+          # build events (which have no runId) are simply absent from this index.
+          - IndexName: RunIndex
+            KeySchema:
+              - AttributeName: RunIdKey
+                KeyType: HASH
+              - AttributeName: Timestamp
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
 
     # Visibility must exceed the worker timeout so in-flight batches are not redelivered mid-PutItem.
     EventQueue:
@@ -129,11 +174,24 @@ resources:
             AttributeType: S
           - AttributeName: Sk
             AttributeType: S
+          - AttributeName: AlgorithmId
+            AttributeType: S
         KeySchema:
           - AttributeName: DataSubjectId
             KeyType: HASH
           - AttributeName: Sk
             KeyType: RANGE
+        GlobalSecondaryIndexes:
+          # Inverts the table: which data subjects an algorithm touched. Reuses the base table's own Sk,
+          # which starts with the timestamp, so results come back chronological per algorithm for free.
+          - IndexName: AlgorithmIndex
+            KeySchema:
+              - AttributeName: AlgorithmId
+                KeyType: HASH
+              - AttributeName: Sk
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
 
     # Plain server-auth TLS only - producers are internal SCE components on a trusted network, and the
     # log is fire-and-forget benchmarking data, not a secret store, so no client cert is required.
