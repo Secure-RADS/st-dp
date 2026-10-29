@@ -92,85 +92,44 @@ def phases_figure(df: pd.DataFrame) -> None:
 
 
 def phases_figure_selected(df: pd.DataFrame) -> None:
-    selected_sizes = [10_000, 80_000, 150_000]
-    selected_df = df[df["dataset_size"].isin(selected_sizes)]
+SLECTED_SIZES = [10_000, 80_000, 150_000]
+    LABEL_NAMES = {
+    "rads (baseline)": "CE",
+    "secure-rads (enclave)": "Sec-CE",}
 
     means = (
-        selected_df.groupby(
-            ["dataset_size", "tree", "label"], as_index=False
-        )[[*PHASES, "total_s"]]
+        df[df["dataset_size"].isin(SELECTED_SIZES)]
+        .groupby(["dataset_size", "tree", "label"], as_index=False)[[*PHASES, "total_s"]]
         .mean()
         .sort_values(["dataset_size", "tree"])
     )
+    means["col"] = means.apply(
+        lambda r: f"{LABEL_NAMES.get(r.label, r.label)}\n{r.dataset_size // 1000}K",
+        axis=1,
+    )
+    plot_df = means.set_index("col")[list(PHASES)].rename(columns=PHASES)
 
-    # Generate one figure for each testbed.
-    for tree in means["tree"].unique():
-        tree_df = means[means["tree"] == tree].copy()
+    fig, ax = plt.subplots(figsize=(9, 6))
+    plot_df.plot.bar(stacked=True, color=PHASE_COLORS, width=0.8, ax=ax, legend=False, rot=0)
 
-        tree_df = (
-            tree_df.groupby("dataset_size", as_index=False)
-            [[*PHASES, "total_s"]]
-            .mean()
-            .sort_values("dataset_size")
-        )
+    # total time above each bar
+    for i, total in enumerate(means["total_s"]):
+        ax.text(i, total, f"{total:.0f}s", ha="center", va="bottom", fontsize=8.5)
 
-        plot_df = (
-            tree_df.set_index("dataset_size")[list(PHASES)]
-            .rename(columns=PHASES)
-        )
-
-        # Use dataset sizes on the x-axis.
-        plot_df.index = [f"{size // 1000}K" for size in plot_df.index]
-
-        fig, ax = plt.subplots(figsize=(9, 5.5))
-
-        plot_df.plot.bar(
-            stacked=True,
-            color=PHASE_COLORS,
-            width=0.7,
-            ax=ax,
-            legend=False,
-        )
-
-        ax.set_xlabel("Dataset size (records)")
-        ax.set_ylabel(" time (s)")
-
-        # Show total execution time above each bar.
-        for i, total in enumerate(tree_df["total_s"]):
-            ax.annotate(
-                f"{total:.0f}s",
-                (i, total),
-                xytext=(0, 4),
-                textcoords="offset points",
-                ha="center",
-                va="bottom",
-                fontsize=8.5,
-            )
-
-        fig.subplots_adjust(
-            left=0.10, right=0.98, top=0.88, bottom=0.30
-        )
-
-        ax.legend(
-            list(PHASES.values()),
-            loc="upper center",
-            bbox_to_anchor=(0.5, -0.18),
-            ncol=4,
-            frameon=False,
-            fontsize=8.5,
-        )
-
-        fig.text(
-            0.5, 0.03, NOTE,
-            ha="center",
-            va="bottom",
-            fontsize=8,
-            color="#555555",
-        )
-
-        # Save a separate figure for each testbed.
-        filename = f"sweep-phases-{str(tree).lower().replace(' ', '-')}.png"
-        _save(fig, filename, tight=False)
+    ax.set_ylabel("Time (seconds)")
+    ax.set_xlabel("")
+    ax.set_ylim(0, means["total_s"].max() * 1.08)
+    fig.subplots_adjust(left=0.1, right=0.98, top=0.92, bottom=0.30)
+    ax.legend(
+        list(PHASES.values()),
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.14),
+        ncol=4,
+        frameon=False,
+        fontsize=8.5,
+    )
+    fig.text(0.5, 0.03, NOTE, ha="center", va="bottom", fontsize=8, color="#555555")
+    _save(fig, "sweep-selected-phases.png", tight=False)
 
 
 
