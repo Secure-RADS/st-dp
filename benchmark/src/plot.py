@@ -92,7 +92,7 @@ def phases_figure(df: pd.DataFrame) -> None:
 
 
 def phases_figure_selected(df: pd.DataFrame) -> None:
-    selected_sizes = [10_000, 50_000, 100_000, 150_000]
+    selected_sizes = [10_000, 80_000, 150_000]
     selected_df = df[df["dataset_size"].isin(selected_sizes)]
 
     means = (
@@ -103,36 +103,74 @@ def phases_figure_selected(df: pd.DataFrame) -> None:
         .sort_values(["dataset_size", "tree"])
     )
 
-    means["row"] = means.apply(
-        lambda r: f"{r.dataset_size // 1000}K  {r.label}  ({r.total_s:.0f}s)",
-        axis=1,
-    )
-    plot_df = means.set_index("row")[list(PHASES)].rename(columns=PHASES)
+    # Generate one figure for each testbed.
+    for tree in means["tree"].unique():
+        tree_df = means[means["tree"] == tree].copy()
 
-    # Same title, labels, colours, legend, and footnote as the original.
-    fig, ax = plt.subplots(figsize=(11, 9.5))
-    plot_df.plot.barh(
-        stacked=True, color=PHASE_COLORS, width=0.8, ax=ax, legend=False
-    )
+        tree_df = (
+            tree_df.groupby("dataset_size", as_index=False)
+            [[*PHASES, "total_s"]]
+            .mean()
+            .sort_values("dataset_size")
+        )
 
-    ax.invert_yaxis()
-    ax.set_xlabel("seconds (mean per run)")
-    ax.set_ylabel("")
-    ax.set_title("Where an execution's wall clock goes, by dataset size")
+        plot_df = (
+            tree_df.set_index("dataset_size")[list(PHASES)]
+            .rename(columns=PHASES)
+        )
 
-    fig.subplots_adjust(left=0.28, right=0.98, top=0.9, bottom=0.34)
-    ax.legend(
-        list(PHASES.values()),
-        loc="upper center",
-        bbox_to_anchor=(0.5, -0.22),
-        ncol=4,
-        frameon=False,
-        fontsize=8.5,
-    )
-    fig.text(0.5, 0.06, NOTE, ha="center", va="bottom",
-             fontsize=8, color="#555555")
+        # Use dataset sizes on the x-axis.
+        plot_df.index = [f"{size // 1000}K" for size in plot_df.index]
 
-    _save(fig, "sweep-phases-selected.png", tight=False)
+        fig, ax = plt.subplots(figsize=(9, 5.5))
+
+        plot_df.plot.bar(
+            stacked=True,
+            color=PHASE_COLORS,
+            width=0.7,
+            ax=ax,
+            legend=False,
+        )
+
+        ax.set_xlabel("Dataset size (records)")
+        ax.set_ylabel(" time (s)")
+
+        # Show total execution time above each bar.
+        for i, total in enumerate(tree_df["total_s"]):
+            ax.annotate(
+                f"{total:.0f}s",
+                (i, total),
+                xytext=(0, 4),
+                textcoords="offset points",
+                ha="center",
+                va="bottom",
+                fontsize=8.5,
+            )
+
+        fig.subplots_adjust(
+            left=0.10, right=0.98, top=0.88, bottom=0.30
+        )
+
+        ax.legend(
+            list(PHASES.values()),
+            loc="upper center",
+            bbox_to_anchor=(0.5, -0.18),
+            ncol=4,
+            frameon=False,
+            fontsize=8.5,
+        )
+
+        fig.text(
+            0.5, 0.03, NOTE,
+            ha="center",
+            va="bottom",
+            fontsize=8,
+            color="#555555",
+        )
+
+        # Save a separate figure for each testbed.
+        filename = f"sweep-phases-{str(tree).lower().replace(' ', '-')}.png"
+        _save(fig, filename, tight=False)
 
 
 
