@@ -128,7 +128,6 @@ def phases_figure_selected(df: pd.DataFrame) -> None:
         frameon=False,
         fontsize=8.5,
     )
-    fig.text(0.5, 0.03, NOTE, ha="center", va="bottom", fontsize=8, color="#555555")
     _save(fig, "sweep-selected-phases.png", tight=False)
 
 
