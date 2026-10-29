@@ -92,7 +92,7 @@ def phases_figure(df: pd.DataFrame) -> None:
 
 
 def phases_figure_selected(df: pd.DataFrame) -> None:
-SLECTED_SIZES = [10_000, 80_000, 150_000]
+    SLECTED_SIZES = [10_000, 80_000, 150_000]
     LABEL_NAMES = {
     "rads (baseline)": "CE",
     "secure-rads (enclave)": "Sec-CE",}
