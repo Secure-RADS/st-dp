@@ -1,8 +1,8 @@
 # Secure-RADS
 
 Research proof of concept of the Secure Computing Environment (SCE) on AWS Nitro Enclaves, with the
-fully trusted RADS baseline included alongside it for comparison. It accompanies the paper cited in
-[`CITATION.cff`](CITATION.cff).
+fully trusted RADS baseline included alongside it for comparison. It accompanies a research paper that
+is not published yet; citation details will be added with the publication.
 
 This is not production software. It is published so the design and measurements can be inspected and
 reproduced. There is no support commitment, no security guarantee, and no license granted yet; see
@@ -141,4 +141,5 @@ copying, modifying, or redistributing it is not permitted until a license is add
 
 ## Citation
 
-If you use this work, cite the paper listed in [`CITATION.cff`](CITATION.cff).
+The paper this work supports is not published yet. Citation details, and a `CITATION.cff`, will be
+added when it is.
