@@ -78,7 +78,8 @@ sce-logs:
 	$(MAKE) -C secure-rads/sce logs
 
 # End-to-end build + execution. Resolved lazily so only these targets hit AWS.
-REGION ?= ap-southeast-2
+REGION := $(AWS_REGION)
+$(call env_require,AWS_REGION)
 KEY_PATH := $(CURDIR)/.ssh/csav-key.pem
 LOG_HOST ?= log.secure-rads.org
 COST_HOST ?= cost.sr.secure-rads.org

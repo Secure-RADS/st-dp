@@ -11,7 +11,7 @@ build:
 provider:
   name: aws
   runtime: nodejs24.x
-  region: ${param:region, 'ap-southeast-2'}
+  region: ${env:AWS_REGION}
   httpApi:
     cors: true
   iam:
@@ -22,8 +22,8 @@ provider:
           Resource: !GetAtt PersonalDataTable.Arn
   environment:
     PDM_TABLE: !Ref PersonalDataTable
-    LOG_HOST: ${param:logHost, 'log.r.secure-rads.org'}
-    COST_HOST: ${param:costHost, 'cost.r.secure-rads.org'}
+    LOG_HOST: ${env:LOG_HOST_RADS}
+    COST_HOST: ${env:COST_HOST_RADS}
 
 functions:
   records:

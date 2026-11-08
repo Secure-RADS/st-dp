@@ -1,7 +1,8 @@
 include ../../mk/env.mk
 
 STACK_NAME := secure-rads-execution-service-dev
-REGION ?= ap-southeast-2
+REGION := $(AWS_REGION)
+$(call env_require,AWS_REGION)
 
 DEFAULT_VPC_ID = $(shell aws ec2 describe-vpcs --region $(REGION) --filters Name=is-default,Values=true \
 	--query 'Vpcs[0].VpcId' --output text)
@@ -23,9 +24,9 @@ RUN_RESULTS_QUEUE_URL = $(shell aws cloudformation describe-stacks --stack-name 
 API_URL = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='ExecutionApiUrl'].OutputValue" --output text)
 
-.PHONY: deploy destroy status logs
+.PHONY: deploy destroy status logs env-check
 
-deploy:
+deploy: env-check
 	cd execution-service && bun install && bunx serverless deploy \
 		--param="region=$(REGION)" \
 		--param="vpcId=$(DEFAULT_VPC_ID)" \
@@ -46,3 +47,12 @@ status:
 
 logs:
 	aws logs tail /aws/lambda/secure-rads-execution-service-dev-run --region $(REGION) --follow
+
+env-check:
+	@$(call env_require,AWS_REGION)
+	@$(call env_require,AVAILABILITY_ZONE)
+	@$(call env_require,SCE_ENCLAVE_AMI_ID)
+	@$(call env_require,VERIFIER_ATTEST_HOST)
+	@$(call env_require,PDM_HOST)
+	@$(call env_require,LOG_HOST_SECURE_RADS)
+	@$(call env_require,COST_HOST_SECURE_RADS)

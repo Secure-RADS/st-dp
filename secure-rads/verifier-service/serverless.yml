@@ -12,7 +12,7 @@ build:
 provider:
   name: aws
   runtime: nodejs24.x
-  region: ${param:region, 'ap-southeast-2'}
+  region: ${env:AWS_REGION}
   httpApi:
     disableDefaultEndpoint: true # mTLS is only enforced on the custom domain below - the default execute-api endpoint bypasses it entirely.
   iam:
@@ -39,7 +39,7 @@ provider:
     ALGORITHM_PCR_TABLE: !Ref AlgorithmPCRTable
     ATTESTATION_SESSION_TABLE: !Ref AttestationSessionTable
     JWT_SIGNING_KEY_PARAM: /secure-rads/verifier-service/jwt-signing-key
-    COST_HOST: ${param:costHost, 'cost.sr.secure-rads.org'}
+    COST_HOST: ${env:COST_HOST_SECURE_RADS}
 
 functions:
   registerAlgorithm:

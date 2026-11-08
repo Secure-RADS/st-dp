@@ -1,7 +1,7 @@
 include ../mk/env.mk
 
-REGION ?= ap-southeast-2
-export AWS_REGION ?= $(REGION)
+REGION := $(AWS_REGION)
+$(call env_require,AWS_REGION)
 export AWS_DEFAULT_REGION ?= $(REGION)
 export PYTHONPATH := src
 

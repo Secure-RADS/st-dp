@@ -69,6 +69,22 @@ chmod 600 .env
 
 Fill in `CLOUDFLARE_EMAIL`, `CLOUDFLARE_API_TOKEN`, and optionally `CLOUDFLARE_ZONE` if it is not `secure-rads.org`. Every Makefile and `scripts/*.sh` loads that file itself, from any subdirectory, and stops with a clear message when it is missing. `devbox shell` also exports it on entry, so an existing shell only needs re-sourcing after you edit the file.
 
+Values the deployment needs, all read from that file:
+
+| Variable | What it is |
+| --- | --- |
+| `AWS_REGION` | Region every stack deploys into. |
+| `AVAILABILITY_ZONE` | AZ for the rads executor and the enclave host; must be in `AWS_REGION`. |
+| `RADS_EXECUTOR_AMI_ID`, `SCE_ENCLAVE_AMI_ID` | Arm64 Amazon Linux 2023 AMIs used by the two execution paths. |
+| `CERT_ARN_RADS`, `CERT_ARN_SECURE_RADS` | us-east-1 ACM certificates for the two transparency portals. |
+| `TRANSPARENCY_DOMAIN_RADS`, `TRANSPARENCY_DOMAIN_SECURE_RADS` | Portal hostnames on those certificates. |
+| `LOG_HOST_RADS`, `LOG_HOST_SECURE_RADS`, `COST_HOST_RADS`, `COST_HOST_SECURE_RADS` | Service hostnames each stack reports to. |
+| `PDM_HOST`, `VERIFIER_HOST`, `VERIFIER_ATTEST_HOST` | PDM and verifier endpoints. |
+| `VERIFIER_JWKS_URL`, `VERIFIER_JWKS_PUBKEY_SHA256` | Verifier key location and pin used by the PDM service. |
+| `CLOUDFLARE_ZONE`, `CLOUDFLARE_EMAIL`, `CLOUDFLARE_API_TOKEN` | Cloudflare zone and credentials for the DNS helper. |
+
+Commands stop with the variable name when a required value is missing.
+
 The DNS helper creates DNS-only CNAME records:
 
 ```sh

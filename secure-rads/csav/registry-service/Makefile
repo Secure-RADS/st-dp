@@ -3,7 +3,8 @@ include ../../../mk/env.mk
 IMAGE := registry-service:latest
 STACK_NAME := secure-rads-csav
 STORAGE_STACK_NAME := secure-rads-registry-service-storage
-REGION ?= ap-southeast-2
+REGION := $(AWS_REGION)
+$(call env_require,AWS_REGION)
 KEY_PATH := $(abspath ../../../.ssh/csav-key.pem)
 REMOTE_DIR := /home/ec2-user/registry-service
 

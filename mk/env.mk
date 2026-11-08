@@ -13,3 +13,5 @@ include $(ENV_FILE)
 
 ENV_KEYS := $(shell sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' $(ENV_FILE))
 $(foreach key,$(ENV_KEYS),$(eval export $(key)))
+
+env_require = $(if $(strip $($(1))),,$(error $(1) is not set. Add it to .env (see .env.example)))

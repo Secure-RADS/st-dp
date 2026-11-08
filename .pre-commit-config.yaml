@@ -17,7 +17,7 @@ repos:
       - id: check-added-large-files
         args: [--maxkb=1024]
       - id: check-yaml
-        exclude: ^(.*/)?cloudformation\.ya?ml(\.tmpl)?$
+        exclude: ^((.*/)?cloudformation\.ya?ml(\.tmpl)?|(.*/)?serverless\.ya?ml)$
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.17.4
