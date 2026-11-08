@@ -87,3 +87,7 @@ make cost-csv-all                                     # whole cost table
 ```
 
 For a new AWS account or a full deployment, follow [`docs/getting-started.md`](docs/getting-started.md). See each service README for service-specific deployment and internals.
+
+## Deferred work
+
+Work identified during the PoC that is out of scope for this repository is listed in [`TODO.md`](TODO.md), each item linked to the closed issue holding the full analysis.
