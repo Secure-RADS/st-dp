@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# shellcheck disable=SC1091
+. "$(dirname "${BASH_SOURCE[0]}")/env.sh"
+
 zone="${CLOUDFLARE_ZONE:-secure-rads.org}"
-: "${CLOUDFLARE_API_TOKEN:?CLOUDFLARE_API_TOKEN is required - source .env}"
-: "${CLOUDFLARE_EMAIL:?CLOUDFLARE_EMAIL is required - source .env}"
+: "${CLOUDFLARE_API_TOKEN:?CLOUDFLARE_API_TOKEN is required in .env}"
+: "${CLOUDFLARE_EMAIL:?CLOUDFLARE_EMAIL is required in .env}"
 name="${1:?usage: cloudflare-dns.sh <hostname> <target>}"
 target="${2:?usage: cloudflare-dns.sh <hostname> <target>}"
 name="${name%.}"

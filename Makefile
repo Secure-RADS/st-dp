@@ -1,5 +1,10 @@
-.PHONY: up down status secure-rads rads logs csav-key csav-deploy csav-destroy csav-status csav-up csav-down csav-ssh \
+include mk/env.mk
+
+.PHONY: env up down status secure-rads rads logs csav-key csav-deploy csav-destroy csav-status csav-up csav-down csav-ssh \
 	benchmark benchmark-report benchmark-seed benchmark-run
+
+env:
+	scripts/derive-env.sh
 
 up:
 	$(MAKE) secure-rads-ready
@@ -76,10 +81,11 @@ sce-logs:
 	$(MAKE) -C secure-rads/sce logs
 
 # End-to-end build + execution. Resolved lazily so only these targets hit AWS.
-REGION ?= ap-southeast-2
+REGION := $(AWS_REGION)
+$(call env_require,AWS_REGION)
 KEY_PATH := $(CURDIR)/.ssh/csav-key.pem
-LOG_HOST ?= log.secure-rads.org
-COST_HOST ?= cost.sr.secure-rads.org
+LOG_HOST = $(LOG_HOST_SECURE_RADS)
+COST_HOST = $(COST_HOST_SECURE_RADS)
 instance_ip = $(shell aws ec2 describe-instances --region $(REGION) --instance-ids $(shell aws cloudformation describe-stacks \
 	--stack-name $(1) --region $(REGION) --query "Stacks[0].Outputs[?OutputKey=='$(2)'].OutputValue" --output text) \
 	--query 'Reservations[0].Instances[0].PublicIpAddress' --output text)

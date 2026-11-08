@@ -11,7 +11,7 @@ build:
 provider:
   name: aws
   runtime: nodejs24.x
-  region: ${param:region, 'ap-southeast-2'}
+  region: ${env:AWS_REGION}
   iam:
     role:
       statements:
@@ -20,8 +20,8 @@ provider:
           Resource: !GetAtt RunResultsTable.Arn
   environment:
     RUN_RESULTS_TABLE: !Ref RunResultsTable
-    LOG_HOST: ${param:logHost, 'log.sr.secure-rads.org'}
-    COST_HOST: ${param:costHost, 'cost.sr.secure-rads.org'}
+    LOG_HOST: ${env:LOG_HOST_SECURE_RADS}
+    COST_HOST: ${env:COST_HOST_SECURE_RADS}
 
 functions:
   consume:

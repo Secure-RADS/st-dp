@@ -13,7 +13,7 @@ package:
 provider:
   name: aws
   runtime: nodejs24.x
-  region: ${param:region, 'ap-southeast-2'}
+  region: ${env:AWS_REGION}
   iam:
     role:
       statements:
@@ -47,15 +47,15 @@ provider:
     ALGORITHM_TABLE: ${param:algorithmTable}
     RUN_RESULTS_TABLE: ${param:runResultsTable}
     RUN_RESULTS_QUEUE_URL: ${param:runResultsQueueUrl}
-    LOG_HOST: ${param:logHost, 'log.r.secure-rads.org'}
-    COST_HOST: ${param:costHost, 'cost.r.secure-rads.org'}
+    LOG_HOST: ${env:LOG_HOST_RADS}
+    COST_HOST: ${env:COST_HOST_RADS}
     PDM_URL: ${param:pdmUrl}
     PDM_TABLE: ${param:pdmTable}
     # Pinned to match secure-rads ENCLAVE_AMI_ID so both trees boot the same AL2023 arm64 build.
-    EXECUTOR_AMI_ID: ${param:amiId, 'ami-05dbf6439e0906761'}
+    EXECUTOR_AMI_ID: ${env:RADS_EXECUTOR_AMI_ID}
     EXECUTOR_INSTANCE_TYPE: ${param:instanceType, 'c6g.large'}
     # Same AZ as secure-rads ENCLAVE_AZ so both trees launch side by side.
-    EXECUTOR_AZ: ${param:availabilityZone, 'ap-southeast-2b'}
+    EXECUTOR_AZ: ${env:AVAILABILITY_ZONE}
     EXECUTOR_SECURITY_GROUP_ID: !Ref ExecutorSecurityGroup
     EXECUTOR_INSTANCE_PROFILE_ARN: !GetAtt ExecutorInstanceProfile.Arn
 

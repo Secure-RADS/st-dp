@@ -60,14 +60,33 @@ For initial PoC deployment, the identity needs administrator-level permissions. 
 
 An organization service control policy or permissions boundary can still deny these actions.
 
-Cloudflare DNS is configured through a Global API Key that Devbox sources from an untracked local file:
+All local configuration lives in one untracked `.env` at the repository root:
 
 ```sh
 cp .env.example .env
 chmod 600 .env
 ```
 
-Fill in `CLOUDFLARE_EMAIL`, `CLOUDFLARE_API_TOKEN`, and optionally `CLOUDFLARE_ZONE` if it is not `secure-rads.org`. The DNS helper creates DNS-only CNAME records:
+Fill in `CLOUDFLARE_EMAIL`, `CLOUDFLARE_API_TOKEN`, and optionally `CLOUDFLARE_ZONE` if it is not `secure-rads.org`. Every Makefile and `scripts/*.sh` loads that file itself, from any subdirectory, and stops with a clear message when it is missing. `devbox shell` also exports it on entry, so an existing shell only needs re-sourcing after you edit the file.
+
+Values the deployment needs, all read from that file:
+
+| Variable | What it is |
+| --- | --- |
+| `AWS_REGION` | Region every stack deploys into. |
+| `AVAILABILITY_ZONE` | AZ for the rads executor and the enclave host; must be in `AWS_REGION`. |
+| `RADS_EXECUTOR_AMI_ID`, `SCE_ENCLAVE_AMI_ID` | Arm64 Amazon Linux 2023 AMIs used by the two execution paths. |
+| `CERT_ARN_RADS`, `CERT_ARN_SECURE_RADS` | us-east-1 ACM certificates for the two transparency portals. |
+| `TRANSPARENCY_DOMAIN_RADS`, `TRANSPARENCY_DOMAIN_SECURE_RADS` | Portal hostnames on those certificates. |
+| `LOG_HOST_RADS`, `LOG_HOST_SECURE_RADS`, `COST_HOST_RADS`, `COST_HOST_SECURE_RADS` | Service hostnames each stack reports to. |
+| `PDM_HOST`, `VERIFIER_HOST`, `VERIFIER_ATTEST_HOST`, `VERIFIER_URL` | PDM and verifier endpoints, including the registry-service mTLS URL. |
+| `VERIFIER_PUBKEY_SHA256`, `VERIFIER_HOST_PUBKEY_SHA256`, `PDM_HOST_PUBKEY_SHA256`, `LOG_HOST_PUBKEY_SHA256` | TLS public-key pins baked into the EIF run config. |
+| `VERIFIER_JWKS_URL`, `VERIFIER_JWKS_PUBKEY_SHA256` | Verifier key location and pin used by the PDM service. |
+| `CLOUDFLARE_ZONE`, `CLOUDFLARE_EMAIL`, `CLOUDFLARE_API_TOKEN` | Cloudflare zone and credentials for the DNS helper. |
+
+Commands stop with the variable name when a required value is missing. `make env`, or `scripts/derive-env.sh` directly, fills the values that can be discovered from AWS: both AMIs from SSM, issued certificates from ACM, the TLS pins from the live endpoints, and the verifier key pin from a deployed PDM service. It only reads from AWS and patches those keys in `.env`.
+
+The DNS helper creates DNS-only CNAME records:
 
 ```sh
 scripts/cloudflare-dns.sh <hostname> <api-gateway-target>
