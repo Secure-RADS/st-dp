@@ -1,3 +1,5 @@
+include ../mk/env.mk
+
 REGION ?= ap-southeast-2
 export AWS_REGION ?= $(REGION)
 export AWS_DEFAULT_REGION ?= $(REGION)

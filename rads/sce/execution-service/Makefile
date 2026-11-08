@@ -1,3 +1,5 @@
+include ../../../mk/env.mk
+
 # Host-side helpers for the per-run EC2 executor (linux/arm64 for c6g).
 # Ship once to the images bucket; userdata downloads before executor-ready.
 TOOLS_BIN ?= rads-host-tools

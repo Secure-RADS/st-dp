@@ -1,3 +1,5 @@
+include ../../mk/env.mk
+
 STACK_NAME := secure-rads-execution-service-dev
 REGION ?= ap-southeast-2
 

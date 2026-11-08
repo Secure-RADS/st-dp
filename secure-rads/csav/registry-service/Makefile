@@ -1,3 +1,5 @@
+include ../../../mk/env.mk
+
 IMAGE := registry-service:latest
 STACK_NAME := secure-rads-csav
 STORAGE_STACK_NAME := secure-rads-registry-service-storage
