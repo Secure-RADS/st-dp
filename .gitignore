@@ -6,6 +6,12 @@ secure-rads/sce/execution-service/execution-service
 secure-rads/sce-unit/sce-unit
 node_modules/
 .serverless/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.ruff_cache/
 /.aws/*
 !/.aws/credentials.example
 !/.aws/config.example
