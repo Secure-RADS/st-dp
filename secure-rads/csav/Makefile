@@ -1,3 +1,5 @@
+include ../../mk/env.mk
+
 STACK_NAME := secure-rads-csav
 KEY_NAME := csav-key
 KEY_PATH := $(abspath ../../.ssh/$(KEY_NAME).pem)

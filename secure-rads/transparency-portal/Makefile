@@ -1,3 +1,5 @@
+include ../../mk/env.mk
+
 STACK_NAME := transparency-portal
 REGION ?= ap-southeast-2
 DOMAIN ?= transparency.sr.secure-rads.org

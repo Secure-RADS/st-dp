@@ -60,14 +60,16 @@ For initial PoC deployment, the identity needs administrator-level permissions. 
 
 An organization service control policy or permissions boundary can still deny these actions.
 
-Cloudflare DNS is configured through a Global API Key that Devbox sources from an untracked local file:
+All local configuration lives in one untracked `.env` at the repository root:
 
 ```sh
 cp .env.example .env
 chmod 600 .env
 ```
 
-Fill in `CLOUDFLARE_EMAIL`, `CLOUDFLARE_API_TOKEN`, and optionally `CLOUDFLARE_ZONE` if it is not `secure-rads.org`. The DNS helper creates DNS-only CNAME records:
+Fill in `CLOUDFLARE_EMAIL`, `CLOUDFLARE_API_TOKEN`, and optionally `CLOUDFLARE_ZONE` if it is not `secure-rads.org`. Every Makefile and `scripts/*.sh` loads that file itself, from any subdirectory, and stops with a clear message when it is missing. `devbox shell` also exports it on entry, so an existing shell only needs re-sourcing after you edit the file.
+
+The DNS helper creates DNS-only CNAME records:
 
 ```sh
 scripts/cloudflare-dns.sh <hostname> <api-gateway-target>
