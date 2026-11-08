@@ -83,7 +83,7 @@ Values the deployment needs, all read from that file:
 | `VERIFIER_JWKS_URL`, `VERIFIER_JWKS_PUBKEY_SHA256` | Verifier key location and pin used by the PDM service. |
 | `CLOUDFLARE_ZONE`, `CLOUDFLARE_EMAIL`, `CLOUDFLARE_API_TOKEN` | Cloudflare zone and credentials for the DNS helper. |
 
-Commands stop with the variable name when a required value is missing.
+Commands stop with the variable name when a required value is missing. `make env`, or `scripts/derive-env.sh` directly, fills the values that can be discovered from AWS: both AMIs from SSM, issued certificates from ACM, and the verifier key pin from a deployed PDM service. It only reads from AWS and patches those keys in `.env`.
 
 The DNS helper creates DNS-only CNAME records:
 

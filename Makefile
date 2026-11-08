@@ -1,7 +1,10 @@
 include mk/env.mk
 
-.PHONY: up down status secure-rads rads logs csav-key csav-deploy csav-destroy csav-status csav-up csav-down csav-ssh \
+.PHONY: env up down status secure-rads rads logs csav-key csav-deploy csav-destroy csav-status csav-up csav-down csav-ssh \
 	benchmark benchmark-report benchmark-seed benchmark-run
+
+env:
+	scripts/derive-env.sh
 
 up:
 	$(MAKE) secure-rads-ready
