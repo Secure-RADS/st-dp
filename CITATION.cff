@@ -1,0 +1,33 @@
+cff-version: 1.2.0
+message: If you use this software, cite the paper below.
+title: Secure-RADS
+type: software
+repository-code: https://github.com/Secure-RADS/GDPR
+abstract: Proof of concept of the Secure Computing Environment on AWS Nitro Enclaves, with the fully trusted RADS baseline alongside it.
+authors:
+  - family-names: Najdi
+    given-names: Arwa
+  - family-names: Athauda
+    given-names: Rukshan
+  - family-names: Bandara
+    given-names: Herath Mudiyanselage Nelanga Dilum
+  - family-names: Luo
+    given-names: Suhuai
+preferred-citation:
+  type: conference-paper
+  title: "Technical Framework to Ensure Data Subject's Rights in GDPR: A Conceptual Design"
+  authors:
+    - family-names: Najdi
+      given-names: Arwa
+    - family-names: Athauda
+      given-names: Rukshan
+    - family-names: Bandara
+      given-names: Herath Mudiyanselage Nelanga Dilum
+    - family-names: Luo
+      given-names: Suhuai
+  conference:
+    name: Australasian Computer Science Week 2025
+    alias: ACSW '25
+  pages: 40-47
+  year: 2025
+  doi: 10.1145/3727166.3727190

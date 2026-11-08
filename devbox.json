@@ -8,8 +8,10 @@
     "gnumake",
     "go",
     "jq",
+    "nodejs",
     "openssh",
     "openssl",
+    "pre-commit",
     "python3"
   ],
   "shell": {

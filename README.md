@@ -1,4 +1,12 @@
-# RADS Research Platform
+# Secure-RADS
+
+Research proof of concept of the Secure Computing Environment (SCE) on AWS Nitro Enclaves, with the
+fully trusted RADS baseline included alongside it for comparison. It accompanies the paper cited in
+[`CITATION.cff`](CITATION.cff).
+
+This is not production software. It is published so the design and measurements can be inspected and
+reproduced. There is no support commitment, no security guarantee, and no license granted yet; see
+[License](#license).
 
 RADS is the baseline system. Secure-RADS extends it with the security controls required for protected personal-data computation, including KMS-backed encryption and enclave attestation. The current Secure-RADS implementation is a PoC of the Secure Computing Environment (SCE) on AWS Nitro Enclaves. A Data Controller's algorithm runs inside an attested enclave over a data subject's personal data, so the data is processed without the Data Controller ever seeing it.
 
@@ -40,6 +48,31 @@ Sample assets:
 - [`seeding/`](seeding/README.md) - generates and seeds the five context datasets into the PDM table.
 - [`benchmark/`](benchmark/README.md) - Exp1/Exp2 size sweep (rads vs secure-rads). `make benchmark` / `make benchmark-report`; see that README for overrides.
 
+## Requirements
+
+- [Devbox](https://www.jetify.com/docs/devbox/) for every command in this repo.
+- Docker Engine or Docker Desktop, running. Devbox provides the client only.
+- An AWS account with permissions to create EC2, Lambda, API Gateway, DynamoDB, S3, KMS, SQS, IAM
+  roles, and CloudFormation stacks.
+- `ap-southeast-2` (Sydney), pinned by Devbox. The default AZ for the enclave host is
+  `ap-southeast-2b`, and the CSAV instance is `t4g.small`; the per-run enclave host is `c6g.large`.
+  All are overridable through the stack parameters.
+- AWS credentials in the ignored `.aws/credentials` file, as described in
+  [`docs/getting-started.md`](docs/getting-started.md).
+
+## Cost and account safety
+
+Running this creates billable resources:
+
+- the CSAV EC2 host stays up until `make down`, and is the thing to stop when you are finished;
+- every run launches an enclave host EC2 instance, which terminates itself after the run;
+- KMS key creation, encryption requests, S3 storage, DynamoDB writes, and Lambda invocations are all
+  metered, and the cost-service records their estimated cost per run;
+- `make benchmark` is a size sweep and launches many instances; run it deliberately.
+
+Use a dedicated research account. The datasets in [`seeding/`](seeding/README.md) are synthetic, and
+nothing here is designed to hold real personal data.
+
 ## Working with an existing environment
 
 Use [Devbox](https://www.jetify.com/docs/devbox/) for all commands. It exports `REGION`, `AWS_REGION`, and `AWS_DEFAULT_REGION` as `ap-southeast-2`, and uses the ignored local AWS files described in [`docs/getting-started.md`](docs/getting-started.md).
@@ -70,14 +103,14 @@ make sce-logs                       # tail the execution-service Lambda
 
 Single app (APP is a secure-rads/samples/ dir, ALGORITHM_ID its fixed id):
 
-```
+```sh
 make secure-rads-build APP=health-risk-python ALGORITHM_ID=662fa378-dc53-425d-9225-a187b11ea7dc
 make secure-rads-run   ALGORITHM_ID=662fa378-dc53-425d-9225-a187b11ea7dc
 ```
 
 Export a run's timeline (build through execution) as CSV:
 
-```
+```sh
 make logs-csv      ALGORITHM_ID=<id> RUN_ID=<runId>   # one run  -> run-<runId>.csv
 make logs-csv-algo ALGORITHM_ID=<id>                  # one algo -> algo-<id>.csv
 make logs-csv-all                                     # whole table -> logs-all.csv
@@ -91,3 +124,21 @@ For a new AWS account or a full deployment, follow [`docs/getting-started.md`](d
 ## Deferred work
 
 Work identified during the PoC that is out of scope for this repository is listed in [`TODO.md`](TODO.md), each item linked to the closed issue holding the full analysis.
+
+## Contributing
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the dev environment, the checks to run, and the pull
+request expectations. Participation is covered by [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
+
+Report vulnerabilities privately as described in [`SECURITY.md`](SECURITY.md). Do not open a public
+issue for them.
+
+## License
+
+No license has been granted. The source is public so the design can be reviewed and cited, but
+copying, modifying, or redistributing it is not permitted until a license is added. See
+[`CONTRIBUTING.md`](CONTRIBUTING.md#licensing-of-contributions) for how that affects contributions.
+
+## Citation
+
+If you use this work, cite the paper listed in [`CITATION.cff`](CITATION.cff).
