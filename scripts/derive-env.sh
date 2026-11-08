@@ -59,6 +59,25 @@ cert_for() {
 set_key CERT_ARN_RADS "$(cert_for "$domain_rads")"
 set_key CERT_ARN_SECURE_RADS "$(cert_for "$domain_secure")"
 
+pin_for() {
+    local host="$1"
+    [ -n "$host" ] || return 0
+    timeout 15 openssl s_client -connect "$host:443" -servername "$host" </dev/null 2>/dev/null \
+        | openssl x509 -pubkey -noout 2>/dev/null \
+        | openssl pkey -pubin -outform DER 2>/dev/null \
+        | openssl dgst -sha256 -r 2>/dev/null | cut -d' ' -f1
+}
+
+verifier_host=$(sed -n 's/^VERIFIER_HOST=//p' "$env_file" | tail -1)
+verifier_attest_host=$(sed -n 's/^VERIFIER_ATTEST_HOST=//p' "$env_file" | tail -1)
+pdm_host=$(sed -n 's/^PDM_HOST=//p' "$env_file" | tail -1)
+log_host=$(sed -n 's/^LOG_HOST_SECURE_RADS=//p' "$env_file" | tail -1)
+
+set_key VERIFIER_PUBKEY_SHA256 "$(pin_for "$verifier_host")"
+set_key VERIFIER_HOST_PUBKEY_SHA256 "$(pin_for "$verifier_attest_host")"
+set_key PDM_HOST_PUBKEY_SHA256 "$(pin_for "$pdm_host")"
+set_key LOG_HOST_PUBKEY_SHA256 "$(pin_for "$log_host")"
+
 pdm_function=$(aws lambda list-functions --region "$region" \
     --query "Functions[?starts_with(FunctionName, 'secure-rads-pdm-service')].FunctionName | [0]" \
     --output text)

@@ -4,7 +4,6 @@ Description: Static hosting for the rads transparency portal (S3 + CloudFront, S
 Parameters:
   DomainName:
     Type: String
-    Default: transparency.r.secure-rads.org
   CertificateArn:
     Type: String
     Description: ACM certificate ARN in us-east-1 covering DomainName.

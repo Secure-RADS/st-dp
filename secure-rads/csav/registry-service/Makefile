@@ -32,20 +32,14 @@ ENCLAVE_HOST_ROLE_ARN = $(shell aws cloudformation describe-stacks --stack-name 
 	--query "Stacks[0].Outputs[?OutputKey=='EnclaveHostInstanceRoleArn'].OutputValue" --output text)
 ROLE_PARAMETERS = $(strip $(if $(filter None,$(CSAV_ROLE_ARN)),,CsavInstanceRoleArn=$(CSAV_ROLE_ARN)) $(if $(filter None,$(ENCLAVE_HOST_ROLE_ARN)),,EnclaveHostInstanceRoleArn=$(ENCLAVE_HOST_ROLE_ARN)))
 # mTLS domain (registerPCRs -> /algorithms) and its pin.
-VERIFIER_URL ?= https://verifier.sr.secure-rads.org/algorithms
-VERIFIER_PUBKEY_SHA256 ?= 207678f01b44dc030dcf7d93d6dacb4cd75ca1d7c1dad266538f85ffa479213c
 # Plain-TLS public domain (/attest, /refresh, /validate) baked into the EIF's run config - a different
 # domain and cert from the mTLS one above, so it gets its own pin.
-VERIFIER_HOST ?= verifier-attest.sr.secure-rads.org
-VERIFIER_HOST_PUBKEY_SHA256 ?= 207678f01b44dc030dcf7d93d6dacb4cd75ca1d7c1dad266538f85ffa479213c
+VERIFIER_HOST = $(VERIFIER_ATTEST_HOST)
 # pdm-service's plain-TLS domain (/records) also baked into the run config, pinned the same way.
-PDM_HOST ?= pdm.sr.secure-rads.org
-PDM_HOST_PUBKEY_SHA256 ?= 207678f01b44dc030dcf7d93d6dacb4cd75ca1d7c1dad266538f85ffa479213c
 # log-service's plain-TLS domain (/events), baked in and pinned so the enclave can log its run timeline.
-LOG_HOST ?= log.sr.secure-rads.org
-LOG_HOST_PUBKEY_SHA256 ?= 207678f01b44dc030dcf7d93d6dacb4cd75ca1d7c1dad266538f85ffa479213c
+LOG_HOST = $(LOG_HOST_SECURE_RADS)
 # cost-service's plain-TLS domain (/cost). Called by registry-service and the run host, never the enclave, so no pin.
-COST_HOST ?= cost.sr.secure-rads.org
+COST_HOST = $(COST_HOST_SECURE_RADS)
 
 .PHONY: build test run clean sce-unit-base eif-build-base gen-client-cert image ship remote-up remote-down logs deploy-storage destroy-storage upload
 
@@ -84,6 +78,12 @@ image: sce-unit-base eif-build-base
 # Save the image + .env (bucket/region/pins for compose var substitution) and scp
 # those to the instance. docker-compose.yml is baked at CSAV boot (UserData) — not shipped.
 ship: image
+	@$(call env_require,VERIFIER_URL)
+	@$(call env_require,VERIFIER_PUBKEY_SHA256)
+	@$(call env_require,VERIFIER_ATTEST_HOST)
+	@$(call env_require,VERIFIER_HOST_PUBKEY_SHA256)
+	@$(call env_require,PDM_HOST_PUBKEY_SHA256)
+	@$(call env_require,LOG_HOST_PUBKEY_SHA256)
 	docker save $(IMAGE) -o /tmp/registry-service.tar
 	echo "ARTIFACT_BUCKET=$(ARTIFACT_BUCKET)" > /tmp/registry-service.env
 	echo "AWS_REGION=$(REGION)" >> /tmp/registry-service.env
