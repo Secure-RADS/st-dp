@@ -1,0 +1,103 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint-typescript:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - packages/common
+          - rads/cost-service
+          - rads/csav/registry-service
+          - rads/log-service
+          - rads/pdm-service
+          - rads/result-consumer
+          - rads/sce/execution-service
+          - rads/transparency-portal
+          - secure-rads/cost-service
+          - secure-rads/log-service
+          - secure-rads/pdm-service
+          - secure-rads/result-consumer
+          - secure-rads/sce/execution-service
+          - secure-rads/transparency-portal
+          - secure-rads/verifier-service
+          - seeding
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.x
+      - run: bun install --frozen-lockfile
+        working-directory: ${{ matrix.package }}
+      - run: bun run lint
+        working-directory: ${{ matrix.package }}
+
+  typecheck-typescript:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - packages/common
+          - rads/cost-service
+          - rads/csav/registry-service
+          - rads/log-service
+          - rads/pdm-service
+          - rads/result-consumer
+          - rads/sce/execution-service
+          - secure-rads/cost-service
+          - secure-rads/log-service
+          - secure-rads/pdm-service
+          - secure-rads/result-consumer
+          - secure-rads/sce/execution-service
+          - secure-rads/verifier-service
+          - seeding
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.x
+      - run: bun install --frozen-lockfile
+        working-directory: ${{ matrix.package }}
+      - run: bun run typecheck
+        working-directory: ${{ matrix.package }}
+
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+      - run: uvx ruff==0.17.4 check .
+        working-directory: benchmark
+      - run: uvx ruff==0.17.4 format --check .
+        working-directory: benchmark
+
+  go:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - packages/go-common
+          - secure-rads/sce-unit
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+          cache-dependency-path: ${{ matrix.module }}/go.sum
+      - run: test -z "$(gofmt -l .)"
+        working-directory: ${{ matrix.module }}
+      - run: go vet ./...
+        working-directory: ${{ matrix.module }}
+      - run: go build ./...
+        working-directory: ${{ matrix.module }}
