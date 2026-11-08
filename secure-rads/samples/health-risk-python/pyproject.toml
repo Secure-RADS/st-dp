@@ -3,5 +3,5 @@ name = "health-risk-python"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
-    "pydantic>=2.9",
+    "pydantic>=2.14.3",
 ]

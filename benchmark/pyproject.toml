@@ -5,8 +5,8 @@ description = "secure-rads vs rads benchmark harness and plots"
 requires-python = ">=3.11"
 dependencies = [
     "httpx>=0.28",
-    "pandas>=2.2",
-    "pydantic>=2.9",
+    "pandas>=3.1.1",
+    "pydantic>=2.14.3",
     "richuru>=0.1.1",
     "seaborn>=0.13",
     "tqdm>=4.66",
