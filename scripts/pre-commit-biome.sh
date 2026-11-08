@@ -17,14 +17,19 @@ for file in "$@"; do
         continue
     fi
 
-    bin="$dir/node_modules/.bin/biome"
+    bin="$(cd "$dir" && pwd)/node_modules/.bin/biome"
     if [ ! -x "$bin" ]; then
         echo "biome: not installed in $dir (run bun install there)" >&2
         status=1
         continue
     fi
 
-    (cd "$dir" && "$bin" check --write --no-errors-on-unmatched "${file#"$dir"/}") || status=1
+    runner=()
+    if ! command -v node >/dev/null 2>&1; then
+        runner=(bun)
+    fi
+
+    (cd "$dir" && "${runner[@]}" "$bin" check --write --no-errors-on-unmatched "${file#"$dir"/}") || status=1
 done
 
 exit "$status"
