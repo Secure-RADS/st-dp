@@ -35,11 +35,11 @@ Bun is used as the local dev/bundle tool only (`bun install`) - the Lambda itsel
 
 ## Prerequisites (manual, one-time, outside this repo's IaC)
 
-- A domain name (`log.secure-rads.org`) + ACM certificate already provisioned - `serverless.yml` takes these as `domainName`/`certificateArn` params, it does not create them.
+- A domain name (`log.sr.secure-rads.org`) + ACM certificate already provisioned - `serverless.yml` takes these as `domainName`/`certificateArn` params, it does not create them.
 
 ## Deploy
 
 ```
 bun install
-bunx serverless deploy --param="domainName=log.secure-rads.org" --param="certificateArn=..."
+bunx serverless deploy --param="domainName=log.sr.secure-rads.org" --param="certificateArn=..."
 ```
