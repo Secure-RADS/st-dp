@@ -13,7 +13,7 @@ package:
 provider:
   name: aws
   runtime: nodejs24.x
-  region: ${param:region, 'ap-southeast-2'}
+  region: ${env:AWS_REGION}
   iam:
     role:
       statements:
@@ -48,17 +48,17 @@ provider:
     RUN_RESULTS_TABLE: ${param:runResultsTable}
     RUN_RESULTS_QUEUE_URL: ${param:runResultsQueueUrl}
     # Pinned to match rads EXECUTOR_AMI_ID so both trees boot the same AL2023 arm64 build.
-    ENCLAVE_AMI_ID: ${param:enclaveAmiId, 'ami-05dbf6439e0906761'}
+    ENCLAVE_AMI_ID: ${env:SCE_ENCLAVE_AMI_ID}
     ENCLAVE_INSTANCE_TYPE: ${param:enclaveInstanceType, 'c6g.large'}
     # Same AZ as rads EXECUTOR_AZ so both trees launch side by side.
-    ENCLAVE_AZ: ${param:availabilityZone, 'ap-southeast-2b'}
+    ENCLAVE_AZ: ${env:AVAILABILITY_ZONE}
     ENCLAVE_SECURITY_GROUP_ID: !Ref EnclaveHostSecurityGroup
     ENCLAVE_INSTANCE_PROFILE_ARN: !GetAtt EnclaveHostInstanceProfile.Arn
-    VERIFIER_HOST: ${param:verifierHost, 'verifier-attest.sr.secure-rads.org'}
-    PDM_HOST: ${param:pdmHost, 'pdm.sr.secure-rads.org'}
+    VERIFIER_HOST: ${env:VERIFIER_ATTEST_HOST}
+    PDM_HOST: ${env:PDM_HOST}
     PDM_TABLE: ${param:pdmTable}
-    LOG_HOST: ${param:logHost, 'log.sr.secure-rads.org'}
-    COST_HOST: ${param:costHost, 'cost.sr.secure-rads.org'}
+    LOG_HOST: ${env:LOG_HOST_SECURE_RADS}
+    COST_HOST: ${env:COST_HOST_SECURE_RADS}
 
 functions:
   run:

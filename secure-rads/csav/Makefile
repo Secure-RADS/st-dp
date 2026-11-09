@@ -1,7 +1,10 @@
+include ../../mk/env.mk
+
 STACK_NAME := secure-rads-csav
 KEY_NAME := csav-key
 KEY_PATH := $(abspath ../../.ssh/$(KEY_NAME).pem)
-REGION ?= ap-southeast-2
+REGION := $(AWS_REGION)
+$(call env_require,AWS_REGION)
 INSTANCE_TYPE ?= t4g.small
 RENDERED_CFN := /tmp/secure-rads-csav-cloudformation.yaml
 

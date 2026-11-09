@@ -11,7 +11,7 @@ build:
 provider:
   name: aws
   runtime: nodejs24.x
-  region: ${param:region, 'ap-southeast-2'}
+  region: ${env:AWS_REGION}
   httpApi:
     cors: true
   iam:
@@ -26,10 +26,10 @@ provider:
   environment:
     PDM_TABLE: !Ref PersonalDataTable
     DATA_KEY_TABLE: !Ref DataKeyTable
-    LOG_HOST: ${param:logHost, 'log.sr.secure-rads.org'}
-    COST_HOST: ${param:costHost, 'cost.sr.secure-rads.org'}
-    VERIFIER_JWKS_URL: ${param:verifierJwksUrl, 'https://verifier-attest.sr.secure-rads.org/.well-known/jwks.json'}
-    VERIFIER_JWKS_PUBKEY_SHA256: ${param:verifierJwksPubkeySha256, 'f447d6a73bc9309977d316032a51ea53ce3d0c0867a603ab823c0adb69fd08f0'}
+    LOG_HOST: ${env:LOG_HOST_SECURE_RADS}
+    COST_HOST: ${env:COST_HOST_SECURE_RADS}
+    VERIFIER_JWKS_URL: ${env:VERIFIER_JWKS_URL}
+    VERIFIER_JWKS_PUBKEY_SHA256: ${env:VERIFIER_JWKS_PUBKEY_SHA256}
 
 functions:
   records:

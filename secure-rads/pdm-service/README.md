@@ -13,7 +13,7 @@ Bun is used as the local dev/bundle tool only (`bun install`) - the Lambda itsel
 
 ## Prerequisites (manual, one-time, outside this repo's IaC)
 
-- A domain name (`pdm.secure-rads.org`) + ACM certificate already provisioned - `serverless.yml` takes these as `domainName`/`certificateArn` params, it does not create them.
+- A domain name (`pdm.sr.secure-rads.org`) + ACM certificate already provisioned - `serverless.yml` takes these as `domainName`/`certificateArn` params, it does not create them.
 - verifier-service's public (attest) domain TLS leaf cert pubkey SHA-256, passed as the `verifierJwksPubkeySha256` param - pinned on JWKS fetches on top of normal CA verification. Without the pin, a MITM could swap in its own JWKS and mint tokens that verify locally.
 - verifier-service deployed with its ML-DSA-87 signing key at SSM `/verifier-service/jwt-signing-key` (see secure-rads/verifier-service/README.md).
 
@@ -21,5 +21,5 @@ Bun is used as the local dev/bundle tool only (`bun install`) - the Lambda itsel
 
 ```
 bun install
-bunx serverless deploy --param="domainName=pdm.secure-rads.org" --param="certificateArn=..." --param="verifierJwksPubkeySha256=..."
+bunx serverless deploy --param="domainName=pdm.sr.secure-rads.org" --param="certificateArn=..." --param="verifierJwksPubkeySha256=..."
 ```

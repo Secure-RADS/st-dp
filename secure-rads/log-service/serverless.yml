@@ -11,7 +11,7 @@ build:
 provider:
   name: aws
   runtime: nodejs24.x
-  region: ${param:region, 'ap-southeast-2'}
+  region: ${env:AWS_REGION}
   httpApi:
     cors: true
   iam:

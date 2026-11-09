@@ -60,14 +60,33 @@ For initial PoC deployment, the identity needs administrator-level permissions. 
 
 An organization service control policy or permissions boundary can still deny these actions.
 
-Cloudflare DNS is configured through a Global API Key that Devbox sources from an untracked local file:
+All local configuration lives in one untracked `.env` at the repository root:
 
 ```sh
 cp .env.example .env
 chmod 600 .env
 ```
 
-Fill in `CLOUDFLARE_EMAIL`, `CLOUDFLARE_API_TOKEN`, and optionally `CLOUDFLARE_ZONE` if it is not `secure-rads.org`. The DNS helper creates DNS-only CNAME records:
+Fill in `CLOUDFLARE_EMAIL`, `CLOUDFLARE_API_TOKEN`, and optionally `CLOUDFLARE_ZONE` if it is not `secure-rads.org`. Every Makefile and `scripts/*.sh` loads that file itself, from any subdirectory, and stops with a clear message when it is missing. `devbox shell` also exports it on entry, so an existing shell only needs re-sourcing after you edit the file.
+
+Values the deployment needs, all read from that file:
+
+| Variable | What it is |
+| --- | --- |
+| `AWS_REGION` | Region every stack deploys into. |
+| `AVAILABILITY_ZONE` | AZ for the rads executor and the enclave host; must be in `AWS_REGION`. |
+| `RADS_EXECUTOR_AMI_ID`, `SCE_ENCLAVE_AMI_ID` | Arm64 Amazon Linux 2023 AMIs used by the two execution paths. |
+| `CERT_ARN_RADS`, `CERT_ARN_SECURE_RADS` | us-east-1 ACM certificates for the two transparency portals. |
+| `TRANSPARENCY_DOMAIN_RADS`, `TRANSPARENCY_DOMAIN_SECURE_RADS` | Portal hostnames on those certificates. |
+| `LOG_HOST_RADS`, `LOG_HOST_SECURE_RADS`, `COST_HOST_RADS`, `COST_HOST_SECURE_RADS` | Service hostnames each stack reports to. |
+| `PDM_HOST`, `VERIFIER_HOST`, `VERIFIER_ATTEST_HOST`, `VERIFIER_URL` | PDM and verifier endpoints, including the registry-service mTLS URL. |
+| `VERIFIER_PUBKEY_SHA256`, `VERIFIER_HOST_PUBKEY_SHA256`, `PDM_HOST_PUBKEY_SHA256`, `LOG_HOST_PUBKEY_SHA256` | TLS public-key pins baked into the EIF run config. |
+| `VERIFIER_JWKS_URL`, `VERIFIER_JWKS_PUBKEY_SHA256` | Verifier key location and pin used by the PDM service. |
+| `CLOUDFLARE_ZONE`, `CLOUDFLARE_EMAIL`, `CLOUDFLARE_API_TOKEN` | Cloudflare zone and credentials for the DNS helper. |
+
+Commands stop with the variable name when a required value is missing. `make env`, or `scripts/derive-env.sh` directly, fills the values that can be discovered from AWS: both AMIs from SSM, issued certificates from ACM, the TLS pins from the live endpoints, and the verifier key pin from a deployed PDM service. It only reads from AWS and patches those keys in `.env`.
+
+The DNS helper creates DNS-only CNAME records:
 
 ```sh
 scripts/cloudflare-dns.sh <hostname> <api-gateway-target>
@@ -81,10 +100,10 @@ Before deployment, prepare the selected region with:
 - Nitro Enclaves capacity for `c6g.large` in a standard Availability Zone. Local Zones, Wavelength Zones, and Outposts do not support Nitro Enclaves.
 - An EC2 key pair named `csav-key`.
 - Regional ACM certificates in `ap-southeast-2` for these names:
-  - `verifier.secure-rads.org`
-  - `verifier-attest.secure-rads.org`
-  - `pdm.secure-rads.org`
-  - `log.secure-rads.org`
+  - `verifier.sr.secure-rads.org`
+  - `verifier-attest.sr.secure-rads.org`
+  - `pdm.sr.secure-rads.org`
+  - `log.sr.secure-rads.org`
   - `cost.r.secure-rads.org`
   - `cost.sr.secure-rads.org`
 - DNS-only CNAME records in Cloudflare pointing each name to its API Gateway regional domain output after its service is created. The verifier uses mTLS, and secure-rads pins the verifier, PDM, and log API Gateway certificates; cost-service uses plain TLS and is not pinned.
@@ -133,9 +152,9 @@ Generate the mTLS client certificate, then deploy verifier-service once to creat
 make -C secure-rads/csav/registry-service gen-client-cert
 (cd secure-rads/verifier-service && bun install && bunx serverless deploy \
   --param="region=$REGION" \
-  --param="domainName=verifier.secure-rads.org" \
+  --param="domainName=verifier.sr.secure-rads.org" \
   --param="certificateArn=$VERIFIER_CERT_ARN" \
-  --param="publicDomainName=verifier-attest.secure-rads.org" \
+  --param="publicDomainName=verifier-attest.sr.secure-rads.org" \
   --param="publicCertificateArn=$VERIFIER_ATTEST_CERT_ARN")
 ```
 
@@ -150,14 +169,14 @@ TRUSTSTORE_VERSION=$(aws s3api put-object --bucket "$TRUSTSTORE_BUCKET" \
   --query VersionId --output text)
 (cd secure-rads/verifier-service && bunx serverless deploy \
   --param="region=$REGION" \
-  --param="domainName=verifier.secure-rads.org" \
+  --param="domainName=verifier.sr.secure-rads.org" \
   --param="certificateArn=$VERIFIER_CERT_ARN" \
-  --param="publicDomainName=verifier-attest.secure-rads.org" \
+  --param="publicDomainName=verifier-attest.sr.secure-rads.org" \
   --param="publicCertificateArn=$VERIFIER_ATTEST_CERT_ARN" \
   --param="truststoreVersionId=$TRUSTSTORE_VERSION")
 ```
 
-Create DNS-only Cloudflare CNAME records for `verifier.secure-rads.org` and `verifier-attest.secure-rads.org` using the CloudFormation custom-domain outputs. After DNS resolves, collect both SPKI pins:
+Create DNS-only Cloudflare CNAME records for `verifier.sr.secure-rads.org` and `verifier-attest.sr.secure-rads.org` using the CloudFormation custom-domain outputs. After DNS resolves, collect both SPKI pins:
 
 ```sh
 spki_pin() {
@@ -169,8 +188,8 @@ spki_pin() {
     openssl dgst -sha256 -r | cut -d ' ' -f1
 }
 
-VERIFIER_PIN=$(spki_pin verifier.secure-rads.org)
-VERIFIER_ATTEST_PIN=$(spki_pin verifier-attest.secure-rads.org)
+VERIFIER_PIN=$(spki_pin verifier.sr.secure-rads.org)
+VERIFIER_ATTEST_PIN=$(spki_pin verifier-attest.sr.secure-rads.org)
 ```
 
 Deploy PDM, log, and cost services, create their DNS-only Cloudflare CNAME records from their outputs, then collect the pins that are baked into the enclave:
@@ -178,13 +197,13 @@ Deploy PDM, log, and cost services, create their DNS-only Cloudflare CNAME recor
 ```sh
 (cd secure-rads/pdm-service && bun install && bunx serverless deploy \
   --param="region=$REGION" \
-  --param="domainName=pdm.secure-rads.org" \
+  --param="domainName=pdm.sr.secure-rads.org" \
   --param="certificateArn=$PDM_CERT_ARN" \
-  --param="verifierJwksUrl=https://verifier-attest.secure-rads.org/.well-known/jwks.json" \
+  --param="verifierJwksUrl=https://verifier-attest.sr.secure-rads.org/.well-known/jwks.json" \
   --param="verifierJwksPubkeySha256=$VERIFIER_ATTEST_PIN")
 (cd secure-rads/log-service && bun install && bunx serverless deploy \
   --param="region=$REGION" \
-  --param="domainName=log.secure-rads.org" \
+  --param="domainName=log.sr.secure-rads.org" \
   --param="certificateArn=$LOG_CERT_ARN")
 (cd secure-rads/cost-service && bun install && bunx serverless deploy \
   --param="region=$REGION" \
@@ -204,8 +223,8 @@ For the baseline tree, deploy its cost-service separately with the `cost.r.secur
 After both DNS records resolve:
 
 ```sh
-PDM_PIN=$(spki_pin pdm.secure-rads.org)
-LOG_PIN=$(spki_pin log.secure-rads.org)
+PDM_PIN=$(spki_pin pdm.sr.secure-rads.org)
+LOG_PIN=$(spki_pin log.sr.secure-rads.org)
 ```
 
 Deploy shared storage, then the CSAV host and serverless execution-service, then update storage to grant both host roles KMS access:
@@ -222,12 +241,12 @@ Ship registry-service with the new domains and their pinned keys:
 
 ```sh
 make -C secure-rads/csav/registry-service ship remote-up REGION="$REGION" \
-  VERIFIER_URL=https://verifier.secure-rads.org/algorithms \
+  VERIFIER_URL=https://verifier.sr.secure-rads.org/algorithms \
   VERIFIER_PUBKEY_SHA256="$VERIFIER_PIN" \
-  VERIFIER_HOST=verifier-attest.secure-rads.org \
+  VERIFIER_HOST=verifier-attest.sr.secure-rads.org \
   VERIFIER_HOST_PUBKEY_SHA256="$VERIFIER_ATTEST_PIN" \
-  PDM_HOST=pdm.secure-rads.org PDM_HOST_PUBKEY_SHA256="$PDM_PIN" \
-  LOG_HOST=log.secure-rads.org LOG_HOST_PUBKEY_SHA256="$LOG_PIN" \
+  PDM_HOST=pdm.sr.secure-rads.org PDM_HOST_PUBKEY_SHA256="$PDM_PIN" \
+  LOG_HOST=log.sr.secure-rads.org LOG_HOST_PUBKEY_SHA256="$LOG_PIN" \
   COST_HOST=cost.sr.secure-rads.org
 ```
 

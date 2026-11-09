@@ -10,11 +10,11 @@ Vite + React + TypeScript + Tailwind + shadcn/ui SPA that gives two audiences vi
 The data-subject view deliberately goes through the PDM, not straight to the log service:
 
 ```
-browser -> GET https://pdm.secure-rads.org/subject/{dataSubjectId}
-        -> GET https://log.secure-rads.org/subject-access?dataSubjectId=...
+browser -> GET https://pdm.sr.secure-rads.org/subject/{dataSubjectId}
+        -> GET https://log.sr.secure-rads.org/subject-access?dataSubjectId=...
 ```
 
-The authority view reads `log.secure-rads.org` directly (`/logs`, `/subject-access`). Both APIs send permissive CORS headers (`httpApi.cors: true` in each `serverless.yml`).
+The authority view reads `log.sr.secure-rads.org` directly (`/logs`, `/subject-access`). Both APIs send permissive CORS headers (`httpApi.cors: true` in each `serverless.yml`).
 
 `pdm-service` records a subject-access entry (algorithm, run, timestamp, data subject) every time it serves records to an enclave, so the trail is produced by the data access itself, not by the UI.
 
@@ -24,8 +24,8 @@ Build-time Vite variables, defaulting to the deployed domains if unset:
 
 | Variable | Default |
 | --- | --- |
-| `VITE_LOG_SERVICE_URL` | `https://log.secure-rads.org` |
-| `VITE_PDM_URL` | `https://pdm.secure-rads.org` |
+| `VITE_LOG_SERVICE_URL` | `https://log.sr.secure-rads.org` |
+| `VITE_PDM_URL` | `https://pdm.sr.secure-rads.org` |
 
 ## Develop
 

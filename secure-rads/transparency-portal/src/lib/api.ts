@@ -1,5 +1,5 @@
-const LOG_SERVICE_URL = import.meta.env.VITE_LOG_SERVICE_URL ?? "https://log.secure-rads.org";
-const PDM_URL = import.meta.env.VITE_PDM_URL ?? "https://pdm.secure-rads.org";
+const LOG_SERVICE_URL = import.meta.env.VITE_LOG_SERVICE_URL ?? "https://log.sr.secure-rads.org";
+const PDM_URL = import.meta.env.VITE_PDM_URL ?? "https://pdm.sr.secure-rads.org";
 
 export interface RunEvent {
   algorithmId: string;

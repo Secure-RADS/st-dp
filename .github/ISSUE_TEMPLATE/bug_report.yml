@@ -1,0 +1,71 @@
+name: Bug report
+description: Something is broken or behaves differently from the docs.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include AWS credentials, account IDs, ARNs, KMS key IDs, or real personal data.
+        Report security issues through SECURITY.md instead of here.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you ran, and what came back.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Exact commands, make targets, or API calls, in order.
+      placeholder: |
+        1. devbox shell
+        2. make secure-rads-ready
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Redact account IDs, ARNs, and personal data.
+      render: shell
+  - type: input
+    id: commit
+    attributes:
+      label: Commit or version
+      placeholder: e.g. 4000651
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: true
+      options:
+        - rads (baseline)
+        - secure-rads (CSAV / build)
+        - secure-rads (SCE / execution)
+        - verifier-service
+        - pdm-service
+        - transparency-portal
+        - benchmark
+        - website
+        - docs
+        - tooling
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Host OS, Docker version, AWS region, and instance types in use.
+    validations:
+      required: true

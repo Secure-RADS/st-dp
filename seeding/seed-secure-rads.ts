@@ -1,5 +1,5 @@
 import { createCipheriv, randomBytes } from "node:crypto";
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { GenerateDataKeyCommand, KMSClient } from "@aws-sdk/client-kms";
 import { GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
 import { readDatasetMeta, resolveSeedNames, streamDatasetRecords } from "./lib/datasets";

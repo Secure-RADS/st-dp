@@ -1,0 +1,51 @@
+name: Feature request
+description: Propose a change or addition.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This repository is a research PoC of the Secure Computing Environment. Scope is limited
+        to what the published work needs; deferred items are listed in TODO.md.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is hard or impossible today, and who hits it.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: true
+      options:
+        - rads (baseline)
+        - secure-rads (CSAV / build)
+        - secure-rads (SCE / execution)
+        - verifier-service
+        - pdm-service
+        - transparency-portal
+        - benchmark
+        - website
+        - docs
+        - tooling
+    validations:
+      required: true
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - label: I understand this may be declined if it falls outside the PoC's scope.
+          required: true

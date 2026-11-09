@@ -24,5 +24,8 @@
     "@aws-sdk/lib-dynamodb": "^3.700.0",
     "p-map": "^7.0.6",
     "uuid": "^14.0.2"
+  },
+  "overrides": {
+    "@smithy/types": "^4.19.0"
   }
 }

@@ -1,8 +1,10 @@
+include ../../mk/env.mk
+
 STACK_NAME := transparency-portal
-REGION ?= ap-southeast-2
-DOMAIN ?= transparency.sr.secure-rads.org
+REGION := $(AWS_REGION)
+DOMAIN := $(TRANSPARENCY_DOMAIN_SECURE_RADS)
 # us-east-1 certificate (CloudFront requires the cert in us-east-1, unlike the regional API certs).
-CERT_ARN ?= arn:aws:acm:us-east-1:615299756331:certificate/12f0557e-a816-4dcd-90a8-8941250c9db4
+CERT_ARN := $(CERT_ARN_SECURE_RADS)
 BUCKET = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='BucketName'].OutputValue" --output text)
 DISTRIBUTION_ID = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
@@ -23,6 +25,9 @@ build:
 
 # S3 bucket + CloudFront distribution (custom domain + ACM cert). Idempotent.
 deploy-infra:
+	@$(call env_require,AWS_REGION)
+	@$(call env_require,CERT_ARN_SECURE_RADS)
+	@$(call env_require,TRANSPARENCY_DOMAIN_SECURE_RADS)
 	aws cloudformation deploy \
 		--template-file cloudformation.yaml \
 		--stack-name $(STACK_NAME) \
@@ -30,9 +35,11 @@ deploy-infra:
 		--parameter-overrides DomainName=$(DOMAIN) CertificateArn=$(CERT_ARN)
 
 sync: build
+	@$(call env_require,AWS_REGION)
 	aws s3 sync dist/ "s3://$(BUCKET)" --delete --region $(REGION)
 
 invalidate:
+	@$(call env_require,AWS_REGION)
 	aws cloudfront create-invalidation --distribution-id $(DISTRIBUTION_ID) --paths "/*"
 
 # Full deploy: build the SPA, upload it, and flush the edge cache.
