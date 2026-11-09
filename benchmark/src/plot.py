@@ -92,19 +92,17 @@ def phases_figure(df: pd.DataFrame) -> None:
 
 
 def phases_figure_selected(df: pd.DataFrame) -> None:
-    SELECTED_SIZES = [10_000, 80_000, 150_000]
-    LABEL_NAMES = {
-    "rads (baseline)": "CE",
-    "secure-rads (enclave)": "Sec-CE",}
+    selected_sizes = [10_000, 80_000, 150_000]
+    label_names = {"rads (baseline)": "CE", "secure-rads (enclave)": "Sec-CE"}
 
     means = (
-        df[df["dataset_size"].isin(SELECTED_SIZES)]
+        df[df["dataset_size"].isin(selected_sizes)]
         .groupby(["dataset_size", "tree", "label"], as_index=False)[[*PHASES, "total_s"]]
         .mean()
         .sort_values(["dataset_size", "tree"])
     )
     means["col"] = means.apply(
-        lambda r: f"{LABEL_NAMES.get(r.label, r.label)}\n{r.dataset_size // 1000}K",
+        lambda r: f"{label_names.get(r.label, r.label)}\n{r.dataset_size // 1000}K",
         axis=1,
     )
     plot_df = means.set_index("col")[list(PHASES)].rename(columns=PHASES)
@@ -129,7 +127,6 @@ def phases_figure_selected(df: pd.DataFrame) -> None:
         fontsize=8.5,
     )
     _save(fig, "sweep-selected-phases.png", tight=False)
-
 
 
 def scaling_figure(df: pd.DataFrame) -> None:
