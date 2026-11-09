@@ -5,8 +5,8 @@ fully trusted RADS baseline included alongside it for comparison. It accompanies
 is not published yet; citation details will be added with the publication.
 
 This is not production software. It is published so the design and measurements can be inspected and
-reproduced. There is no support commitment, no security guarantee, and no license granted yet; see
-[License](#license).
+reproduced. There is no support commitment and no security guarantee. It is licensed under the
+Apache License 2.0; see [License](#license).
 
 RADS is the baseline system. Secure-RADS extends it with the security controls required for protected personal-data computation, including KMS-backed encryption and enclave attestation. The current Secure-RADS implementation is a PoC of the Secure Computing Environment (SCE) on AWS Nitro Enclaves. A Data Controller's algorithm runs inside an attested enclave over a data subject's personal data, so the data is processed without the Data Controller ever seeing it.
 
@@ -135,9 +135,9 @@ issue for them.
 
 ## License
 
-No license has been granted. The source is public so the design can be reviewed and cited, but
-copying, modifying, or redistributing it is not permitted until a license is added. See
-[`CONTRIBUTING.md`](CONTRIBUTING.md#licensing-of-contributions) for how that affects contributions.
+Licensed under the Apache License, Version 2.0. See [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
+See [`CONTRIBUTING.md`](CONTRIBUTING.md#licensing-of-contributions) for how that affects
+contributions.
 
 ## Citation
 
