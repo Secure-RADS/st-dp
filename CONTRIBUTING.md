@@ -53,7 +53,5 @@ The TypeScript packages each have `lint` and `typecheck` scripts. Run them in an
 
 ## Licensing of contributions
 
-This repository currently ships without a license, so no rights are granted to use, modify, or
-redistribute it. Contributions are accepted on the understanding that the maintainers may license
-the combined work later, and that contributors grant the maintainers the rights needed to do so.
-Open an issue if you need different terms before contributing.
+This repository is licensed under the Apache License, Version 2.0. By submitting a contribution you
+agree that it is licensed under the same terms, as described in section 5 of the license.
