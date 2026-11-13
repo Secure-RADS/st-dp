@@ -39,15 +39,7 @@ func main() {
 	}
 	var timelineLog *sharedlog.Client
 	if cfg.LogHost != "" {
-		timelineLog = &sharedlog.Client{
-			Host:       cfg.LogHost,
-			HTTPClient: cfg.logSvc().client(),
-			// Events emitted before attestation are buffered and flushed once this returns a token.
-			AccessToken: func() string {
-				token, _ := CurrentAccessToken()
-				return token
-			},
-		}
+		timelineLog = &sharedlog.Client{Host: cfg.LogHost, HTTPClient: cfg.logSvc().client()}
 	}
 	info, err := readRunInfo()
 	if err != nil {
@@ -140,9 +132,8 @@ func prepareRecordsFile(cfg runConfig, timelineLog *sharedlog.Client, runID stri
 		return fmt.Errorf("attestation failed: %w", err)
 	}
 	log.Printf("sce-unit: attested successfully, access token expires %s", tp.AccessTokenExpiresAt.Format(time.RFC3339))
-	setTokens(tp)
-	timelineLog.Flush()
 	timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventAttested, nil)
+	setTokens(tp)
 	go refreshLoop(cfg, runID)
 
 	records, err := fetchAllRecords(cfg, limit)

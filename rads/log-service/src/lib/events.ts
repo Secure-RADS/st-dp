@@ -24,11 +24,3 @@ export type RunEvent = (typeof RUN_EVENTS)[number];
 export function isRunEvent(value: unknown): value is RunEvent {
   return typeof value === "string" && (RUN_EVENTS as readonly string[]).includes(value);
 }
-
-// The baseline has no attested producer, so no event is enclave-originated. The list exists so the ingest
-// code matches secure-rads; enforcement only activates when VERIFIER_JWKS_URL is set.
-const ENCLAVE_EVENTS = [] as const;
-
-export function isEnclaveEvent(value: string): boolean {
-  return (ENCLAVE_EVENTS as readonly string[]).includes(value);
-}

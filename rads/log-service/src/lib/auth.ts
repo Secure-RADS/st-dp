@@ -11,7 +11,7 @@ export async function requireEnclaveToken(
 
   const validation = await verifyAccessToken(authorization.slice("Bearer ".length));
   if (!validation) return "invalid token";
-  // Bind the request to the enclave's own algorithm so one attested enclave cannot post for another.
+  // Bind the access trail to the enclave's own algorithm so one attested enclave cannot write for another.
   if (validation.algorithmId !== algorithmId) return "token algorithm mismatch";
   return null;
 }

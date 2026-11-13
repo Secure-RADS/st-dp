@@ -12,16 +12,13 @@ Producers are unchanged: they still POST `{algorithmId, runId, event, timestamp,
 - `POST /subject-access` - pdm-service posts one batch of `{algorithmId, runId, dataSubjectIds, timestamp}` each time it serves records to an enclave, forwarding the enclave's bearer token. The event is validated, deduplicated, and written one item per data subject into the DS-keyed `SubjectAccessTable`. This is the GDPR trail: which algorithm/run read which data subjects, and when.
 - `GET /subject-access` - the data-subject/authority read path. `?dataSubjectId=` returns one data subject's chronological access entries as a key query; omitting it scans and returns every access event for the authority dashboard.
 
-## Ingest authentication
+## Subject-access authentication
 
-When `VERIFIER_JWKS_URL` is set, ingest verifies the ML-DSA-87 access token that verifier-service mints only after a successful Nitro attestation (`src/lib/jwt.ts`, same local-JWKS scheme as pdm-service, with SPKI-pinned TLS on the JWKS fetch and `aud=log-service`).
+When `VERIFIER_JWKS_URL` is set, `POST /subject-access` verifies the ML-DSA-87 access token that verifier-service mints only after a successful Nitro attestation (`src/lib/jwt.ts`, same local-JWKS scheme as pdm-service, with SPKI-pinned TLS on the JWKS fetch and `aud=log-service`). The token's `sub` must match the batch's `algorithmId`. pdm-service forwards the token the enclave presented on `/records`.
 
-- Enclave-originated event names (`enclave-started`, `unit-ready`, `attested`, `records-*`, `dc-app-completed`, `output-sent`, `run-failed`) require a valid bearer token, and its `sub` must match the event's `algorithmId`.
-- Build- and host-side producers cannot attest, so their event names (registry-service, execution-service, result-consumer) stay unauthenticated.
-- `POST /subject-access` always requires the token; pdm-service forwards the one the enclave presented on `/records`.
-- Read endpoints stay open for the transparency portal.
+`POST /events` and the read endpoints are unchanged: build- and host-side producers cannot attest, and the transparency portal still reads without a token.
 
-The baseline has no verifier, so `rads/log-service` leaves these variables unset and ingest stays open.
+The baseline has no verifier, so `rads/log-service` leaves these variables unset and subject-access ingest stays open.
 
 Both export routes take `?format=csv` (`text/csv`) or default to JSON. CSV columns: `algorithmId,runId,event,timestamp,receivedAt,detail`, with `detail` as compact JSON per cell.
 

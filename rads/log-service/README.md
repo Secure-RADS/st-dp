@@ -7,9 +7,9 @@ export a run's or an algorithm's timeline as JSON or CSV.
 Producers (registry-service, execution-service Lambda, EC2 executor, result-consumer) all post through
 `POST /events`. The HTTP handler enqueues onto SQS; the worker writes DynamoDB.
 
-Ingest is unauthenticated here because the baseline has no verifier or attested producer. The handlers carry
-the same env-gated bearer-token verification as `secure-rads/log-service`, but this stack deploys without
-`VERIFIER_JWKS_URL`, so enforcement stays off.
+Subject-access ingest is unauthenticated here because the baseline has no verifier or attested producer. The
+handler carries the same env-gated bearer-token verification as `secure-rads/log-service`, but this stack
+deploys without `VERIFIER_JWKS_URL`, so enforcement stays off. `POST /events` is unchanged in both stacks.
 
 ## Endpoints
 

@@ -8,7 +8,6 @@ import (
 	"log"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -36,38 +35,6 @@ const (
 type Client struct {
 	Host       string
 	HTTPClient *http.Client
-	// AccessToken returns the current attested bearer token. Nil means the producer is not an enclave and
-	// posts unauthenticated (build and host-side events are exempt at ingest).
-	AccessToken func() string
-
-	mu      sync.Mutex
-	pending []pendingEvent
-}
-
-type pendingEvent struct {
-	path  string
-	body  []byte
-	label string
-}
-
-// Flush sends events queued before the enclave had a token. sce-unit calls it once attestation completes.
-func (c *Client) Flush() {
-	if c == nil || c.AccessToken == nil {
-		return
-	}
-	token := c.AccessToken()
-	if token == "" {
-		return
-	}
-
-	c.mu.Lock()
-	pending := c.pending
-	c.pending = nil
-	c.mu.Unlock()
-
-	for _, e := range pending {
-		c.post(e.path, e.body, e.label, token)
-	}
 }
 
 func (c *Client) EmitEvent(algorithmID string, runID *string, event string, detail map[string]any) {
@@ -86,7 +53,7 @@ func (c *Client) EmitEvent(algorithmID string, runID *string, event string, deta
 		return
 	}
 
-	c.deliver("/events", body, "log event "+event)
+	c.send("/events", body, "log event "+event)
 }
 
 func (c *Client) EmitSubjectAccess(algorithmID, runID string, dataSubjectIDs []string) {
@@ -103,26 +70,10 @@ func (c *Client) EmitSubjectAccess(algorithmID, runID string, dataSubjectIDs []s
 	if err != nil {
 		return
 	}
-	c.deliver("/subject-access", body, "subject-access log")
+	c.send("/subject-access", body, "subject-access log")
 }
 
-// deliver buffers until an enclave has attested. A producer without an AccessToken provider is not an
-// enclave, so it sends straight through unauthenticated.
-func (c *Client) deliver(path string, body []byte, label string) {
-	token := ""
-	if c.AccessToken != nil {
-		token = c.AccessToken()
-	}
-	if c.AccessToken != nil && token == "" {
-		c.mu.Lock()
-		c.pending = append(c.pending, pendingEvent{path, body, label})
-		c.mu.Unlock()
-		return
-	}
-	c.post(path, body, label, token)
-}
-
-func (c *Client) post(path string, body []byte, label, token string) {
+func (c *Client) send(path string, body []byte, label string) {
 	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://"+strings.TrimRight(c.Host, "/")+path, bytes.NewReader(body))
@@ -130,9 +81,6 @@ func (c *Client) post(path string, body []byte, label, token string) {
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
-	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
-	}
 	client := c.HTTPClient
 	if client == nil {
 		client = http.DefaultClient
