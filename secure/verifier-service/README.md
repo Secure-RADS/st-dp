@@ -11,13 +11,13 @@ Serverless Framework v4, TypeScript. Receives `AlgorithmId` + PCR values from re
 
 ### Access token format (ML-DSA-87 compact JWS)
 
-Downstream services (pdm-service, kms-service) verify the JWT locally against the JWKS endpoint - there is no `/validate` round-trip. Claims:
+Downstream services (pdm-service, kms-service, log-service) verify the JWT locally against the JWKS endpoint - there is no `/validate` round-trip. Claims:
 
 | Claim | Value | Meaning |
 | --- | --- | --- |
 | `iss` | `verifier-service` | fixed issuer, checked on every verification |
-| `sub` | algorithm ID | the only source of `algorithmId` pdm-service trusts; PCRs were already matched at `/attest` |
-| `aud` | `pdm-service`, `kms-service` | audience restriction, checked on every verification; each service accepts only its own audience |
+| `sub` | algorithm ID | the only source of `algorithmId` downstream services trust; PCRs were already matched at `/attest` |
+| `aud` | `pdm-service`, `kms-service`, `log-service` | audience restriction, checked on every verification; each service accepts only its own audience |
 | `iat` | unix seconds | issuance time (not enforced, informational) |
 | `exp` | unix seconds | expiry; `exp * 1000 <= now` rejects the token, no clock skew tolerance (both sides are AWS-hosted) |
 | `jti` | random 32 hex chars | unique per minted token, even within one refresh session |

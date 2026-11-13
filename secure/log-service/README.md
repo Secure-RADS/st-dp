@@ -9,8 +9,19 @@ Producers are unchanged: they still POST `{algorithmId, runId, event, timestamp,
 - `POST /events` - a producer (execution-service, the enclave host, sce-unit inside the enclave, result-consumer) posts one event `{algorithmId, runId, event, timestamp, detail?}`. The `timestamp` is client-provided - the time the event actually happened, not server receive time - and is stored alongside a server `receivedAt` stamped at ingest. Validation happens here; valid events are enqueued and the handler returns `202` without waiting for DynamoDB.
 - `GET /logs/{algorithmId}` - exports one algorithm's timeline. `?runId=` narrows to a single run. Pages through all results, never truncated.
 - `GET /logs` - exports the whole table across all algorithms.
-- `POST /subject-access` - a producer (pdm-service) posts one batch of `{algorithmId, runId, dataSubjectIds, timestamp}` each time it serves records to an enclave. The event is validated, deduplicated, and written one item per data subject into the DS-keyed `SubjectAccessTable`. This is the GDPR trail: which algorithm/run read which data subjects, and when.
+- `POST /subject-access` - pdm-service posts one batch of `{algorithmId, runId, dataSubjectIds, timestamp}` each time it serves records to an enclave, forwarding the enclave's bearer token. The event is validated, deduplicated, and written one item per data subject into the DS-keyed `SubjectAccessTable`. This is the GDPR trail: which algorithm/run read which data subjects, and when.
 - `GET /subject-access` - the data-subject/authority read path. `?dataSubjectId=` returns one data subject's chronological access entries as a key query; omitting it scans and returns every access event for the authority dashboard.
+
+## Ingest authentication
+
+When `VERIFIER_JWKS_URL` is set, ingest verifies the ML-DSA-87 access token that verifier-service mints only after a successful Nitro attestation (`src/lib/jwt.ts`, same local-JWKS scheme as pdm-service, with SPKI-pinned TLS on the JWKS fetch and `aud=log-service`).
+
+- Enclave-originated event names (`enclave-started`, `unit-ready`, `attested`, `records-*`, `dc-app-completed`, `output-sent`, `run-failed`) require a valid bearer token, and its `sub` must match the event's `algorithmId`.
+- Build- and host-side producers cannot attest, so their event names (registry-service, execution-service, result-consumer) stay unauthenticated.
+- `POST /subject-access` always requires the token; pdm-service forwards the one the enclave presented on `/records`.
+- Read endpoints stay open for the transparency portal.
+
+The baseline has no verifier, so `rads/log-service` leaves these variables unset and ingest stays open.
 
 Both export routes take `?format=csv` (`text/csv`) or default to JSON. CSV columns: `algorithmId,runId,event,timestamp,receivedAt,detail`, with `detail` as compact JSON per cell.
 

@@ -81,7 +81,7 @@ Values the deployment needs, all read from that file:
 | `LOG_HOST_RADS`, `LOG_HOST_SECURE_RADS`, `COST_HOST_RADS`, `COST_HOST_SECURE_RADS` | Service hostnames each stack reports to. |
 | `PDM_HOST`, `KMS_HOST`, `VERIFIER_HOST`, `VERIFIER_ATTEST_HOST`, `VERIFIER_URL` | PDM, KMS proxy, and verifier endpoints, including the registry-service mTLS URL. |
 | `VERIFIER_PUBKEY_SHA256`, `VERIFIER_HOST_PUBKEY_SHA256`, `PDM_HOST_PUBKEY_SHA256`, `KMS_HOST_PUBKEY_SHA256`, `LOG_HOST_PUBKEY_SHA256` | TLS public-key pins baked into the EIF run config. |
-| `VERIFIER_JWKS_URL`, `VERIFIER_JWKS_PUBKEY_SHA256` | Verifier key location and pin used by the PDM and KMS services. |
+| `VERIFIER_JWKS_URL`, `VERIFIER_JWKS_PUBKEY_SHA256` | Verifier key location and pin used by the PDM, KMS, and log services. |
 | `CLOUDFLARE_ZONE`, `CLOUDFLARE_EMAIL`, `CLOUDFLARE_API_TOKEN` | Cloudflare zone and credentials for the DNS helper. |
 
 Commands stop with the variable name when a required value is missing. `make env`, or `scripts/derive-env.sh` directly, fills the values that can be discovered from AWS: both AMIs from SSM, issued certificates from ACM, the TLS pins from the live endpoints, and the verifier key pin from a deployed PDM service. It only reads from AWS and patches those keys in `.env`.

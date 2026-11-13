@@ -1,6 +1,8 @@
 import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
 import { requiredEnv } from "@srads/common/env";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
+import { requireEnclaveToken } from "../lib/auth.js";
+import { isEnclaveEvent } from "../lib/events.js";
 import { parseIngestBody } from "../lib/ingest.js";
 
 const sqs = new SQSClient({});
@@ -20,6 +22,11 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
 
   const parsed = parseIngestBody(body);
   if ("error" in parsed) return jsonResponse(400, { error: parsed.error });
+
+  if (isEnclaveEvent(parsed.event)) {
+    const authError = await requireEnclaveToken(event.headers.authorization, parsed.algorithmId);
+    if (authError) return jsonResponse(401, { error: authError });
+  }
 
   await sqs.send(new SendMessageCommand({ QueueUrl: queueUrl, MessageBody: JSON.stringify(parsed) }));
   return jsonResponse(202, { ok: true });

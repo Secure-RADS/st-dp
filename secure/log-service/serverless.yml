@@ -40,6 +40,10 @@ provider:
     RUN_LOG_TABLE: !Ref RunLogTable
     SUBJECT_ACCESS_TABLE: !Ref SubjectAccessTable
     EVENT_QUEUE_URL: !Ref EventQueue
+    # Enables attestation-token verification for enclave-originated ingest. Left unset in the baseline,
+    # which has no verifier.
+    VERIFIER_JWKS_URL: ${env:VERIFIER_JWKS_URL}
+    VERIFIER_JWKS_PUBKEY_SHA256: ${env:VERIFIER_JWKS_PUBKEY_SHA256}
 
 functions:
   events:

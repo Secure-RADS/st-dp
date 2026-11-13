@@ -7,6 +7,10 @@ export a run's or an algorithm's timeline as JSON or CSV.
 Producers (registry-service, execution-service Lambda, EC2 executor, result-consumer) all post through
 `POST /events`. The HTTP handler enqueues onto SQS; the worker writes DynamoDB.
 
+Ingest is unauthenticated here because the baseline has no verifier or attested producer. The handlers carry
+the same env-gated bearer-token verification as `secure-rads/log-service`, but this stack deploys without
+`VERIFIER_JWKS_URL`, so enforcement stays off.
+
 ## Endpoints
 
 - `POST /events` - posts one event `{algorithmId, runId, event, timestamp, detail?}` onto the queue and returns `202` without waiting for DynamoDB. `runId` may be null for build-phase events. The `timestamp` is client-provided - when the event happened, not when the server received it - and is stored alongside a server `receivedAt` stamped at ingest.
