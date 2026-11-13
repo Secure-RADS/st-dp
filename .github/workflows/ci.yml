@@ -23,13 +23,13 @@ jobs:
           - rads/result-consumer
           - rads/sce/execution-service
           - rads/transparency-portal
-          - secure-rads/cost-service
-          - secure-rads/log-service
-          - secure-rads/pdm-service
-          - secure-rads/result-consumer
-          - secure-rads/sce/execution-service
-          - secure-rads/transparency-portal
-          - secure-rads/verifier-service
+          - secure/cost-service
+          - secure/log-service
+          - secure/pdm-service
+          - secure/result-consumer
+          - secure/sce/execution-service
+          - secure/transparency-portal
+          - secure/verifier-service
           - seeding
     steps:
       - uses: actions/checkout@v5
@@ -54,12 +54,12 @@ jobs:
           - rads/pdm-service
           - rads/result-consumer
           - rads/sce/execution-service
-          - secure-rads/cost-service
-          - secure-rads/log-service
-          - secure-rads/pdm-service
-          - secure-rads/result-consumer
-          - secure-rads/sce/execution-service
-          - secure-rads/verifier-service
+          - secure/cost-service
+          - secure/log-service
+          - secure/pdm-service
+          - secure/result-consumer
+          - secure/sce/execution-service
+          - secure/verifier-service
           - seeding
     steps:
       - uses: actions/checkout@v5
@@ -88,7 +88,7 @@ jobs:
       matrix:
         module:
           - packages/go-common
-          - secure-rads/sce-unit
+          - secure/sce-unit
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6

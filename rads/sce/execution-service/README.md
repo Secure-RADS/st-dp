@@ -1,7 +1,7 @@
 # rads-execution-service
 
 The execution-phase control plane for the RADS trusted baseline (the fully-trusted, no-enclave sibling of
-`secure-rads/sce/execution-service`): an API Gateway + TypeScript Lambda that, given an `AlgorithmId`, looks
+`secure/sce/execution-service`): an API Gateway + TypeScript Lambda that, given an `AlgorithmId`, looks
 up the algorithm's OCI image in S3 (via the `rads-algorithms` table), launches a plain Docker EC2 instance to
 run it, and returns immediately. Results come back asynchronously through the shared rads result-consumer.
 

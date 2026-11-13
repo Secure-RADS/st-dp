@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 
-	sharedcost "github.com/Secure-RADS/GDPR/packages/go-common/cost"
+	sharedcost "github.com/Secure-RADS/st-dp/packages/go-common/cost"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"

@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	sharedenv "github.com/Secure-RADS/GDPR/packages/go-common/env"
+	sharedenv "github.com/Secure-RADS/st-dp/packages/go-common/env"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/kms"

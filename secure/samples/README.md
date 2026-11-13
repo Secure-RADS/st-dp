@@ -17,7 +17,7 @@ Each app's own README documents its exact input shape and the report it returns.
 ## Build one
 
 ```
-docker build --platform linux/arm64 -t <app>:local secure-rads/samples/<app>
+docker build --platform linux/arm64 -t <app>:local secure/samples/<app>
 ```
 
 The images are arm64 to match the Graviton enclave hosts. Inside the enclave, nsjail sets `RECORDS_PATH=/data/records.json` and `RESULT_PATH=/data/result.json`.

@@ -5,11 +5,11 @@ FROM sce-unit-base:latest AS sceunit
 FROM eif-build-base:latest AS eifassets
 
 FROM golang:1.25-alpine AS build
-WORKDIR /src/secure-rads/csav/registry-service
+WORKDIR /src/secure/csav/registry-service
 COPY packages/go-common /src/packages/go-common
-COPY secure-rads/csav/registry-service/go.mod secure-rads/csav/registry-service/go.sum ./
+COPY secure/csav/registry-service/go.mod secure/csav/registry-service/go.sum ./
 RUN go mod download
-COPY secure-rads/csav/registry-service/*.go secure-rads/csav/registry-service/nsjail.cfg.tmpl ./
+COPY secure/csav/registry-service/*.go secure/csav/registry-service/nsjail.cfg.tmpl ./
 RUN CGO_ENABLED=0 go build -o /registry-service .
 
 FROM alpine:3.20
@@ -18,7 +18,7 @@ COPY --from=nsjail / /opt/assets/nsjail-runtime/
 COPY --from=sceunit /sce-unit /opt/assets/sce-unit
 COPY --from=sceunit /etc/ssl/certs/ca-certificates.crt /opt/assets/ca-certificates.crt
 COPY --from=eifassets /opt/assets/eif /opt/assets/eif
-COPY secure-rads/csav/registry-service/tls/client.crt secure-rads/csav/registry-service/tls/client.key /opt/assets/tls/
+COPY secure/csav/registry-service/tls/client.crt secure/csav/registry-service/tls/client.key /opt/assets/tls/
 COPY --from=build /registry-service /registry-service
 EXPOSE 8080
 ENTRYPOINT ["/registry-service"]

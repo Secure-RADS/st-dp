@@ -29,7 +29,7 @@ Per-language checks, matching CI:
 
 ```sh
 (cd benchmark && uvx ruff==0.17.4 check . && uvx ruff==0.17.4 format --check .)
-(cd secure-rads/sce-unit && go vet ./... && go build ./...)
+(cd secure/sce-unit && go vet ./... && go build ./...)
 (cd packages/common && bun run lint && bun run typecheck)
 ```
 

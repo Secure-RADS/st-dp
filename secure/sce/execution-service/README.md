@@ -14,4 +14,4 @@ See [../README.md](../README.md) for the full SCE context.
 
 `make -C sce deploy` deploys the Lambda stack. It requires result-consumer and registry-service storage to exist first.
 
-The new enclave-host role has a new ARN. After the first deployment, run `make -C secure-rads/csav/registry-service deploy-storage` to grant it access to the artifact bucket KMS key, then rebuild and reseed each algorithm. Existing algorithm KMS keys refer to the old enclave-host role and cannot decrypt records for the new role.
+The new enclave-host role has a new ARN. After the first deployment, run `make -C secure/csav/registry-service deploy-storage` to grant it access to the artifact bucket KMS key, then rebuild and reseed each algorithm. Existing algorithm KMS keys refer to the old enclave-host role and cannot decrypt records for the new role.
