@@ -18,7 +18,7 @@ When `VERIFIER_JWKS_URL` is set, `POST /subject-access` verifies the ML-DSA-87 a
 
 `POST /events` and the read endpoints are unchanged: build- and host-side producers cannot attest, and the transparency portal still reads without a token.
 
-The baseline has no verifier, so `rads/log-service` leaves these variables unset and subject-access ingest stays open.
+This applies to `secure` only. The `rads` baseline has no verifier or attested producer, so its log-service is unchanged.
 
 Both export routes take `?format=csv` (`text/csv`) or default to JSON. CSV columns: `algorithmId,runId,event,timestamp,receivedAt,detail`, with `detail` as compact JSON per cell.
 
