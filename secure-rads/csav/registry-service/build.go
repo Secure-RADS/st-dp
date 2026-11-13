@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"time"
 
-	sharedcost "github.com/Secure-RADS/GDPR/packages/go-common/cost"
-	sharedlog "github.com/Secure-RADS/GDPR/packages/go-common/log"
+	sharedcost "github.com/Secure-RADS/st-dp/packages/go-common/cost"
+	sharedlog "github.com/Secure-RADS/st-dp/packages/go-common/log"
 )
 
 // buildAndPush unpacks the uploaded image, jails the Data Controller's app

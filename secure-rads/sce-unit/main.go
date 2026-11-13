@@ -10,7 +10,7 @@ import (
 	"os/exec"
 	"time"
 
-	sharedlog "github.com/Secure-RADS/GDPR/packages/go-common/log"
+	sharedlog "github.com/Secure-RADS/st-dp/packages/go-common/log"
 	"golang.org/x/sys/unix"
 )
 
