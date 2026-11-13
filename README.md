@@ -1,4 +1,4 @@
-# Secure-RADS
+# ST-DP
 
 Research proof of concept of the Secure Computing Environment (SCE) on AWS Nitro Enclaves, with the
 fully trusted RADS baseline included alongside it for comparison. It accompanies a research paper that
