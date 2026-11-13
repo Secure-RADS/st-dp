@@ -15,7 +15,7 @@ from lib.tree import Tree
 from paths import FIG_DIR, PHASE_TIMINGS_CSV, ROOT
 
 PALETTE = {Tree.RADS: "#2E6F95", Tree.SECURE_RADS: "#C8542A"}
-LABELS = {Tree.RADS: "rads (baseline)", Tree.SECURE_RADS: "secure-rads (enclave)"}
+LABELS = {Tree.RADS: "CE (baseline)", Tree.SECURE_RADS: "SCE (enclave)"}
 PHASES = {
     "host_provisioning_s": "host provisioning",
     "algorithm_retrieval_s": "algorithm retrieval",
