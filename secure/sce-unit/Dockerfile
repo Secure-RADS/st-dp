@@ -1,10 +1,10 @@
 FROM golang:1.25-alpine AS build
-WORKDIR /src/secure-rads/sce-unit
+WORKDIR /src/secure/sce-unit
 RUN apk add --no-cache ca-certificates
 COPY packages/go-common /src/packages/go-common
-COPY secure-rads/sce-unit/go.mod secure-rads/sce-unit/go.sum ./
+COPY secure/sce-unit/go.mod secure/sce-unit/go.sum ./
 RUN go mod download
-COPY secure-rads/sce-unit/*.go ./
+COPY secure/sce-unit/*.go ./
 RUN CGO_ENABLED=0 go build -o /sce-unit .
 
 FROM scratch

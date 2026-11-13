@@ -4,7 +4,7 @@
 estimates. It is an asynchronous meter, not a billing system: producers POST one typed event per metered operation,
 a worker prices it against a pinned list-price table, and the benchmark sums the rows for a run.
 
-It exists in both trees: `secure-rads/cost-service` and `rads/cost-service`. See each service's `README.md` for
+It exists in both trees: `secure/cost-service` and `rads/cost-service`. See each service's `README.md` for
 endpoints, deploy, and the event vocabulary.
 
 ## The one rule

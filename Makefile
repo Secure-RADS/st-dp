@@ -46,39 +46,39 @@ logs:
 	for pid in $$pids; do wait "$$pid" || true; done
 
 csav-key:
-	$(MAKE) -C secure-rads/csav key
+	$(MAKE) -C secure/csav key
 
 csav-deploy:
-	$(MAKE) -C secure-rads/csav deploy
+	$(MAKE) -C secure/csav deploy
 
 csav-destroy:
-	$(MAKE) -C secure-rads/csav destroy
+	$(MAKE) -C secure/csav destroy
 
 csav-status:
-	$(MAKE) -C secure-rads/csav status
+	$(MAKE) -C secure/csav status
 
 csav-up:
-	$(MAKE) -C secure-rads/csav up
+	$(MAKE) -C secure/csav up
 
 csav-down:
-	$(MAKE) -C secure-rads/csav down
+	$(MAKE) -C secure/csav down
 
 csav-ssh:
-	$(MAKE) -C secure-rads/csav ssh
+	$(MAKE) -C secure/csav ssh
 
 .PHONY: sce-deploy sce-destroy sce-status sce-logs
 
 sce-deploy:
-	$(MAKE) -C secure-rads/sce deploy
+	$(MAKE) -C secure/sce deploy
 
 sce-destroy:
-	$(MAKE) -C secure-rads/sce destroy
+	$(MAKE) -C secure/sce destroy
 
 sce-status:
-	$(MAKE) -C secure-rads/sce status
+	$(MAKE) -C secure/sce status
 
 sce-logs:
-	$(MAKE) -C secure-rads/sce logs
+	$(MAKE) -C secure/sce logs
 
 # End-to-end build + execution. Resolved lazily so only these targets hit AWS.
 REGION := $(AWS_REGION)
@@ -122,19 +122,19 @@ SAMPLE_APPS := \
 # Transparency portal (Vite SPA): data-subject lookup + service-authority dashboard.
 # Hosted on S3 + CloudFront at transparency.sr.secure-rads.org.
 portal-install:
-	$(MAKE) -C secure-rads/transparency-portal install
+	$(MAKE) -C secure/transparency-portal install
 
 portal-dev:
-	$(MAKE) -C secure-rads/transparency-portal dev
+	$(MAKE) -C secure/transparency-portal dev
 
 portal-infra:
-	$(MAKE) -C secure-rads/transparency-portal deploy-infra
+	$(MAKE) -C secure/transparency-portal deploy-infra
 
 portal-deploy:
-	$(MAKE) -C secure-rads/transparency-portal deploy
+	$(MAKE) -C secure/transparency-portal deploy
 
 portal-status:
-	$(MAKE) -C secure-rads/transparency-portal status
+	$(MAKE) -C secure/transparency-portal status
 
 # rads transparency portal: the same SPA pointed at the baseline endpoints (log.r / pdm.r).
 # Hosted on S3 + CloudFront at transparency.r.secure-rads.org.
@@ -155,7 +155,7 @@ rads-portal-status:
 
 # Tail registry-service's compose logs on the csav host (build phase).
 registry-logs:
-	$(MAKE) -C secure-rads/csav/registry-service logs
+	$(MAKE) -C secure/csav/registry-service logs
 
 # Start the CSAV host when needed, then wait for its restarted Compose service. execution-service is Lambda.
 secure-rads-ready:
@@ -203,9 +203,9 @@ secure-rads-seed:
 # Builds the arm64 image, ships it to the csav host, and registers it under ALGORITHM_ID.
 # Prints {algorithmId, bucket, key}; watch `make registry-logs` alongside.
 secure-rads-build:
-	@test -n "$(APP)" || { echo "APP is required (a secure-rads/samples dir)"; exit 1; }
+	@test -n "$(APP)" || { echo "APP is required (a secure/samples dir)"; exit 1; }
 	@test -n "$(ALGORITHM_ID)" || { echo "ALGORITHM_ID is required"; exit 1; }
-	docker build --platform linux/arm64 -t $(APP):local secure-rads/samples/$(APP)
+	docker build --platform linux/arm64 -t $(APP):local secure/samples/$(APP)
 	docker save $(APP):local -o /tmp/$(APP).tar
 	scp -i $(KEY_PATH) -o StrictHostKeyChecking=accept-new /tmp/$(APP).tar ec2-user@$(CSAV_IP):/tmp/$(APP).tar
 	ssh -i $(KEY_PATH) -o StrictHostKeyChecking=accept-new ec2-user@$(CSAV_IP) \

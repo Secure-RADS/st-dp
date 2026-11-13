@@ -39,8 +39,8 @@ bun run dev
 Hosted on S3 + CloudFront behind `transparency.sr.secure-rads.org`. The CloudFront certificate must exist in `us-east-1` (see `CERT_ARN` in the `Makefile`).
 
 ```
-make -C secure-rads/transparency-portal deploy-infra   # one-time: S3 + CloudFront + DNS target
-make -C secure-rads/transparency-portal deploy         # build, upload, invalidate
+make -C secure/transparency-portal deploy-infra   # one-time: S3 + CloudFront + DNS target
+make -C secure/transparency-portal deploy         # build, upload, invalidate
 ```
 
 Or from the repo root: `make portal-deploy`.
