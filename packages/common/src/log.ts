@@ -1,3 +1,5 @@
+import { internalLogConfigured, postInternal } from "./mtls.js";
+
 const logHost = process.env.LOG_HOST;
 const eventsUrl = logHost ? `https://${logHost}/events` : undefined;
 const subjectAccessUrl = logHost ? `https://${logHost}/subject-access` : undefined;
@@ -11,12 +13,18 @@ export async function emitEvent(
   event: string,
   detail?: Record<string, unknown>,
 ): Promise<void> {
-  if (!eventsUrl) return;
+  if (!internalLogConfigured && !eventsUrl) return;
+  const payload = { algorithmId, runId, event, timestamp: new Date().toISOString(), detail };
   try {
+    if (internalLogConfigured) {
+      await postInternal("/events", payload);
+      return;
+    }
+    if (!eventsUrl) return;
     await fetch(eventsUrl, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ algorithmId, runId, event, timestamp: new Date().toISOString(), detail }),
+      body: JSON.stringify(payload),
       signal: AbortSignal.timeout(LOG_EVENT_TIMEOUT_MS),
     });
   } catch (error) {

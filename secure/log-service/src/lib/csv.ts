@@ -7,9 +7,11 @@ export interface EventRow {
   timestamp: string;
   receivedAt: string;
   detail: unknown;
+  auth: string;
+  origin: string;
 }
 
-const COLUMNS = ["algorithmId", "runId", "event", "timestamp", "receivedAt", "detail"];
+const COLUMNS = ["algorithmId", "runId", "event", "timestamp", "receivedAt", "auth", "origin", "detail"];
 
 export function toCsv(rows: EventRow[]): string {
   // detail is an object; flatten it to compact JSON so csv-stringify emits one cell, not [object Object].

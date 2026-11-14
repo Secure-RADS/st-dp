@@ -2,10 +2,37 @@
 set -euo pipefail
 exec > >(tee /var/log/execution-service-run.log) 2>&1
 
+HOST_EVENTS_FILE=/tmp/host-events.ndjson
+# The host holds no log-service credential. Events are buffered here and relayed to the enclave over vsock;
+# sce-unit forwards them with its attested token and tags them origin=host.
 emit_event() {
-  curl -sS --max-time 5 -X POST "https://{{.LogHost}}/events" -H 'content-type: application/json' \
-    -d "{\"algorithmId\":\"{{.AlgorithmId}}\",\"runId\":\"{{.RunId}}\",\"event\":\"$1\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)\"}" >/dev/null || true
+  printf '{"event":"%s","timestamp":"%s","detail":%s}\n' "$1" "$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)" "${2:-null}" >> "$HOST_EVENTS_FILE"
 }
+
+touch "$HOST_EVENTS_FILE"
+cat > /tmp/relay-events.py <<'PYEOF'
+import socket, time
+path = "/tmp/host-events.ndjson"
+offset = 0
+while True:
+    try:
+        with open(path) as f:
+            f.seek(offset)
+            lines = f.readlines()
+            next_offset = f.tell()
+        if lines:
+            s = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
+            s.settimeout(5)
+            s.connect((16, 5003))
+            for line in lines:
+                s.sendall(line.encode() if line.endswith("\n") else (line + "\n").encode())
+            s.close()
+            offset = next_offset
+    except Exception:
+        pass
+    time.sleep(1)
+PYEOF
+python3 /tmp/relay-events.py &
 
 # Cost metering reports selected AWS operations, keyed by (AlgorithmId, runId). Best-effort.
 emit_cost() {
@@ -36,7 +63,6 @@ diag = {"runEnclave": read("/tmp/run-enclave.log")} if not out else {}
 print(json.dumps({"runId": "{{.RunId}}", "algorithmId": "{{.AlgorithmId}}", "instanceId": sys.argv[2], "status": "exit:" + sys.argv[1], "output": out, "diag": diag}))
 PYEOF
   aws sqs send-message --queue-url "{{.QueueUrl}}" --message-body file:///tmp/result.json --region "$REGION" || true
-  emit_event executor-finished
   emit_cost sqs send "$(wc -c < /tmp/result.json)"
   # The runtime estimate is captured before this cost POST and the terminate request.
   emit_cost ec2 instance "$(( $(date +%s) - {{.LaunchEpoch}} ))"

@@ -6,7 +6,7 @@ Part of the SCE. API Gateway invokes the TypeScript Lambda control plane. Given 
 
 `GET /run/{runId}?algorithmId={algorithmId}` polls for the result: `{runId, status: "pending"}` until it lands, then the stored result once the consumer has written it. `algorithmId` is required so every poll can be attributed to its run.
 
-The control plane logs `run-requested` and `executor-launched` (or `launch-failed`). The parent logs `executor-ready`, `artifact-retrieved`, `enclave-launched` after `nitro-cli run-enclave` succeeds, and `executor-finished` after publishing the result. It waits for output delivery and enclave exit before publishing. SCE-unit and result-consumer emit the remaining events in [the execution flow](../../../docs/e2e-secure-rads.txt).
+The control plane logs `run-requested` and `executor-launched` (or `launch-failed`). The parent buffers `executor-ready`, `artifact-retrieved`, and `enclave-launched` locally and relays them to sce-unit over vsock, so they reach log-service over the enclave's attested channel with `origin: host`. The host holds no log-service credential. result-consumer emits `executor-finished` and `run-failed` from the SQS result. SCE-unit and result-consumer emit the remaining events in [the execution flow](../../../docs/e2e-secure-rads.txt).
 
 See [../README.md](../README.md) for the full SCE context.
 

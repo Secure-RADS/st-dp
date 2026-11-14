@@ -13,6 +13,9 @@ provider:
   runtime: nodejs24.x
   region: ${env:AWS_REGION}
   httpApi:
+    # The default API is the mTLS API. The execute-api endpoint bypasses mutual TLS, so it is disabled and
+    # only the custom domain below is reachable.
+    disableDefaultEndpoint: true
     cors: true
   iam:
     role:
@@ -46,12 +49,18 @@ provider:
     VERIFIER_JWKS_PUBKEY_SHA256: ${env:VERIFIER_JWKS_PUBKEY_SHA256}
 
 functions:
-  events:
-    handler: src/handlers/events.handler
+  # Internal producers: registry-service, execution-service, result-consumer. Auth is the client cert
+  # enforced by the mTLS custom domain.
+  eventsInternal:
+    handler: src/handlers/eventsInternal.handler
     events:
       - httpApi:
           method: POST
           path: /events
+
+  # The functions below are wired to PublicHttpApi by hand in resources, not to the default mTLS API.
+  events:
+    handler: src/handlers/events.handler
   worker:
     handler: src/handlers/worker.handler
     timeout: 30
@@ -63,34 +72,14 @@ functions:
           functionResponseType: ReportBatchItemFailures
   byAlgorithm:
     handler: src/handlers/byAlgorithm.handler
-    events:
-      - httpApi:
-          method: GET
-          path: /logs/{algorithmId}
   all:
     handler: src/handlers/all.handler
-    events:
-      - httpApi:
-          method: GET
-          path: /logs
   subjectAccessIngest:
     handler: src/handlers/subjectAccessIngest.handler
-    events:
-      - httpApi:
-          method: POST
-          path: /subject-access
   subjectAccessBySubject:
     handler: src/handlers/subjectAccessBySubject.handler
-    events:
-      - httpApi:
-          method: GET
-          path: /subject-access/{dataSubjectId}
   subjectAccessAll:
     handler: src/handlers/subjectAccessAll.handler
-    events:
-      - httpApi:
-          method: GET
-          path: /subject-access
 
 resources:
   Resources:
@@ -139,14 +128,273 @@ resources:
           - AttributeName: Sk
             KeyType: RANGE
 
-    # Plain server-auth TLS only - producers are internal SCE components on a trusted network, and the
-    # log is fire-and-forget benchmarking data, not a secret store, so no client cert is required.
+    TruststoreBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        VersioningConfiguration:
+          Status: Enabled
+
+    # One certificate covering both domains, requested through the Cloudflare API because it is the DNS
+    # provider. CloudFormation cannot add the ACM validation records itself.
+    LogCertificate:
+      Type: Custom::CloudflareCertificate
+      Properties:
+        ServiceToken: !GetAtt CloudflareCertificateFunction.Arn
+        PrimaryDomain: ${param:domainName}
+        SubjectAlternativeNames:
+          - ${param:mtlsDomainName}
+        CloudflareZone: ${env:CLOUDFLARE_ZONE}
+        TokenParam: /secure-rads/log-service/cloudflare-token
+
+    # Built from the client certs in SSM so the mTLS domain always has a truststore version at creation.
+    LogTruststore:
+      Type: Custom::LogTruststore
+      Properties:
+        ServiceToken: !GetAtt TruststoreFunction.Arn
+        Bucket: !Ref TruststoreBucket
+        CertParams:
+          - /secure-rads/log-service/mtls/clients/registry-service/cert
+          - /secure-rads/log-service/mtls/clients/execution-service/cert
+          - /secure-rads/log-service/mtls/clients/result-consumer/cert
+
+    CloudflareCertificateFunction:
+      Type: AWS::Lambda::Function
+      Properties:
+        Runtime: nodejs20.x
+        Handler: index.handler
+        Timeout: 900
+        Role: !GetAtt CloudflareCertificateRole.Arn
+        Code:
+          ZipFile: |
+            const https = require("node:https");
+            const { ACMClient, RequestCertificateCommand, DescribeCertificateCommand, DeleteCertificateCommand } = require("@aws-sdk/client-acm");
+            const { SSMClient, GetParameterCommand } = require("@aws-sdk/client-ssm");
+
+            const acm = new ACMClient({});
+            const ssm = new SSMClient({});
+
+            function respond(event, status, physicalId, data = {}, reason = "") {
+              const body = JSON.stringify({
+                Status: status,
+                Reason: reason || status,
+                PhysicalResourceId: physicalId,
+                StackId: event.StackId,
+                RequestId: event.RequestId,
+                LogicalResourceId: event.LogicalResourceId,
+                Data: data,
+              });
+              const url = new URL(event.ResponseURL);
+              return new Promise((resolve, reject) => {
+                const req = https.request(
+                  { hostname: url.hostname, path: url.pathname + url.search, method: "PUT", headers: { "content-length": Buffer.byteLength(body) } },
+                  (res) => { res.resume(); res.on("end", resolve); },
+                );
+                req.on("error", reject);
+                req.end(body);
+              });
+            }
+
+            async function cloudflare(token, path, init) {
+              const res = await fetch("https://api.cloudflare.com/client/v4" + path, {
+                ...init,
+                headers: { authorization: "Bearer " + token, "content-type": "application/json" },
+              });
+              const json = await res.json();
+              if (!json.success) throw new Error(JSON.stringify(json.errors));
+              return json.result;
+            }
+
+            async function ensureRecord(zoneId, token, name, content) {
+              const path = "/zones/" + zoneId + "/dns_records";
+              const existing = await cloudflare(token, path + "?type=CNAME&name=" + encodeURIComponent(name));
+              const record = { type: "CNAME", name, content, proxied: false, ttl: 120 };
+              if (existing.length > 0) {
+                if (existing[0].content !== content) {
+                  await cloudflare(token, path + "/" + existing[0].id, { method: "PUT", body: JSON.stringify(record) });
+                }
+                return;
+              }
+              await cloudflare(token, path, { method: "POST", body: JSON.stringify(record) });
+            }
+
+            exports.handler = async (event) => {
+              try {
+                if (event.RequestType === "Delete") {
+                  if (event.PhysicalResourceId) {
+                    await acm.send(new DeleteCertificateCommand({ CertificateArn: event.PhysicalResourceId })).catch(() => {});
+                  }
+                  return respond(event, "SUCCESS", event.PhysicalResourceId);
+                }
+                if (event.RequestType === "Update") {
+                  return respond(event, "SUCCESS", event.PhysicalResourceId, { CertificateArn: event.PhysicalResourceId });
+                }
+
+                const props = event.ResourceProperties;
+                const token = (await ssm.send(new GetParameterCommand({ Name: props.TokenParam, WithDecryption: true }))).Parameter.Value;
+                const zones = await cloudflare(token, "/zones?name=" + encodeURIComponent(props.CloudflareZone));
+                if (zones.length === 0) throw new Error("cloudflare zone not found: " + props.CloudflareZone);
+                const zoneId = zones[0].id;
+
+                const requested = await acm.send(
+                  new RequestCertificateCommand({
+                    DomainName: props.PrimaryDomain,
+                    SubjectAlternativeNames: props.SubjectAlternativeNames,
+                    ValidationMethod: "DNS",
+                  }),
+                );
+                const arn = requested.CertificateArn;
+
+                for (let attempt = 0; attempt < 60; attempt++) {
+                  const described = await acm.send(new DescribeCertificateCommand({ CertificateArn: arn }));
+                  const cert = described.Certificate;
+                  if (cert.Status === "ISSUED") {
+                    return respond(event, "SUCCESS", arn, { CertificateArn: arn });
+                  }
+                  if (cert.Status === "FAILED") throw new Error("certificate validation failed: " + cert.FailureReason);
+
+                  for (const option of cert.DomainValidationOptions || []) {
+                    const record = option.ResourceRecord;
+                    if (record) await ensureRecord(zoneId, token, record.Name, record.Value);
+                  }
+                  await new Promise((resolve) => setTimeout(resolve, 10000));
+                }
+                throw new Error("certificate did not reach ISSUED within 10 minutes");
+              } catch (error) {
+                return respond(event, "FAILED", event.PhysicalResourceId || "certificate", {}, String(error));
+              }
+            };
+
+    CloudflareCertificateRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: lambda.amazonaws.com
+              Action: sts:AssumeRole
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        Policies:
+          - PolicyName: CloudflareCertificate
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - acm:RequestCertificate
+                    - acm:DescribeCertificate
+                    - acm:DeleteCertificate
+                    - acm:AddTagsToCertificate
+                  Resource: "*"
+                - Effect: Allow
+                  Action: ssm:GetParameter
+                  Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/secure-rads/log-service/cloudflare-token"
+
+    TruststoreFunction:
+      Type: AWS::Lambda::Function
+      Properties:
+        Runtime: nodejs20.x
+        Handler: index.handler
+        Timeout: 60
+        Role: !GetAtt TruststoreFunctionRole.Arn
+        Code:
+          ZipFile: |
+            const https = require("node:https");
+            const { SSMClient, GetParameterCommand } = require("@aws-sdk/client-ssm");
+            const { S3Client, PutObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
+
+            const ssm = new SSMClient({});
+            const s3 = new S3Client({});
+
+            function respond(event, status, physicalId, data = {}, reason = "") {
+              const body = JSON.stringify({
+                Status: status,
+                Reason: reason || status,
+                PhysicalResourceId: physicalId,
+                StackId: event.StackId,
+                RequestId: event.RequestId,
+                LogicalResourceId: event.LogicalResourceId,
+                Data: data,
+              });
+              const url = new URL(event.ResponseURL);
+              return new Promise((resolve, reject) => {
+                const req = https.request(
+                  { hostname: url.hostname, path: url.pathname + url.search, method: "PUT", headers: { "content-length": Buffer.byteLength(body) } },
+                  (res) => { res.resume(); res.on("end", resolve); },
+                );
+                req.on("error", reject);
+                req.end(body);
+              });
+            }
+
+            exports.handler = async (event) => {
+              try {
+                if (event.RequestType === "Delete") {
+                  const props = event.ResourceProperties;
+                  await s3.send(new DeleteObjectCommand({ Bucket: props.Bucket, Key: "truststore.pem" })).catch(() => {});
+                  return respond(event, "SUCCESS", event.PhysicalResourceId);
+                }
+                const props = event.ResourceProperties;
+                const parts = [];
+                for (const name of props.CertParams) {
+                  const out = await ssm.send(new GetParameterCommand({ Name: name, WithDecryption: true }));
+                  parts.push(out.Parameter.Value.trim() + "\n");
+                }
+                const put = await s3.send(
+                  new PutObjectCommand({
+                    Bucket: props.Bucket,
+                    Key: "truststore.pem",
+                    Body: parts.join(""),
+                    ContentType: "application/x-pem-file",
+                  }),
+                );
+                return respond(event, "SUCCESS", props.Bucket + "/truststore.pem", { VersionId: put.VersionId });
+              } catch (error) {
+                return respond(event, "FAILED", event.PhysicalResourceId || "truststore", {}, String(error));
+              }
+            };
+
+    TruststoreFunctionRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: lambda.amazonaws.com
+              Action: sts:AssumeRole
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        Policies:
+          - PolicyName: Truststore
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action: ssm:GetParameter
+                  Resource:
+                    - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/secure-rads/log-service/mtls/clients/registry-service/cert"
+                    - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/secure-rads/log-service/mtls/clients/execution-service/cert"
+                    - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/secure-rads/log-service/mtls/clients/result-consumer/cert"
+                - Effect: Allow
+                  Action:
+                    - s3:PutObject
+                    - s3:DeleteObject
+                  Resource: !Sub "${TruststoreBucket.Arn}/*"
+
+    # mTLS domain for internal producers. The default API (with the internal /events route) is mapped here.
     ApiCustomDomain:
       Type: AWS::ApiGatewayV2::DomainName
       Properties:
-        DomainName: ${param:domainName}
+        DomainName: ${param:mtlsDomainName}
         DomainNameConfigurations:
-          - CertificateArn: ${param:certificateArn}
+          - CertificateArn: !GetAtt LogCertificate.CertificateArn
+        MutualTlsAuthentication:
+          TruststoreUri: !Sub "s3://${TruststoreBucket}/truststore.pem"
+          TruststoreVersion: !GetAtt LogTruststore.VersionId
 
     ApiDomainMapping:
       Type: AWS::ApiGatewayV2::ApiMapping
@@ -154,6 +402,170 @@ resources:
         DomainName: !Ref ApiCustomDomain
         ApiId: !Ref HttpApi
         Stage: !Ref HttpApiStage
+
+    # Public domain, pinned by callers. Carries the enclave token routes and the read endpoints.
+    PublicHttpApi:
+      Type: AWS::ApiGatewayV2::Api
+      Properties:
+        Name: secure-rads-log-service-public
+        ProtocolType: HTTP
+        CorsConfiguration:
+          AllowOrigins:
+            - "*"
+          AllowMethods:
+            - GET
+            - POST
+            - OPTIONS
+          AllowHeaders:
+            - content-type
+            - authorization
+
+    PublicHttpApiStage:
+      Type: AWS::ApiGatewayV2::Stage
+      Properties:
+        ApiId: !Ref PublicHttpApi
+        StageName: $default
+        AutoDeploy: true
+
+    PublicApiCustomDomain:
+      Type: AWS::ApiGatewayV2::DomainName
+      Properties:
+        DomainName: ${param:domainName}
+        DomainNameConfigurations:
+          - CertificateArn: !GetAtt LogCertificate.CertificateArn
+
+    PublicApiDomainMapping:
+      Type: AWS::ApiGatewayV2::ApiMapping
+      Properties:
+        DomainName: !Ref PublicApiCustomDomain
+        ApiId: !Ref PublicHttpApi
+        Stage: !Ref PublicHttpApiStage
+
+    EventsIntegration:
+      Type: AWS::ApiGatewayV2::Integration
+      Properties:
+        ApiId: !Ref PublicHttpApi
+        IntegrationType: AWS_PROXY
+        IntegrationUri: !GetAtt EventsLambdaFunction.Arn
+        PayloadFormatVersion: "2.0"
+    EventsRoute:
+      Type: AWS::ApiGatewayV2::Route
+      Properties:
+        ApiId: !Ref PublicHttpApi
+        RouteKey: POST /events
+        Target: !Sub "integrations/${EventsIntegration}"
+    EventsInvokePermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        FunctionName: !Ref EventsLambdaFunction
+        Action: lambda:InvokeFunction
+        Principal: apigateway.amazonaws.com
+        SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicHttpApi}/*/POST/events"
+
+    SubjectAccessIngestIntegration:
+      Type: AWS::ApiGatewayV2::Integration
+      Properties:
+        ApiId: !Ref PublicHttpApi
+        IntegrationType: AWS_PROXY
+        IntegrationUri: !GetAtt SubjectAccessIngestLambdaFunction.Arn
+        PayloadFormatVersion: "2.0"
+    SubjectAccessIngestRoute:
+      Type: AWS::ApiGatewayV2::Route
+      Properties:
+        ApiId: !Ref PublicHttpApi
+        RouteKey: POST /subject-access
+        Target: !Sub "integrations/${SubjectAccessIngestIntegration}"
+    SubjectAccessIngestInvokePermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        FunctionName: !Ref SubjectAccessIngestLambdaFunction
+        Action: lambda:InvokeFunction
+        Principal: apigateway.amazonaws.com
+        SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicHttpApi}/*/POST/subject-access"
+
+    ByAlgorithmIntegration:
+      Type: AWS::ApiGatewayV2::Integration
+      Properties:
+        ApiId: !Ref PublicHttpApi
+        IntegrationType: AWS_PROXY
+        IntegrationUri: !GetAtt ByAlgorithmLambdaFunction.Arn
+        PayloadFormatVersion: "2.0"
+    ByAlgorithmRoute:
+      Type: AWS::ApiGatewayV2::Route
+      Properties:
+        ApiId: !Ref PublicHttpApi
+        RouteKey: GET /logs/{algorithmId}
+        Target: !Sub "integrations/${ByAlgorithmIntegration}"
+    ByAlgorithmInvokePermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        FunctionName: !Ref ByAlgorithmLambdaFunction
+        Action: lambda:InvokeFunction
+        Principal: apigateway.amazonaws.com
+        SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicHttpApi}/*/GET/logs/*"
+
+    AllIntegration:
+      Type: AWS::ApiGatewayV2::Integration
+      Properties:
+        ApiId: !Ref PublicHttpApi
+        IntegrationType: AWS_PROXY
+        IntegrationUri: !GetAtt AllLambdaFunction.Arn
+        PayloadFormatVersion: "2.0"
+    AllRoute:
+      Type: AWS::ApiGatewayV2::Route
+      Properties:
+        ApiId: !Ref PublicHttpApi
+        RouteKey: GET /logs
+        Target: !Sub "integrations/${AllIntegration}"
+    AllInvokePermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        FunctionName: !Ref AllLambdaFunction
+        Action: lambda:InvokeFunction
+        Principal: apigateway.amazonaws.com
+        SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicHttpApi}/*/GET/logs"
+
+    SubjectAccessBySubjectIntegration:
+      Type: AWS::ApiGatewayV2::Integration
+      Properties:
+        ApiId: !Ref PublicHttpApi
+        IntegrationType: AWS_PROXY
+        IntegrationUri: !GetAtt SubjectAccessBySubjectLambdaFunction.Arn
+        PayloadFormatVersion: "2.0"
+    SubjectAccessBySubjectRoute:
+      Type: AWS::ApiGatewayV2::Route
+      Properties:
+        ApiId: !Ref PublicHttpApi
+        RouteKey: GET /subject-access/{dataSubjectId}
+        Target: !Sub "integrations/${SubjectAccessBySubjectIntegration}"
+    SubjectAccessBySubjectInvokePermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        FunctionName: !Ref SubjectAccessBySubjectLambdaFunction
+        Action: lambda:InvokeFunction
+        Principal: apigateway.amazonaws.com
+        SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicHttpApi}/*/GET/subject-access/*"
+
+    SubjectAccessAllIntegration:
+      Type: AWS::ApiGatewayV2::Integration
+      Properties:
+        ApiId: !Ref PublicHttpApi
+        IntegrationType: AWS_PROXY
+        IntegrationUri: !GetAtt SubjectAccessAllLambdaFunction.Arn
+        PayloadFormatVersion: "2.0"
+    SubjectAccessAllRoute:
+      Type: AWS::ApiGatewayV2::Route
+      Properties:
+        ApiId: !Ref PublicHttpApi
+        RouteKey: GET /subject-access
+        Target: !Sub "integrations/${SubjectAccessAllIntegration}"
+    SubjectAccessAllInvokePermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        FunctionName: !Ref SubjectAccessAllLambdaFunction
+        Action: lambda:InvokeFunction
+        Principal: apigateway.amazonaws.com
+        SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicHttpApi}/*/GET/subject-access"
 
   Outputs:
     RunLogTableName:
@@ -166,3 +578,7 @@ resources:
       Value: !Ref SubjectAccessTable
     ApiRegionalDomainName:
       Value: !GetAtt ApiCustomDomain.RegionalDomainName
+    PublicApiRegionalDomainName:
+      Value: !GetAtt PublicApiCustomDomain.RegionalDomainName
+    CertificateArn:
+      Value: !GetAtt LogCertificate.CertificateArn

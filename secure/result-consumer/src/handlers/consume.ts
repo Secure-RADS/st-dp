@@ -62,6 +62,15 @@ async function persist(record: SQSRecord): Promise<void> {
       write.ConsumedCapacity?.CapacityUnits ?? 0,
     );
     await emitEvent(message.algorithmId, message.runId, "result-persisted", { status: message.status });
+    await emitEvent(message.algorithmId, message.runId, "executor-finished", { status: message.status });
+    // The host result is the only terminal signal a run that never attested still produces, so
+    // result-consumer owns run-failed for every non-zero exit.
+    if (message.status !== undefined && message.status !== "exit:0") {
+      await emitEvent(message.algorithmId, message.runId, "run-failed", {
+        source: "result-consumer",
+        status: message.status,
+      });
+    }
   }
 }
 

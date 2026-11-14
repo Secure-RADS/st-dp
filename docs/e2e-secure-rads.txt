@@ -46,20 +46,19 @@ Input:
   key ←  S3 location of algorithm's EIF
 1  install nitro-cli
 2  configure allocator
-3  emit executor-ready
+3  buffer executor-ready               // relayed to the enclave once it listens
 4  cost s3:get                          // EIF pull
 5  EIF ← GET-S3(key)
-6  emit artifact-retrieved
-7  start vsock listeners                // output :5000, runInfo :5001
+6  buffer artifact-retrieved
+7  start vsock listeners + event relay  // output :5000, runInfo :5001, events :5003
 8  configure vsock-proxy
 9  RUN-ENCLAVE(EIF)
-10 emit enclave-launched
+10 buffer enclave-launched
 11 wait for enclave exit
 12 publish result to SQS
 13 cost sqs:send                        // message bytes
-14 emit executor-finished
-15 cost ec2:instance                    // captured before the cost POST and terminate request
-16 terminate instance
+14 cost ec2:instance                    // captured before the cost POST and terminate request
+15 terminate instance
 
 
 SCE-UNIT(a)
@@ -67,9 +66,9 @@ Input:
   a ← algorithm id
 1  cfg ← LOAD-RUN-CONFIG()
 2  ⟨runId, n⟩ ← READ-RUNINFO(:5001)
-3  emit enclave-started
+3  emit enclave-started                 // queued, no token yet
 4  SEED-ENTROPY from NSM                 // no AWS cost
-5  emit unit-ready
+5  emit unit-ready                      // queued
 6  token ← ATTEST(Verifier, runId)      // verifier API GW/Lambda and DynamoDB metered
 7  emit attested
 8  records ← FETCH-PDM(a, token, limit ← n)
@@ -111,6 +110,6 @@ Input:
   result ← processing result returned by the SCE-UNIT
 1  SQS delivers result batch; invoke Lambda // receive is billed before the handler runs
 2  persist result to DynamoDB
-3  cost dynamodb:write-capacity; emit result-persisted
+3  cost dynamodb:write-capacity; emit result-persisted, executor-finished, and run-failed for a non-zero exit
 4  cost sqs:receive + lambda:invocation + lambda:compute // reported by handler after processing
 5  cost sqs:delete                         // reported on success; Lambda deletes after return

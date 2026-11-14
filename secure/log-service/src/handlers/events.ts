@@ -1,15 +1,15 @@
-import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
-import { requiredEnv } from "@srads/common/env";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
+import { requireEnclaveToken } from "../lib/auth.js";
+import { isEnclaveEvent, isHostRelayEvent } from "../lib/events.js";
 import { parseIngestBody } from "../lib/ingest.js";
-
-const sqs = new SQSClient({});
-const queueUrl = requiredEnv("EVENT_QUEUE_URL");
+import { enqueueEvent } from "../lib/queue.js";
 
 function jsonResponse(statusCode: number, body: unknown) {
   return { statusCode, headers: { "content-type": "application/json" }, body: JSON.stringify(body) };
 }
 
+// Public domain: only sce-unit may write here, with the verifier-issued access token. Host events arrive
+// relayed by sce-unit and keep origin=host so they are not mistaken for enclave claims.
 export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   let body: unknown;
   try {
@@ -20,7 +20,13 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
 
   const parsed = parseIngestBody(body);
   if ("error" in parsed) return jsonResponse(400, { error: parsed.error });
+  if (!isEnclaveEvent(parsed.event) && !isHostRelayEvent(parsed.event)) {
+    return jsonResponse(400, { error: "event is not accepted on this endpoint" });
+  }
 
-  await sqs.send(new SendMessageCommand({ QueueUrl: queueUrl, MessageBody: JSON.stringify(parsed) }));
+  const authError = await requireEnclaveToken(event.headers.authorization, parsed.algorithmId);
+  if (authError) return jsonResponse(401, { error: authError });
+
+  await enqueueEvent({ ...parsed, auth: "attested" });
   return jsonResponse(202, { ok: true });
 };
