@@ -6,7 +6,7 @@ Part of the SCE. API Gateway invokes the TypeScript Lambda control plane. Given 
 
 `GET /run/{runId}?algorithmId={algorithmId}` polls for the result: `{runId, status: "pending"}` until it lands, then the stored result once the consumer has written it. `algorithmId` is required so every poll can be attributed to its run.
 
-The control plane logs `run-requested` and `executor-launched` (or `launch-failed`). The parent posts `executor-ready`, `artifact-retrieved`, and `enclave-launched` directly to log-service with `origin: host`. The host holds no credential, so log-service stores them with `auth: none`. The enclave emits `executor-finished` and `run-failed` before it exits. result-consumer only emits `result-persisted`. SCE-unit and result-consumer emit the remaining events in [the execution flow](../../../docs/e2e-secure-rads.txt).
+The control plane logs `run-requested` and `executor-launched` (or `launch-failed`). The parent posts `executor-ready`, `artifact-retrieved`, `enclave-launched`, and `executor-finished` directly to log-service with `origin: host`. The host holds no credential, so log-service stores them with `auth: none`. The enclave emits `run-failed` before it exits. result-consumer only emits `result-persisted`. SCE-unit and result-consumer emit the remaining events in [the execution flow](../../../docs/e2e-secure-rads.txt).
 
 See [../README.md](../README.md) for the full SCE context.
 

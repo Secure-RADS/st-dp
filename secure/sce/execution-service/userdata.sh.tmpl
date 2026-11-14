@@ -38,6 +38,7 @@ diag = {"runEnclave": read("/tmp/run-enclave.log")} if not out else {}
 print(json.dumps({"runId": "{{.RunId}}", "algorithmId": "{{.AlgorithmId}}", "instanceId": sys.argv[2], "status": "exit:" + sys.argv[1], "output": out, "diag": diag}))
 PYEOF
   aws sqs send-message --queue-url "{{.QueueUrl}}" --message-body file:///tmp/result.json --region "$REGION" || true
+  emit_event executor-finished
   emit_cost sqs send "$(wc -c < /tmp/result.json)"
   # The runtime estimate is captured before this cost POST and the terminate request.
   emit_cost ec2 instance "$(( $(date +%s) - {{.LaunchEpoch}} ))"

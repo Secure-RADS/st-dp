@@ -38,21 +38,7 @@ emit_event() {
     -d @/tmp/checkpoint.json >/dev/null || true
 }
 
-# executor-finished marks the end of the workload. Emit it from the main flow so it lands when compute
-# ends, and fall back to the exit trap if the run fails before reaching that point.
-EXECUTOR_FINISHED=0
-emit_executor_finished() {
-  local status="$1" token instance_id
-  token=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600" || true)
-  instance_id=$(curl -s -H "X-aws-ec2-metadata-token: $token" http://169.254.169.254/latest/meta-data/instance-id || true)
-  "$TOOLS_BIN" executor-finished "$status" "$instance_id" "$ALGORITHM_ID" "$RUN_ID" > /tmp/executor-finished.json || return 0
-  if curl -sS -X POST "https://$LOG_HOST/events" -H 'content-type: application/json' \
-    -d @/tmp/executor-finished.json >/dev/null; then
-    EXECUTOR_FINISHED=1
-  fi
-}
-
-# Publish the run outcome and terminate the instance.
+# Publish the run outcome, log the terminal event, and terminate the instance.
 finish() {
   STATUS=$?
   set +e
@@ -60,7 +46,9 @@ finish() {
   INSTANCE_ID=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-id)
   "$TOOLS_BIN" run-result "$STATUS" "$INSTANCE_ID" "$RESULT_FILE" "$OUTPUT_FILE" "$DOCKER_LOAD_LOG" "$RUN_ID" "$ALGORITHM_ID" > /tmp/result.json
   aws sqs send-message --queue-url "$RUN_RESULTS_QUEUE" --message-body file:///tmp/result.json --region "$REGION" || true
-  [ "$EXECUTOR_FINISHED" -eq 0 ] && emit_executor_finished "$STATUS"
+  "$TOOLS_BIN" executor-finished "$STATUS" "$INSTANCE_ID" "$ALGORITHM_ID" "$RUN_ID" > /tmp/log-event.json
+  curl -sS -X POST "https://$LOG_HOST/events" -H 'content-type: application/json' \
+    -d @/tmp/log-event.json >/dev/null || true
   emit_cost sqs send "$(wc -c < /tmp/result.json)"
   # The runtime estimate is captured before this cost POST and the terminate request.
   emit_cost ec2 instance "$(( $(date +%s) - {{.LaunchEpoch}} ))"
@@ -96,12 +84,5 @@ emit_event artifact-retrieved
 emit_event records-stored-locally
 
 # The app reads /data/records.json and writes /data/result.json; stdout is the diagnostic fallback.
-set +e
 docker run --rm -v "$RUN_DIR:/data" -e RECORDS_PATH=/data/records.json -e RESULT_PATH=/data/result.json "$IMAGE" > "$OUTPUT_FILE"
-APP_STATUS=$?
-set -e
-if [ "$APP_STATUS" -eq 0 ]; then
-  emit_event compute-completed
-fi
-emit_executor_finished "$APP_STATUS"
-exit "$APP_STATUS"
+emit_event compute-completed

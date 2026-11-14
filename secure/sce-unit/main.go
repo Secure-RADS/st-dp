@@ -107,18 +107,9 @@ func main() {
 	if err := sendOutput(output); err != nil {
 		log.Printf("sce-unit: send output to host failed: %v", err)
 		timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventRunFailed, map[string]any{"error": err.Error()})
-		timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventExecutorFinished, map[string]any{"status": "failed"})
 		os.Exit(1)
 	}
 	timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventOutputSent, nil)
-	status := "ok"
-	if failed {
-		status = "failed"
-	}
-	timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventExecutorFinished, map[string]any{
-		"status":      status,
-		"outputBytes": len(output),
-	})
 	if failed {
 		os.Exit(1)
 	}
@@ -128,7 +119,6 @@ func failRun(timelineLog *sharedlog.Client, algorithmID, runID string, err error
 	log.Printf("sce-unit: %v", err)
 	if runID != "" {
 		timelineLog.EmitEvent(algorithmID, &runID, sharedlog.EventRunFailed, map[string]any{"error": err.Error()})
-		timelineLog.EmitEvent(algorithmID, &runID, sharedlog.EventExecutorFinished, map[string]any{"status": "failed"})
 	}
 	failure, _ := json.Marshal(struct {
 		Error string `json:"error"`

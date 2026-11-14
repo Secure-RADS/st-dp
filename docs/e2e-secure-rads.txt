@@ -56,9 +56,10 @@ Input:
 10 emit enclave-launched                 // direct, auth none
 11 wait for enclave exit
 12 publish result to SQS
-13 cost sqs:send                        // message bytes
-14 cost ec2:instance                    // captured before the cost POST and terminate request
-15 terminate instance
+13 emit executor-finished               // direct, auth none
+14 cost sqs:send                        // message bytes
+15 cost ec2:instance                    // captured before the cost POST and terminate request
+16 terminate instance
 
 
 SCE-UNIT(a)

@@ -11,12 +11,11 @@ export const ENCLAVE_EVENTS = [
   "dc-app-completed",
   "output-sent",
   "run-failed",
-  "executor-finished",
 ] as const;
 
 // Host-reported events. The EC2 host posts them directly without a token, so they are tagged auth=none
 // and origin=host instead of being presented as enclave claims.
-export const HOST_EVENTS = ["executor-ready", "artifact-retrieved", "enclave-launched"] as const;
+export const HOST_EVENTS = ["executor-ready", "artifact-retrieved", "enclave-launched", "executor-finished"] as const;
 
 // Producers on the mTLS domain: registry-service, execution-service, and result-consumer.
 export const INTERNAL_EVENTS = [

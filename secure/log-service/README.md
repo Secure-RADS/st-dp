@@ -26,9 +26,9 @@ The mTLS domain is enforced by API Gateway. Clients present a self-signed certif
 
 On the public domain, when `VERIFIER_JWKS_URL` is set, post-attestation `POST /events` calls verify the ML-DSA-87 access token that verifier-service mints only after a successful Nitro attestation (`src/lib/jwt.ts`, same local-JWKS scheme as pdm-service, with SPKI-pinned TLS on the JWKS fetch and `aud=log-service`). The token's `sub` must match the request's `algorithmId`.
 
-Events emitted before attestation (`enclave-started`, `unit-ready`) and host events (`executor-ready`, `artifact-retrieved`, `enclave-launched`) are accepted without a token and stored with `auth: none`. The host posts them directly; it holds no log-service credential.
+Events emitted before attestation (`enclave-started`, `unit-ready`) and host events (`executor-ready`, `artifact-retrieved`, `enclave-launched`, `executor-finished`) are accepted without a token and stored with `auth: none`. The host posts them directly; it holds no log-service credential.
 
-`executor-finished` and `run-failed` are emitted by the enclave before it exits. result-consumer only emits `result-persisted`; a run that dies before attestation has no terminal timeline event, and its failure is carried by the run result.
+`run-failed` is emitted by the enclave before it exits. `executor-finished` is host-reported after the run result is published. result-consumer only emits `result-persisted`.
 
 This applies to `secure` only. The `rads` baseline has no verifier or attested producer, so its log-service is unchanged.
 
