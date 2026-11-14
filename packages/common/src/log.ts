@@ -1,5 +1,3 @@
-import { internalLogConfigured, postInternal } from "./mtls.js";
-
 const logHost = process.env.LOG_HOST;
 const eventsUrl = logHost ? `https://${logHost}/events` : undefined;
 const subjectAccessUrl = logHost ? `https://${logHost}/subject-access` : undefined;
@@ -13,18 +11,12 @@ export async function emitEvent(
   event: string,
   detail?: Record<string, unknown>,
 ): Promise<void> {
-  if (!internalLogConfigured && !eventsUrl) return;
-  const payload = { algorithmId, runId, event, timestamp: new Date().toISOString(), detail };
+  if (!eventsUrl) return;
   try {
-    if (internalLogConfigured) {
-      await postInternal("/events", payload);
-      return;
-    }
-    if (!eventsUrl) return;
     await fetch(eventsUrl, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ algorithmId, runId, event, timestamp: new Date().toISOString(), detail }),
       signal: AbortSignal.timeout(LOG_EVENT_TIMEOUT_MS),
     });
   } catch (error) {
@@ -38,21 +30,15 @@ export async function logSubjectAccess(
   dataSubjectIds: string[],
   accessToken?: string,
 ): Promise<void> {
-  if (dataSubjectIds.length === 0) return;
-  const payload = { algorithmId, runId, dataSubjectIds, timestamp: new Date().toISOString() };
+  if (!subjectAccessUrl || dataSubjectIds.length === 0) return;
   try {
-    if (internalLogConfigured) {
-      await postInternal("/subject-access", payload, accessToken);
-      return;
-    }
-    if (!subjectAccessUrl) return;
     await fetch(subjectAccessUrl, {
       method: "POST",
       headers: {
         "content-type": "application/json",
         ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}),
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ algorithmId, runId, dataSubjectIds, timestamp: new Date().toISOString() }),
       signal: AbortSignal.timeout(LOG_EVENT_TIMEOUT_MS),
     });
   } catch (error) {

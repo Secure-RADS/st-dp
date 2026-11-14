@@ -59,7 +59,7 @@ export async function postInternal(path: string, body: unknown, token?: string):
         headers: {
           "content-type": "application/json",
           "content-length": Buffer.byteLength(data),
-          ...(token ? { authorization: "Bearer " + token } : {}),
+          ...(token ? { authorization: `Bearer ${token}` } : {}),
         },
         cert: creds.cert,
         key: creds.key,

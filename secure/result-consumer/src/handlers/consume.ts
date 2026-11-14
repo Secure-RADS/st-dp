@@ -2,7 +2,7 @@ import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
 import { CostPhase, costEvent, recordLambda } from "@srads/common/cost";
 import { requiredEnv } from "@srads/common/env";
-import { emitEvent } from "@srads/common/log";
+import { emitSecureEvent as emitEvent } from "@srads/common/log-mtls";
 import type { SQSHandler, SQSRecord } from "aws-lambda";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));

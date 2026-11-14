@@ -4,7 +4,7 @@ import { EC2Client, RunInstancesCommand, type RunInstancesCommandInput } from "@
 import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
 import { CostPhase, costEvent, recordRequest } from "@srads/common/cost";
 import { requiredEnv } from "@srads/common/env";
-import { emitEvent } from "@srads/common/log";
+import { emitSecureEvent as emitEvent } from "@srads/common/log-mtls";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { countAlgorithmRecords } from "../lib/pdmCount.js";
 import { userData } from "../lib/userdata.js";
