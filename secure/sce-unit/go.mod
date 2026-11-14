@@ -7,6 +7,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.17.0
 	github.com/aws/aws-sdk-go-v2/credentials v1.12.13
 	github.com/aws/aws-sdk-go-v2/service/kms v1.16.7
+	github.com/aws/aws-sdk-go-v2/service/sqs v1.19.5
 	github.com/edgebitio/nitro-enclaves-sdk-go v1.0.0
 	github.com/hf/nsm v0.0.0-20220930140112-cd181bd646b9
 	github.com/mdlayher/vsock v1.3.0

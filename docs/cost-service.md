@@ -54,8 +54,10 @@ rads (`csav/registry-service`, Lambdas):
   It also stamps the launch epoch into the host user-data.
 - execution-service `GET /run/{runId}?algorithmId={algorithmId}` (each poll): `apigateway:request`, `lambda:invocation`,
   `lambda:compute`, `dynamodb:read-capacity`. `algorithmId` is required so pending-run polls can be attributed.
-- executor host (user-data, both trees): `s3:get` (artifact; rads also the host tools), `sqs:send` (result),
-  `ec2:instance` (seconds from launch to the terminate call).
+- executor host (user-data, both trees): `s3:get` (artifact; rads also the host tools),
+  `ec2:instance` (seconds from launch to the terminate call). In secure-rads the host role
+  also carries `sqs:send`, which the enclave uses via the borrowed role credentials to
+  publish the result itself; the host meters that send by the result byte count.
 - pdm-service `/records`: `apigateway:request`, `lambda:invocation`, `lambda:compute`, `dynamodb:read-capacity`
   (data-key `GetItem` and each records `Query` page).
 - result-consumer (`batchSize` 1, so each run's receive + invoke lands on that run): `sqs:receive` (message
@@ -64,7 +66,8 @@ rads (`csav/registry-service`, Lambdas):
 - verifier-service (secure-rads): `/attest` and `/refresh` (the enclave's attestation and token refresh, keyed by
   the run) and `/algorithms` (build-time PCR registration, keyed by `algorithmId`): `dynamodb:read-capacity` and
   `dynamodb:write-capacity` where attributable, plus `apigateway:request`, `lambda:invocation`, `lambda:compute`.
-- sce-unit (in the enclave) performs no billable AWS operations other than KMS (excluded) - nothing to meter.
+- sce-unit (in the enclave) publishes the result to SQS; the host meters that send by result byte count.
+  Its only other billable call is KMS (excluded).
 
 ## EC2 timing
 

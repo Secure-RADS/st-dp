@@ -2,6 +2,11 @@
 set -euo pipefail
 exec > >(tee /var/log/execution-service-run.log) 2>&1
 
+# Fetched once so both the per-run config server (port 5001) and the exit trap can use it.
+IMDS_TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600" || true)
+INSTANCE_ID=$(curl -s -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" http://169.254.169.254/latest/meta-data/instance-id || true)
+REGION=$(curl -s -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" http://169.254.169.254/latest/meta-data/placement/region || true)
+
 emit_event() {
   curl -sS --max-time 5 -X POST "https://{{.LogHost}}/events" -H 'content-type: application/json' \
     -d "{\"algorithmId\":\"{{.AlgorithmId}}\",\"runId\":\"{{.RunId}}\",\"event\":\"$1\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)\"}" >/dev/null || true
@@ -14,30 +19,15 @@ emit_cost() {
     -d "{\"algorithmId\":\"{{.AlgorithmId}}\",\"runId\":\"{{.RunId}}\",\"eventId\":\"$(cat /proc/sys/kernel/random/uuid)\",\"phase\":\"execution\",\"service\":\"$1\",\"operation\":\"$2\",\"quantity\":$3,\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)\"}" >/dev/null || true
 }
 
-# Always self-terminate on exit and send the run result to SQS, where a consumer Lambda persists it for the
-# caller to poll (GET /run/<runId>). The result carries the runId execution-service assigned at launch.
+# Always self-terminate on exit. The enclave publishes the run result to SQS itself; the host only relays
+# a completion signal carrying the result byte count (for cost metering) and then terminates.
 finish() {
-  STATUS=$?
   set +e
-  TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
-  INSTANCE_ID=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-id)
-  REGION=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/placement/region)
-  python3 - "$STATUS" "$INSTANCE_ID" > /tmp/result.json <<'PYEOF'
-import json, sys
-def read(path):
-    try:
-        return open(path, "rb").read().decode("utf-8", "replace")
-    except FileNotFoundError:
-        return ""
-out = read("/tmp/output.txt")
-# When the DC app produced no output, surface the enclave launch log so an empty result is diagnosable
-# instead of silent (the enclave console is otherwise lost when the host terminates).
-diag = {"runEnclave": read("/tmp/run-enclave.log")} if not out else {}
-print(json.dumps({"runId": "{{.RunId}}", "algorithmId": "{{.AlgorithmId}}", "instanceId": sys.argv[2], "status": "exit:" + sys.argv[1], "output": out, "diag": diag}))
-PYEOF
-  aws sqs send-message --queue-url "{{.QueueUrl}}" --message-body file:///tmp/result.json --region "$REGION" || true
+  RESULT_BYTES=$(python3 -c 'import json; print(json.load(open("/tmp/result-meta.json")).get("resultBytes", 0))' 2>/dev/null || echo 0)
   emit_event executor-finished
-  emit_cost sqs send "$(wc -c < /tmp/result.json)"
+  if [ "${RESULT_BYTES:-0}" -gt 0 ]; then
+    emit_cost sqs send "$RESULT_BYTES"
+  fi
   # The runtime estimate is captured before this cost POST and the terminate request.
   emit_cost ec2 instance "$(( $(date +%s) - {{.LaunchEpoch}} ))"
   aws ec2 terminate-instances --instance-ids "$INSTANCE_ID" --region "$REGION"
@@ -64,7 +54,8 @@ emit_cost s3 get 1
 # Checkpoint: the algorithm artifact (EIF) is now on the host, before the enclave is launched.
 emit_event artifact-retrieved
 
-# sce-unit connects back to the parent (CID 3) on port 5000 and streams the DC app's output; one connection per run.
+# The enclave signals completion (with the result byte count) on this port; the result itself goes to SQS
+# from inside the enclave, never across this channel.
 python3 - <<'PYEOF' &
 import socket
 s = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
@@ -73,21 +64,26 @@ s.bind((socket.VMADDR_CID_ANY, 5000))
 s.listen(1)
 conn, _ = s.accept()
 conn.settimeout(3600)
-with open("/tmp/output.txt", "wb") as f:
+with open("/tmp/result-meta.json", "wb") as f:
     while chunk := conn.recv(65536):
         f.write(chunk)
 PYEOF
 OUTPUT_LISTENER_PID=$!
 
-# Serve this run's id and record limit to the enclave on port 5001 - the enclave takes no user-data, so it
-# has no other way to learn the per-run id or how many records to read (the EIF carries per-algorithm config).
-python3 - <<'PYEOF' &
-import json, socket
+# Serve this run's id, record limit, instance id, and results queue URL to the enclave on port 5001 - the
+# enclave takes no user-data, so it has no other way to learn them (the EIF carries per-algorithm config).
+INSTANCE_ID="$INSTANCE_ID" QUEUE_URL="{{.QueueUrl}}" python3 - <<'PYEOF' &
+import json, os, socket
 s = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
 s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 s.bind((socket.VMADDR_CID_ANY, 5001))
 s.listen(5)
-body = json.dumps({"runId": "{{.RunId}}", "size": {{.Size}}}).encode()
+body = json.dumps({
+    "runId": "{{.RunId}}",
+    "size": {{.Size}},
+    "instanceId": os.environ["INSTANCE_ID"],
+    "queueUrl": os.environ["QUEUE_URL"],
+}).encode()
 while True:
     conn, _ = s.accept()
     conn.sendall(body)
@@ -130,8 +126,10 @@ allowlist:
   - {address: "{{.PdmHost}}", port: 443}
   - {address: "{{.LogHost}}", port: 443}
   - {address: "kms.{{.Region}}.amazonaws.com", port: 443}
+  - {address: "sqs.{{.Region}}.amazonaws.com", port: 443}
 EOF
 vsock-proxy 8000 "kms.{{.Region}}.amazonaws.com" 443 --config /etc/nitro_enclaves/vsock-proxy.yaml &
+vsock-proxy 8004 "sqs.{{.Region}}.amazonaws.com" 443 --config /etc/nitro_enclaves/vsock-proxy.yaml &
 vsock-proxy 8001 "{{.VerifierHost}}" 443 --config /etc/nitro_enclaves/vsock-proxy.yaml &
 vsock-proxy 8002 "{{.PdmHost}}" 443 --config /etc/nitro_enclaves/vsock-proxy.yaml &
 vsock-proxy 8003 "{{.LogHost}}" 443 --config /etc/nitro_enclaves/vsock-proxy.yaml &

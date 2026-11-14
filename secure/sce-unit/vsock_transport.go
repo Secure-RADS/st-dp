@@ -50,6 +50,36 @@ func (c runConfig) logSvc() pinnedEndpoint {
 	return pinnedEndpoint{c.LogHost, c.LogPubKeySHA256, logProxyPort}
 }
 
+// vsockAWSEndpointHTTPClient routes an AWS SDK client through a host vsock-proxy. The enclave has no
+// network; TLS still verifies the real endpoint certificate (system roots) through the relay.
+func vsockAWSEndpointHTTPClient(endpoint string, proxyPort uint32) *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{
+			DisableKeepAlives: true,
+			DialTLSContext: func(ctx context.Context, _ string, _ string) (net.Conn, error) {
+				conn, err := dialVsock(ctx, hostCID, proxyPort)
+				if err != nil {
+					return nil, err
+				}
+				if err := conn.SetDeadline(time.Now().Add(tlsHandshakeTimeout)); err != nil {
+					conn.Close()
+					return nil, err
+				}
+				tlsConn := tls.Client(conn, &tls.Config{ServerName: endpoint})
+				if err := tlsConn.Handshake(); err != nil {
+					conn.Close()
+					return nil, err
+				}
+				if err := conn.SetDeadline(time.Time{}); err != nil {
+					tlsConn.Close()
+					return nil, err
+				}
+				return tlsConn, nil
+			},
+		},
+	}
+}
+
 func pinnedVsockHTTPClient(host, pinSHA256 string, proxyPort uint32) *http.Client {
 	return &http.Client{
 		Timeout: attestRequestTimeout,

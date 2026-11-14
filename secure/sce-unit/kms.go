@@ -2,9 +2,7 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
-	"net"
 	"net/http"
 	"time"
 
@@ -72,30 +70,5 @@ func decryptDataKey(cfg runConfig, creds awsCreds, encDataKey []byte) ([]byte, e
 // vsockKMSHTTPClient routes KMS HTTP/TLS through the host's vsock-proxy instead of real TCP - the enclave
 // has no network. TLS still verifies the real KMS endpoint cert through the relay.
 func vsockKMSHTTPClient(region string) *http.Client {
-	endpoint := fmt.Sprintf("kms.%s.amazonaws.com", region)
-	return &http.Client{
-		Transport: &http.Transport{
-			DisableKeepAlives: true,
-			DialTLSContext: func(ctx context.Context, _ string, _ string) (net.Conn, error) {
-				conn, err := dialVsock(ctx, hostCID, kmsProxyPort)
-				if err != nil {
-					return nil, err
-				}
-				if err := conn.SetDeadline(time.Now().Add(tlsHandshakeTimeout)); err != nil {
-					conn.Close()
-					return nil, err
-				}
-				tlsConn := tls.Client(conn, &tls.Config{ServerName: endpoint})
-				if err := tlsConn.Handshake(); err != nil {
-					conn.Close()
-					return nil, err
-				}
-				if err := conn.SetDeadline(time.Time{}); err != nil {
-					tlsConn.Close()
-					return nil, err
-				}
-				return tlsConn, nil
-			},
-		},
-	}
+	return vsockAWSEndpointHTTPClient(fmt.Sprintf("kms.%s.amazonaws.com", region), kmsProxyPort)
 }

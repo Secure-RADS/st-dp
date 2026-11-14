@@ -4,7 +4,7 @@ Serverless Framework v4, TypeScript. The consumer half of the async run-result f
 
 ## Resources
 
-- `RunResultsQueue` - standard SQS queue the enclave host produces JSON run results to. 60s visibility timeout, 14-day retention, redrive to `RunResultsDLQ` after 3 receives.
+- `RunResultsQueue` - standard SQS queue the enclave produces JSON run results to. 60s visibility timeout, 14-day retention, redrive to `RunResultsDLQ` after 3 receives.
 - `RunResultsDLQ` - dead-letter queue for messages that keep failing.
 - `RunResultsTable` - PAY_PER_REQUEST DynamoDB table, PK `RunId`.
 

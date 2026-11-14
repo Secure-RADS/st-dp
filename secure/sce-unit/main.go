@@ -43,21 +43,21 @@ func main() {
 	}
 	info, err := readRunInfo()
 	if err != nil {
-		failRun(timelineLog, cfg.AlgorithmId, "", err)
+		failRun(timelineLog, cfg, info, err)
 	}
 	runID := info.RunID
 	timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventEnclaveStarted, nil)
 
 	// Must run before any crypto/rand use (attestation, TLS) - see entropy.go.
 	if err := seedEntropy(); err != nil {
-		failRun(timelineLog, cfg.AlgorithmId, runID, fmt.Errorf("seed entropy: %w", err))
+		failRun(timelineLog, cfg, info, fmt.Errorf("seed entropy: %w", err))
 	}
 	log.Printf("sce-unit: seeded kernel entropy from NSM")
 	timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventUnitReady, nil)
 
 	// Attest, fetch, decrypt, and write records.json before nsjail starts - same file contract as rads.
 	if err := prepareRecordsFile(cfg, timelineLog, runID, info.Size); err != nil {
-		failRun(timelineLog, cfg.AlgorithmId, runID, err)
+		failRun(timelineLog, cfg, info, err)
 	}
 
 	var jailLog bytes.Buffer
@@ -65,7 +65,7 @@ func main() {
 	cmd.Stdout = io.MultiWriter(os.Stdout, &jailLog)
 	cmd.Stderr = io.MultiWriter(os.Stderr, &jailLog)
 	if err := cmd.Start(); err != nil {
-		failRun(timelineLog, cfg.AlgorithmId, runID, fmt.Errorf("start nsjail: %w", err))
+		failRun(timelineLog, cfg, info, fmt.Errorf("start nsjail: %w", err))
 	}
 	log.Printf("sce-unit: nsjail started (pid %d)", cmd.Process.Pid)
 
@@ -99,8 +99,12 @@ func main() {
 	} else if output[len(output)-1] != '\n' {
 		output = append(output, '\n')
 	}
-	if err := sendOutput(output); err != nil {
-		log.Printf("sce-unit: send output to host failed: %v", err)
+	status := "exit:0"
+	if failed {
+		status = "exit:1"
+	}
+	if err := publishResult(cfg, info, status, string(output)); err != nil {
+		log.Printf("sce-unit: publish result failed: %v", err)
 		timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventRunFailed, map[string]any{"error": err.Error()})
 		os.Exit(1)
 	}
@@ -110,16 +114,16 @@ func main() {
 	}
 }
 
-func failRun(timelineLog *sharedlog.Client, algorithmID, runID string, err error) {
-	log.Printf("sce-unit: %v", err)
-	if runID != "" {
-		timelineLog.EmitEvent(algorithmID, &runID, sharedlog.EventRunFailed, map[string]any{"error": err.Error()})
+func failRun(timelineLog *sharedlog.Client, cfg runConfig, info runInfo, cause error) {
+	log.Printf("sce-unit: %v", cause)
+	if info.RunID != "" {
+		timelineLog.EmitEvent(cfg.AlgorithmId, &info.RunID, sharedlog.EventRunFailed, map[string]any{"error": cause.Error()})
 	}
 	failure, _ := json.Marshal(struct {
 		Error string `json:"error"`
-	}{Error: err.Error()})
-	if err := sendOutput(append(failure, '\n')); err != nil {
-		log.Printf("sce-unit: send error to host failed: %v", err)
+	}{Error: cause.Error()})
+	if err := publishResult(cfg, info, "exit:1", string(append(failure, '\n'))); err != nil {
+		log.Printf("sce-unit: publish failure result failed: %v", err)
 	}
 	os.Exit(1)
 }
@@ -187,8 +191,52 @@ func prepareRecordsFile(cfg runConfig, timelineLog *sharedlog.Client, runID stri
 	return nil
 }
 
-// sendOutput streams the DC app's response to the parent instance over vsock - the enclave's only channel out.
-func sendOutput(output []byte) error {
+// publishResult sends the run result to the results queue from inside the enclave and then tells the host
+// the run finished, so it can terminate. The result body never crosses vsock; the host learns only the
+// byte count (used for cost metering).
+func publishResult(cfg runConfig, info runInfo, status, output string) error {
+	if info.QueueURL == "" {
+		signalHostDone(0)
+		return fmt.Errorf("no queue URL: cannot publish result")
+	}
+	body, err := json.Marshal(struct {
+		RunID       string `json:"runId"`
+		AlgorithmID string `json:"algorithmId"`
+		InstanceID  string `json:"instanceId"`
+		Status      string `json:"status"`
+		Output      string `json:"output"`
+	}{info.RunID, cfg.AlgorithmId, info.InstanceID, status, output})
+	if err != nil {
+		signalHostDone(0)
+		return fmt.Errorf("marshal result: %w", err)
+	}
+	creds, err := fetchAWSCreds()
+	if err != nil {
+		signalHostDone(0)
+		return fmt.Errorf("fetch AWS creds: %w", err)
+	}
+	if err := sendResult(cfg, creds, info.QueueURL, string(body)); err != nil {
+		signalHostDone(0)
+		return err
+	}
+	log.Printf("sce-unit: published %d-byte result to SQS", len(body))
+	signalHostDone(len(body))
+	return nil
+}
+
+// signalHostDone tells the host the run finished and how many result bytes were published, so the host
+// can account for the queue send before terminating.
+func signalHostDone(resultBytes int) {
+	payload, _ := json.Marshal(struct {
+		ResultBytes int `json:"resultBytes"`
+	}{resultBytes})
+	if err := sendToHost(payload); err != nil {
+		log.Printf("sce-unit: signal host failed: %v", err)
+	}
+}
+
+// sendToHost streams a small control payload to the parent instance over vsock - the enclave's only channel out.
+func sendToHost(payload []byte) error {
 	fd, err := unix.Socket(unix.AF_VSOCK, unix.SOCK_STREAM, 0)
 	if err != nil {
 		return err
@@ -206,14 +254,14 @@ func sendOutput(output []byte) error {
 		}
 		time.Sleep(vsockRetryWait)
 	}
-	log.Printf("sce-unit: connected to host vsock %d:%d, sending %d bytes", hostCID, hostOutputPort, len(output))
+	log.Printf("sce-unit: connected to host vsock %d:%d, sending %d control bytes", hostCID, hostOutputPort, len(payload))
 
-	for len(output) > 0 {
-		n, err := unix.Write(fd, output)
+	for len(payload) > 0 {
+		n, err := unix.Write(fd, payload)
 		if err != nil {
 			return err
 		}
-		output = output[n:]
+		payload = payload[n:]
 	}
 	return nil
 }
