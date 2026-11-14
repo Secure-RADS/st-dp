@@ -74,8 +74,14 @@ functions:
     handler: src/handlers/byAlgorithm.handler
   all:
     handler: src/handlers/all.handler
+  # PDM writes the subject-access trail over the mTLS domain and forwards the enclave token, so the trail
+  # is authenticated as both PDM and the enclave.
   subjectAccessIngest:
     handler: src/handlers/subjectAccessIngest.handler
+    events:
+      - httpApi:
+          method: POST
+          path: /subject-access
   subjectAccessBySubject:
     handler: src/handlers/subjectAccessBySubject.handler
   subjectAccessAll:
@@ -156,6 +162,7 @@ resources:
           - /secure-rads/log-service/mtls/clients/registry-service/cert
           - /secure-rads/log-service/mtls/clients/execution-service/cert
           - /secure-rads/log-service/mtls/clients/result-consumer/cert
+          - /secure-rads/log-service/mtls/clients/pdm-service/cert
 
     CloudflareCertificateFunction:
       Type: AWS::Lambda::Function
@@ -379,6 +386,7 @@ resources:
                     - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/secure-rads/log-service/mtls/clients/registry-service/cert"
                     - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/secure-rads/log-service/mtls/clients/execution-service/cert"
                     - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/secure-rads/log-service/mtls/clients/result-consumer/cert"
+                    - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/secure-rads/log-service/mtls/clients/pdm-service/cert"
                 - Effect: Allow
                   Action:
                     - s3:PutObject
@@ -461,27 +469,6 @@ resources:
         Action: lambda:InvokeFunction
         Principal: apigateway.amazonaws.com
         SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicHttpApi}/*/POST/events"
-
-    SubjectAccessIngestIntegration:
-      Type: AWS::ApiGatewayV2::Integration
-      Properties:
-        ApiId: !Ref PublicHttpApi
-        IntegrationType: AWS_PROXY
-        IntegrationUri: !GetAtt SubjectAccessIngestLambdaFunction.Arn
-        PayloadFormatVersion: "2.0"
-    SubjectAccessIngestRoute:
-      Type: AWS::ApiGatewayV2::Route
-      Properties:
-        ApiId: !Ref PublicHttpApi
-        RouteKey: POST /subject-access
-        Target: !Sub "integrations/${SubjectAccessIngestIntegration}"
-    SubjectAccessIngestInvokePermission:
-      Type: AWS::Lambda::Permission
-      Properties:
-        FunctionName: !Ref SubjectAccessIngestLambdaFunction
-        Action: lambda:InvokeFunction
-        Principal: apigateway.amazonaws.com
-        SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicHttpApi}/*/POST/subject-access"
 
     ByAlgorithmIntegration:
       Type: AWS::ApiGatewayV2::Integration

@@ -14,7 +14,7 @@ put_param() {
     echo "uploaded $1"
 }
 
-for client in registry-service execution-service result-consumer; do
+for client in registry-service execution-service result-consumer pdm-service; do
     dir="$workdir/$client"
     mkdir -p "$dir"
     openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -days 3650 -nodes \

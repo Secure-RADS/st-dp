@@ -1,4 +1,4 @@
-import { isHostRelayEvent, isRunEvent, RUN_EVENTS } from "./events.js";
+import { isHostEvent, isRunEvent, RUN_EVENTS } from "./events.js";
 
 type EventAuth = "attested" | "mtls" | "none";
 type EventOrigin = "enclave" | "host" | "service";
@@ -42,9 +42,8 @@ export function parseIngestBody(body: unknown): ParsedEvent | { error: string } 
   if (detail !== undefined && (typeof detail !== "object" || detail === null)) {
     return { error: "detail must be an object" };
   }
-  // Only sce-unit may claim a relayed event came from the host, and only for the relayed allowlist.
-  if (origin !== undefined && (origin !== "host" || !isHostRelayEvent(name))) {
-    return { error: 'origin is only accepted as "host" for relayed host events' };
+  if (!isHostEvent(name) && origin !== undefined) {
+    return { error: "origin is only accepted for host events" };
   }
 
   return {
@@ -54,6 +53,6 @@ export function parseIngestBody(body: unknown): ParsedEvent | { error: string } 
     timestamp: timestamp as string,
     detail: (detail as Record<string, unknown> | undefined) ?? null,
     receivedAt: new Date().toISOString(),
-    origin: origin === "host" ? "host" : "enclave",
+    origin: isHostEvent(name) ? "host" : "enclave",
   };
 }

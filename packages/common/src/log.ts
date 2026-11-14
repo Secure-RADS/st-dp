@@ -38,15 +38,21 @@ export async function logSubjectAccess(
   dataSubjectIds: string[],
   accessToken?: string,
 ): Promise<void> {
-  if (!subjectAccessUrl || dataSubjectIds.length === 0) return;
+  if (dataSubjectIds.length === 0) return;
+  const payload = { algorithmId, runId, dataSubjectIds, timestamp: new Date().toISOString() };
   try {
+    if (internalLogConfigured) {
+      await postInternal("/subject-access", payload, accessToken);
+      return;
+    }
+    if (!subjectAccessUrl) return;
     await fetch(subjectAccessUrl, {
       method: "POST",
       headers: {
         "content-type": "application/json",
         ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}),
       },
-      body: JSON.stringify({ algorithmId, runId, dataSubjectIds, timestamp: new Date().toISOString() }),
+      body: JSON.stringify(payload),
       signal: AbortSignal.timeout(LOG_EVENT_TIMEOUT_MS),
     });
   } catch (error) {

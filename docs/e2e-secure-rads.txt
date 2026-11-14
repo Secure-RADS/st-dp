@@ -46,14 +46,14 @@ Input:
   key ←  S3 location of algorithm's EIF
 1  install nitro-cli
 2  configure allocator
-3  buffer executor-ready               // relayed to the enclave once it listens
+3  emit executor-ready                  // direct, auth none
 4  cost s3:get                          // EIF pull
 5  EIF ← GET-S3(key)
-6  buffer artifact-retrieved
-7  start vsock listeners + event relay  // output :5000, runInfo :5001, events :5003
+6  emit artifact-retrieved              // direct, auth none
+7  start vsock listeners                // output :5000, runInfo :5001
 8  configure vsock-proxy
 9  RUN-ENCLAVE(EIF)
-10 buffer enclave-launched
+10 emit enclave-launched                 // direct, auth none
 11 wait for enclave exit
 12 publish result to SQS
 13 cost sqs:send                        // message bytes
@@ -66,9 +66,9 @@ Input:
   a ← algorithm id
 1  cfg ← LOAD-RUN-CONFIG()
 2  ⟨runId, n⟩ ← READ-RUNINFO(:5001)
-3  emit enclave-started                 // queued, no token yet
+3  emit enclave-started                 // no token yet, auth none
 4  SEED-ENTROPY from NSM                 // no AWS cost
-5  emit unit-ready                      // queued
+5  emit unit-ready                      // no token yet, auth none
 6  token ← ATTEST(Verifier, runId)      // verifier API GW/Lambda and DynamoDB metered
 7  emit attested
 8  records ← FETCH-PDM(a, token, limit ← n)

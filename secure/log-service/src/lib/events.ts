@@ -1,7 +1,9 @@
 // Keep producer event enums in sync with this ingest allowlist.
+// Emitted before attestation, so no token exists yet. Accepted unauthenticated and tagged auth=none.
+export const PRE_ATTESTATION_EVENTS = ["enclave-started", "unit-ready"] as const;
+
+// Emitted after attestation. The access token is required and the event is tagged auth=attested.
 export const ENCLAVE_EVENTS = [
-  "enclave-started",
-  "unit-ready",
   "attested",
   "records-fetched",
   "records-decrypted",
@@ -12,9 +14,9 @@ export const ENCLAVE_EVENTS = [
   "executor-finished",
 ] as const;
 
-// Host events relayed by sce-unit over the enclave's authenticated channel. The content is host-supplied,
-// so it is tagged with origin=host instead of being presented as an enclave claim.
-export const HOST_RELAY_EVENTS = ["executor-ready", "artifact-retrieved", "enclave-launched"] as const;
+// Host-reported events. The EC2 host posts them directly without a token, so they are tagged auth=none
+// and origin=host instead of being presented as enclave claims.
+export const HOST_EVENTS = ["executor-ready", "artifact-retrieved", "enclave-launched"] as const;
 
 // Producers on the mTLS domain: registry-service, execution-service, and result-consumer.
 export const INTERNAL_EVENTS = [
@@ -31,7 +33,9 @@ export const INTERNAL_EVENTS = [
   "result-persisted",
 ] as const;
 
-export const RUN_EVENTS = [...new Set<string>([...ENCLAVE_EVENTS, ...HOST_RELAY_EVENTS, ...INTERNAL_EVENTS])];
+export const RUN_EVENTS = [
+  ...new Set<string>([...PRE_ATTESTATION_EVENTS, ...ENCLAVE_EVENTS, ...HOST_EVENTS, ...INTERNAL_EVENTS]),
+];
 
 export type RunEvent = (typeof RUN_EVENTS)[number];
 
@@ -43,8 +47,12 @@ export function isEnclaveEvent(value: unknown): value is (typeof ENCLAVE_EVENTS)
   return typeof value === "string" && (ENCLAVE_EVENTS as readonly string[]).includes(value);
 }
 
-export function isHostRelayEvent(value: unknown): value is (typeof HOST_RELAY_EVENTS)[number] {
-  return typeof value === "string" && (HOST_RELAY_EVENTS as readonly string[]).includes(value);
+export function isPreAttestationEvent(value: unknown): value is (typeof PRE_ATTESTATION_EVENTS)[number] {
+  return typeof value === "string" && (PRE_ATTESTATION_EVENTS as readonly string[]).includes(value);
+}
+
+export function isHostEvent(value: unknown): value is (typeof HOST_EVENTS)[number] {
+  return typeof value === "string" && (HOST_EVENTS as readonly string[]).includes(value);
 }
 
 export function isInternalEvent(value: unknown): value is (typeof INTERNAL_EVENTS)[number] {

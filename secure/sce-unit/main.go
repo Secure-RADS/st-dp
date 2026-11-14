@@ -40,7 +40,7 @@ func main() {
 	var timelineLog *sharedlog.Client
 	if cfg.LogHost != "" {
 		timelineLog = &sharedlog.Client{Host: cfg.LogHost, HTTPClient: cfg.logSvc().client()}
-		// Before attestation the token is empty and events are queued; Flush sends them once it exists.
+		// Before attestation the token is empty, so those events are sent unauthenticated and tagged none.
 		timelineLog.Token = func() string {
 			token, _ := CurrentAccessToken()
 			return token
@@ -51,16 +51,16 @@ func main() {
 		failRun(timelineLog, cfg.AlgorithmId, "", err)
 	}
 	runID := info.RunID
-	startHostEventRelay(timelineLog, cfg.AlgorithmId, runID)
+	timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventEnclaveStarted, nil)
 
 	// Must run before any crypto/rand use (attestation, TLS) - see entropy.go.
 	if err := seedEntropy(); err != nil {
 		failRun(timelineLog, cfg.AlgorithmId, runID, fmt.Errorf("seed entropy: %w", err))
 	}
 	log.Printf("sce-unit: seeded kernel entropy from NSM")
+	timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventUnitReady, nil)
 
 	// Attest, fetch, decrypt, and write records.json before nsjail starts - same file contract as rads.
-	// Timeline events start inside prepareRecordsFile, after attestation, so every event carries a token.
 	if err := prepareRecordsFile(cfg, timelineLog, runID, info.Size); err != nil {
 		failRun(timelineLog, cfg.AlgorithmId, runID, err)
 	}
@@ -126,13 +126,9 @@ func main() {
 
 func failRun(timelineLog *sharedlog.Client, algorithmID, runID string, err error) {
 	log.Printf("sce-unit: %v", err)
-	// Before attestation there is no token, so no timeline event can be emitted. The run result still
-	// carries the failure.
 	if runID != "" {
-		if token, ok := CurrentAccessToken(); ok && token != "" {
-			timelineLog.EmitEvent(algorithmID, &runID, sharedlog.EventRunFailed, map[string]any{"error": err.Error()})
-			timelineLog.EmitEvent(algorithmID, &runID, sharedlog.EventExecutorFinished, map[string]any{"status": "failed"})
-		}
+		timelineLog.EmitEvent(algorithmID, &runID, sharedlog.EventRunFailed, map[string]any{"error": err.Error()})
+		timelineLog.EmitEvent(algorithmID, &runID, sharedlog.EventExecutorFinished, map[string]any{"status": "failed"})
 	}
 	failure, _ := json.Marshal(struct {
 		Error string `json:"error"`
@@ -153,10 +149,7 @@ func prepareRecordsFile(cfg runConfig, timelineLog *sharedlog.Client, runID stri
 	log.Printf("sce-unit: attested successfully, access token expires %s", tp.AccessTokenExpiresAt.Format(time.RFC3339))
 	setTokens(tp)
 	go refreshLoop(cfg, runID)
-	timelineLog.Flush()
-	// Every timeline event from here on carries the token. If attestation fails, none of these exist.
-	timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventEnclaveStarted, nil)
-	timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventUnitReady, nil)
+	// Every event from here on carries the token.
 	timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventAttested, nil)
 
 	records, err := fetchAllRecords(cfg, limit)

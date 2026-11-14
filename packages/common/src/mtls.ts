@@ -49,7 +49,7 @@ function loadCredentials(): Promise<ClientCredentials> {
   return credentials;
 }
 
-export async function postInternal(path: string, body: unknown): Promise<void> {
+export async function postInternal(path: string, body: unknown, token?: string): Promise<void> {
   if (!mtlsHost) throw new Error("LOG_MTLS_HOST is not set");
   const creds = await loadCredentials();
   const data = JSON.stringify(body);
@@ -61,7 +61,11 @@ export async function postInternal(path: string, body: unknown): Promise<void> {
         port: 443,
         path,
         method: "POST",
-        headers: { "content-type": "application/json", "content-length": Buffer.byteLength(data) },
+        headers: {
+          "content-type": "application/json",
+          "content-length": Buffer.byteLength(data),
+          ...(token ? { authorization: "Bearer " + token } : {}),
+        },
         cert: creds.cert,
         key: creds.key,
         rejectUnauthorized: true,

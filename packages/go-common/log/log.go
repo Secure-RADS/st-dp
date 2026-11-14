@@ -8,7 +8,6 @@ import (
 	"log"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -32,15 +31,7 @@ const (
 	EventOutputSent           = "output-sent"
 	EventRunFailed            = "run-failed"
 	EventExecutorFinished     = "executor-finished"
-	EventExecutorReady        = "executor-ready"
-	EventArtifactRetrieved    = "artifact-retrieved"
-	EventEnclaveLaunched      = "enclave-launched"
 )
-
-type pendingEvent struct {
-	body  []byte
-	label string
-}
 
 type Client struct {
 	Host       string
@@ -48,63 +39,31 @@ type Client struct {
 	// Token returns the current access token, or "" before attestation. A nil Token means this producer
 	// does not use the enclave channel and sends immediately without one (registry-service).
 	Token func() string
-
-	mu      sync.Mutex
-	pending []pendingEvent
 }
 
-// EmitEvent emits an enclave-originated event. Before a token is available it is queued and sent by Flush.
+// EmitEvent sends one event. Once a token is available it is attached; before attestation the event is
+// sent without one and log-service records it as unauthenticated.
 func (c *Client) EmitEvent(algorithmID string, runID *string, event string, detail map[string]any) {
-	c.emit("", algorithmID, runID, event, "", detail)
+	c.emit(algorithmID, runID, event, detail)
 }
 
-// EmitHostEvent emits an event relayed from the host. It travels over the enclave's authenticated channel
-// but carries origin=host so the log does not present host claims as enclave claims.
-func (c *Client) EmitHostEvent(algorithmID string, runID *string, event string, detail map[string]any) {
-	c.emit("host", algorithmID, runID, event, "", detail)
-}
-
-// EmitHostEventAt preserves the host-supplied timestamp. The timestamp orders the timeline; it is not
-// evidence of when the event happened, because the host supplies it.
-func (c *Client) EmitHostEventAt(algorithmID string, runID *string, event, timestamp string, detail map[string]any) {
-	c.emit("host", algorithmID, runID, event, timestamp, detail)
-}
-
-func (c *Client) emit(origin, algorithmID string, runID *string, event, timestamp string, detail map[string]any) {
+func (c *Client) emit(algorithmID string, runID *string, event string, detail map[string]any) {
 	if c == nil || c.Host == "" || algorithmID == "" || (runID != nil && *runID == "") {
 		return
 	}
 
-	if timestamp == "" {
-		timestamp = time.Now().UTC().Format(time.RFC3339Nano)
-	}
 	body, err := json.Marshal(struct {
 		AlgorithmID string         `json:"algorithmId"`
 		RunID       *string        `json:"runId"`
 		Event       string         `json:"event"`
 		Timestamp   string         `json:"timestamp"`
 		Detail      map[string]any `json:"detail,omitempty"`
-		Origin      string         `json:"origin,omitempty"`
-	}{algorithmID, runID, event, timestamp, detail, origin})
+	}{algorithmID, runID, event, time.Now().UTC().Format(time.RFC3339Nano), detail})
 	if err != nil {
 		return
 	}
 
-	token := c.currentToken()
-	if c.Token != nil && token == "" {
-		c.mu.Lock()
-		// Re-check under the lock: setTokens + Flush may have run between the read above and here, and a
-		// late append would never be flushed.
-		if latest := c.currentToken(); latest != "" {
-			c.mu.Unlock()
-			c.send(body, "/events", "log event "+event, latest)
-			return
-		}
-		c.pending = append(c.pending, pendingEvent{body: body, label: "log event " + event})
-		c.mu.Unlock()
-		return
-	}
-	c.send(body, "/events", "log event "+event, token)
+	c.send(body, "/events", "log event "+event, c.currentToken())
 }
 
 func (c *Client) currentToken() string {
@@ -112,23 +71,6 @@ func (c *Client) currentToken() string {
 		return ""
 	}
 	return c.Token()
-}
-
-// Flush sends the queued pre-attestation events in order with the current token.
-func (c *Client) Flush() {
-	token := c.currentToken()
-	if token == "" {
-		return
-	}
-
-	c.mu.Lock()
-	queued := c.pending
-	c.pending = nil
-	c.mu.Unlock()
-
-	for _, item := range queued {
-		c.send(item.body, "/events", item.label, token)
-	}
 }
 
 func (c *Client) EmitSubjectAccess(algorithmID, runID string, dataSubjectIDs []string) {
