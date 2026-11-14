@@ -1,14 +1,36 @@
 # ST-DP
 
-Research proof of concept of the Secure Computing Environment (SCE) on AWS Nitro Enclaves, with the
-fully trusted RADS baseline included alongside it for comparison. It accompanies a research paper that
-is not published yet; citation details will be added with the publication.
+Research proof of concept of the Secure Computing Environment (SCE) in the Secure and Transparent Data
+Processing (ST-DP) architecture on AWS Nitro Enclaves, with the fully trusted RADS baseline included
+alongside it for comparison. It accompanies a research paper that is not published yet; citation
+details will be added with the publication.
 
 This is not production software. It is published so the design and measurements can be inspected and
 reproduced. There is no support commitment and no security guarantee. It is licensed under the
 Apache License 2.0; see [License](#license).
 
 RADS is the baseline system. Secure-RADS extends it with the security controls required for protected personal-data computation, including KMS-backed encryption and enclave attestation. The current Secure-RADS implementation is a PoC of the Secure Computing Environment (SCE) on AWS Nitro Enclaves. A Data Controller's algorithm runs inside an attested enclave over a data subject's personal data, so the data is processed without the Data Controller ever seeing it.
+
+## Architecture
+
+![ST-DP architecture](docs/images/st-dp-architecture.png)
+
+ST-DP separates the entity that decides why personal data is processed from the services that hold,
+process, and record that processing. Green lines are data flows, purple lines are algorithm flows, and
+orange lines are remote attestation.
+
+- **Data Subject (DS)** gives consent and personal data, and queries how the data was used.
+- **Personal Data Management (PDM)** stores personal data against its consent and algorithm, serves it only to an attested SCE, and answers DS queries by querying the Log Service.
+- **Algorithm Registry (AR)** holds algorithms that were vetted and validated against a consent, and registers their measurements with the Verifier. In this PoC, registry-service performs the registration; algorithm vetting and consent approval are out of scope.
+- **Verifier** stores the expected measurements per algorithm and issues a signed, time-constrained token to an SCE that attests correctly.
+- **Key Management Service (KMS)** releases the data-encryption key only to an SCE holding a valid verifier token.
+- **Log Service** holds the processing records that support DS and Supervisory Authority queries.
+- **Secure Computing Environment (SCE)** fetches encrypted records, decrypts them, runs the DC's algorithm inside the enclave, and records the run with the Log Service.
+
+This repo implements the SCE and the supporting services needed to run and inspect it. Consent capture,
+algorithm vetting, and consent-to-algorithm validation are not implemented. The Supervisory Authority
+role is served by the transparency portal's authority view, a read-only dashboard rather than a separate
+service.
 
 ## rads (baseline)
 
@@ -42,6 +64,11 @@ Execution phase (SCE):
 - [`secure/result-consumer/`](secure/result-consumer/README.md) - SQS-triggered Lambda that persists enclave results to the `RunResults` table.
 - [`secure/log-service/`](secure/log-service/README.md) - fire-and-forget run-timeline logger (SQS + worker, JSON/CSV export).
 - [`secure/cost-service/`](secure/cost-service/README.md) - fire-and-forget AWS cost meter (SQS + worker, per-operation rows summed per run). See [`docs/cost-service.md`](docs/cost-service.md).
+
+Transparency portals:
+
+- [`secure/transparency-portal/`](secure/transparency-portal/README.md) - data-subject lookup and authority dashboard for the secure deployment.
+- [`rads/transparency-portal/`](rads/transparency-portal/README.md) - the same SPA pointed at the baseline endpoints.
 
 Sample assets:
 
@@ -100,6 +127,8 @@ make benchmark-report                      # export sweep CSV + figures
 make logs                           # tail the CSAV host and all Lambda logs
 make registry-logs                  # tail the CSAV registry service
 make sce-logs                       # tail the execution-service Lambda
+make portal-dev                     # run the secure transparency portal locally
+make portal-deploy                  # deploy the secure transparency portal
 ```
 
 Single app (APP is a secure/samples/ dir, ALGORITHM_ID its fixed id):
