@@ -93,9 +93,9 @@ per-run against Cost Explorer.
 
 ## Excluded costs (documented, not metered)
 
-- **KMS** - excluded by decision. Build uploads and enclave artifact accesses may make KMS requests for SSE-KMS
-  (the bucket uses S3 Bucket Keys); enclave data-key decryption and verifier cold starts also use KMS. Per-algorithm
-  key storage incurs ongoing cost. None of these KMS costs are currently attributed.
+- **KMS** - excluded by decision. Enclave data-key decryption, verifier cold starts, and per-algorithm
+  key lifecycle also use KMS. Per-algorithm key storage incurs ongoing cost. None of these KMS costs are
+  currently attributed.
 - verifier-service `/.well-known/jwks.json` and `pdm-service`'s `/subject` DSAR lookup - neither carries an
   `algorithmId` to attribute to.
 - log-service and cost-service self-cost (ingest API Gateway/Lambda/queue/DynamoDB).

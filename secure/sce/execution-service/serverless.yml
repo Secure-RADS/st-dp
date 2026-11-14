@@ -105,13 +105,6 @@ resources:
                 - Effect: Allow
                   Action: s3:GetObject
                   Resource: !Sub "arn:aws:s3:::${param:artifactBucket}/*"
-          - PolicyName: ArtifactBucketDecrypt
-            PolicyDocument:
-              Version: "2012-10-17"
-              Statement:
-                - Effect: Allow
-                  Action: kms:Decrypt
-                  Resource: ${param:artifactBucketKmsKeyArn}
           - PolicyName: DecryptAlgorithmDataKeys
             PolicyDocument:
               Version: "2012-10-17"
