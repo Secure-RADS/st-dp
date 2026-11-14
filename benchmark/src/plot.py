@@ -91,6 +91,44 @@ def phases_figure(df: pd.DataFrame) -> None:
     _save(fig, "sweep-phases.png", tight=False)
 
 
+def phases_figure_selected(df: pd.DataFrame) -> None:
+    selected_sizes = [10_000, 80_000, 150_000]
+    label_names = {"rads (baseline)": "CE", "secure-rads (enclave)": "Sec-CE"}
+
+    means = (
+        df[df["dataset_size"].isin(selected_sizes)]
+        .groupby(["dataset_size", "tree", "label"], as_index=False)[[*PHASES, "total_s"]]
+        .mean()
+        .sort_values(["dataset_size", "tree"])
+    )
+    means["col"] = means.apply(
+        lambda r: f"{label_names.get(r.label, r.label)}\n{r.dataset_size // 1000}K",
+        axis=1,
+    )
+    plot_df = means.set_index("col")[list(PHASES)].rename(columns=PHASES)
+
+    fig, ax = plt.subplots(figsize=(9, 6))
+    plot_df.plot.bar(stacked=True, color=PHASE_COLORS, width=0.8, ax=ax, legend=False, rot=0)
+
+    # total time above each bar
+    for i, total in enumerate(means["total_s"]):
+        ax.text(i, total, f"{total:.0f}s", ha="center", va="bottom", fontsize=8.5)
+
+    ax.set_ylabel("Time (seconds)")
+    ax.set_xlabel("")
+    ax.set_ylim(0, means["total_s"].max() * 1.08)
+    fig.subplots_adjust(left=0.1, right=0.98, top=0.92, bottom=0.30)
+    ax.legend(
+        list(PHASES.values()),
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.14),
+        ncol=4,
+        frameon=False,
+        fontsize=8.5,
+    )
+    _save(fig, "sweep-selected-phases.png", tight=False)
+
+
 def scaling_figure(df: pd.DataFrame) -> None:
     fig, ax = plt.subplots(figsize=(9, 5))
     sns.lineplot(
@@ -108,6 +146,8 @@ def scaling_figure(df: pd.DataFrame) -> None:
     ax.set_ylabel("total execution time (seconds)")
     ax.set_title("End-to-end execution time vs dataset size")
     ax.legend(title=None, frameon=False)
+    ax.set_xticks([10_000, 30_000, 50_000, 70_000, 90_000, 110_000, 130_000, 150_000])
+    ax.set_xticklabels([f"{x // 1000}K" for x in ax.get_xticks()])
     _save(fig, "sweep-scaling.png")
 
 
@@ -152,6 +192,7 @@ def main() -> int:
     df = load()
     logger.info("loaded {} runs across {} sizes", len(df), df["dataset_size"].nunique())
     phases_figure(df)
+    phases_figure_selected(df)
     scaling_figure(df)
     if "total_cost_usd" in df.columns:
         cost_size_figure(df)
