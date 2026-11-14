@@ -51,7 +51,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
 
   // pdm-service forwards the enclave's bearer token, so the access trail can only be written by an
   // attested enclave reading records for its own algorithm.
-  const authError = await requireEnclaveToken(event.headers.authorization, parsed.algorithmId);
+  const authError = await requireEnclaveToken(event.headers.authorization, parsed.algorithmId, parsed.runId);
   if (authError) return jsonResponse(401, { error: authError });
 
   // A DS-keyed subject-access row per data subject; the sort key is (timestamp, algorithmId, runId).

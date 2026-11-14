@@ -1,9 +1,8 @@
-import { createHash, X509Certificate } from "node:crypto";
 import https from "node:https";
-import type { PeerCertificate } from "node:tls";
+import { pinnedServerIdentity } from "./tls.js";
 
 const mtlsHost = process.env.LOG_MTLS_HOST;
-const pinnedPubkeySha256 = process.env.LOG_MTLS_PUBKEY_SHA256?.toLowerCase();
+const pinnedPubkeySha256 = process.env.LOG_MTLS_PUBKEY_SHA256;
 const certParam = process.env.LOG_MTLS_CERT_PARAM;
 const keyParam = process.env.LOG_MTLS_KEY_PARAM;
 
@@ -17,11 +16,7 @@ if (internalLogConfigured && (!pinnedPubkeySha256 || !certParam || !keyParam)) {
   );
 }
 
-function checkServerIdentity(_hostname: string, cert: PeerCertificate): Error | undefined {
-  const spki = new X509Certificate(cert.raw).publicKey.export({ type: "spki", format: "der" });
-  const got = createHash("sha256").update(spki).digest("hex");
-  return got === pinnedPubkeySha256 ? undefined : new Error("log-service public key does not match pinned hash");
-}
+const checkServerIdentity = pinnedPubkeySha256 ? pinnedServerIdentity(pinnedPubkeySha256, "log-service") : undefined;
 
 interface ClientCredentials {
   cert: string;

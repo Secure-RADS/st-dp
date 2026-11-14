@@ -26,7 +26,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   }
 
   if (authenticated) {
-    const authError = await requireEnclaveToken(event.headers.authorization, parsed.algorithmId);
+    const authError = await requireEnclaveToken(event.headers.authorization, parsed.algorithmId, parsed.runId);
     if (authError) return jsonResponse(401, { error: authError });
   }
 

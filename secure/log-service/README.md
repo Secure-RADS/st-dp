@@ -24,7 +24,7 @@ Validation happens at ingest; valid events are enqueued and the handler returns 
 
 The mTLS domain is enforced by API Gateway. Clients present a self-signed certificate whose public cert is in the truststore. Registry-service, execution-service, result-consumer, and pdm-service each have their own cert and SSM parameters; the truststore is rebuilt from those certs at deploy time.
 
-On the public domain, when `VERIFIER_JWKS_URL` is set, post-attestation `POST /events` calls verify the ML-DSA-87 access token that verifier-service mints only after a successful Nitro attestation (`src/lib/jwt.ts`, same local-JWKS scheme as pdm-service, with SPKI-pinned TLS on the JWKS fetch and `aud=log-service`). The token's `sub` must match the request's `algorithmId`.
+On the public domain, when `VERIFIER_JWKS_URL` is set, post-attestation `POST /events` calls verify the ML-DSA-87 access token that verifier-service mints only after a successful Nitro attestation (`src/lib/jwt.ts` on the shared `@srads/common/jwt` verifier, with SPKI-pinned TLS on the JWKS fetch and `aud=log-service`). The token's `sub` must match the request's `algorithmId`, and the request's `runId`, when present, must match the token's `run_id`.
 
 Events emitted before attestation (`enclave-started`, `unit-ready`) and host events (`executor-ready`, `artifact-retrieved`, `enclave-launched`, `executor-finished`) are accepted without a token and stored with `auth: none`. The host posts them directly; it holds no log-service credential.
 
