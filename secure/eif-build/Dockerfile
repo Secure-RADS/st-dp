@@ -3,7 +3,9 @@ FROM rust:1.94-alpine AS build
 RUN apk add --no-cache musl-dev git openssl-dev openssl-libs-static pkgconfig
 RUN git clone --branch v0.6.0 --depth 1 https://github.com/aws/aws-nitro-enclaves-image-format /src
 WORKDIR /src
-RUN cargo build --release -p eif_build
+# Lockfile pins aws-smithy-runtime 1.8.6; newer 1.x releases break aws-config 1.1's endpoint import.
+COPY Cargo.lock /src/Cargo.lock
+RUN cargo build --release --locked -p eif_build
 
 # Version pinned to match the enclave host (sce/execution-service/ec2.go's UserData) -
 # a mismatch fails the boot handshake with AWS's E36/E39 "ready signal" errors.
