@@ -79,9 +79,9 @@ Values the deployment needs, all read from that file:
 | `CERT_ARN_RADS`, `CERT_ARN_SECURE_RADS` | us-east-1 ACM certificates for the two transparency portals. |
 | `TRANSPARENCY_DOMAIN_RADS`, `TRANSPARENCY_DOMAIN_SECURE_RADS` | Portal hostnames on those certificates. |
 | `LOG_HOST_RADS`, `LOG_HOST_SECURE_RADS`, `COST_HOST_RADS`, `COST_HOST_SECURE_RADS` | Service hostnames each stack reports to. |
-| `PDM_HOST`, `VERIFIER_HOST`, `VERIFIER_ATTEST_HOST`, `VERIFIER_URL` | PDM and verifier endpoints, including the registry-service mTLS URL. |
-| `VERIFIER_PUBKEY_SHA256`, `VERIFIER_HOST_PUBKEY_SHA256`, `PDM_HOST_PUBKEY_SHA256`, `LOG_HOST_PUBKEY_SHA256` | TLS public-key pins baked into the EIF run config. |
-| `VERIFIER_JWKS_URL`, `VERIFIER_JWKS_PUBKEY_SHA256` | Verifier key location and pin used by the PDM service. |
+| `PDM_HOST`, `KMS_HOST`, `VERIFIER_HOST`, `VERIFIER_ATTEST_HOST`, `VERIFIER_URL` | PDM, KMS proxy, and verifier endpoints, including the registry-service mTLS URL. |
+| `VERIFIER_PUBKEY_SHA256`, `VERIFIER_HOST_PUBKEY_SHA256`, `PDM_HOST_PUBKEY_SHA256`, `KMS_HOST_PUBKEY_SHA256`, `LOG_HOST_PUBKEY_SHA256` | TLS public-key pins baked into the EIF run config. |
+| `VERIFIER_JWKS_URL`, `VERIFIER_JWKS_PUBKEY_SHA256` | Verifier key location and pin used by the PDM and KMS services. |
 | `CLOUDFLARE_ZONE`, `CLOUDFLARE_EMAIL`, `CLOUDFLARE_API_TOKEN` | Cloudflare zone and credentials for the DNS helper. |
 
 Commands stop with the variable name when a required value is missing. `make env`, or `scripts/derive-env.sh` directly, fills the values that can be discovered from AWS: both AMIs from SSM, issued certificates from ACM, the TLS pins from the live endpoints, and the verifier key pin from a deployed PDM service. It only reads from AWS and patches those keys in `.env`.
@@ -135,6 +135,7 @@ Set the certificate ARNs before deploying. Devbox already exports `REGION=ap-sou
 export VERIFIER_CERT_ARN=<verifier-acm-certificate-arn>
 export VERIFIER_ATTEST_CERT_ARN=<verifier-attest-acm-certificate-arn>
 export PDM_CERT_ARN=<pdm-acm-certificate-arn>
+export KMS_CERT_ARN=<kms-acm-certificate-arn>
 export LOG_CERT_ARN=<log-acm-certificate-arn>
 export SECURE_COST_CERT_ARN=<cost.sr-acm-certificate-arn>
 export RADS_COST_CERT_ARN=<cost.r-acm-certificate-arn>
@@ -195,12 +196,12 @@ VERIFIER_ATTEST_PIN=$(spki_pin verifier-attest.sr.secure-rads.org)
 Deploy PDM, log, and cost services, create their DNS-only Cloudflare CNAME records from their outputs, then collect the pins that are baked into the enclave:
 
 ```sh
+VERIFIER_JWKS_URL=https://verifier-attest.sr.secure-rads.org/.well-known/jwks.json \
+VERIFIER_JWKS_PUBKEY_SHA256="$VERIFIER_ATTEST_PIN" \
 (cd secure/pdm-service && bun install && bunx serverless deploy \
   --param="region=$REGION" \
   --param="domainName=pdm.sr.secure-rads.org" \
-  --param="certificateArn=$PDM_CERT_ARN" \
-  --param="verifierJwksUrl=https://verifier-attest.sr.secure-rads.org/.well-known/jwks.json" \
-  --param="verifierJwksPubkeySha256=$VERIFIER_ATTEST_PIN")
+  --param="certificateArn=$PDM_CERT_ARN")
 (cd secure/log-service && bun install && bunx serverless deploy \
   --param="region=$REGION" \
   --param="domainName=log.sr.secure-rads.org" \
@@ -227,10 +228,30 @@ PDM_PIN=$(spki_pin pdm.sr.secure-rads.org)
 LOG_PIN=$(spki_pin log.sr.secure-rads.org)
 ```
 
-Deploy shared storage first, then the CSAV host and the serverless execution-service:
+Deploy shared storage (kms-service needs the algorithm table), then kms-service, then create its DNS-only CNAME and collect its pin:
 
 ```sh
 make -C secure/csav/registry-service deploy-storage REGION="$REGION"
+ALGORITHM_TABLE=$(aws cloudformation describe-stacks --region "$REGION" \
+  --stack-name secure-rads-registry-service-storage \
+  --query "Stacks[0].Outputs[?OutputKey=='AlgorithmTableName'].OutputValue" --output text)
+DATA_KEY_TABLE=$(aws cloudformation describe-stacks --region "$REGION" \
+  --stack-name secure-rads-pdm-service-dev \
+  --query "Stacks[0].Outputs[?OutputKey=='DataKeyTableName'].OutputValue" --output text)
+VERIFIER_JWKS_URL=https://verifier-attest.sr.secure-rads.org/.well-known/jwks.json \
+VERIFIER_JWKS_PUBKEY_SHA256="$VERIFIER_ATTEST_PIN" \
+(cd secure/kms-service && bun install && bunx serverless deploy \
+  --param="region=$REGION" \
+  --param="domainName=kms.sr.secure-rads.org" \
+  --param="certificateArn=$KMS_CERT_ARN" \
+  --param="algorithmTable=$ALGORITHM_TABLE" \
+  --param="dataKeyTable=$DATA_KEY_TABLE")
+KMS_PIN=$(spki_pin kms.sr.secure-rads.org)
+```
+
+Deploy the CSAV host and serverless execution-service:
+
+```sh
 make csav-key REGION="$REGION"
 make csav-deploy REGION="$REGION"
 make sce-deploy REGION="$REGION"
@@ -246,10 +267,11 @@ make -C secure/csav/registry-service ship remote-up REGION="$REGION" \
   VERIFIER_HOST_PUBKEY_SHA256="$VERIFIER_ATTEST_PIN" \
   PDM_HOST=pdm.sr.secure-rads.org PDM_HOST_PUBKEY_SHA256="$PDM_PIN" \
   LOG_HOST=log.sr.secure-rads.org LOG_HOST_PUBKEY_SHA256="$LOG_PIN" \
+  KMS_HOST=kms.sr.secure-rads.org KMS_HOST_PUBKEY_SHA256="$KMS_PIN" \
   COST_HOST=cost.sr.secure-rads.org
 ```
 
-The execution-service deployment creates a new enclave-host role. Rebuild and reseed every algorithm after deployment so its KMS key policy names that role. Once `make secure-rads-run` succeeds through the Lambda API, remove the legacy persistent execution-service EC2 stack:
+Each algorithm's key policy names the stable kms-service execution role, not the per-deployment enclave-host role. Rebuild and reseed any algorithm built before this change so its policy names kms-service. Once `make secure-rads-run` succeeds through the Lambda API, remove the legacy persistent execution-service EC2 stack:
 
 ```sh
 aws cloudformation delete-stack --stack-name execution-service --region "$REGION"

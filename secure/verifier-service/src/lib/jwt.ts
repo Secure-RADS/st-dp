@@ -7,7 +7,7 @@ const ssm = new SSMClient({});
 const signingKeyParam = requiredEnv("JWT_SIGNING_KEY_PARAM");
 
 export const JWT_ISSUER = "verifier-service";
-export const JWT_AUDIENCE = "pdm-service";
+export const JWT_AUDIENCES = ["pdm-service", "kms-service"] as const;
 const JWT_ALGORITHM = "ML-DSA-87";
 
 export interface PublicJwk {
@@ -52,7 +52,7 @@ export async function getPublicJwk(): Promise<PublicJwk> {
 export interface AccessTokenClaims {
   iss: string;
   sub: string;
-  aud: string;
+  aud: string | readonly string[];
   iat: number;
   exp: number;
   jti: string;
@@ -64,7 +64,7 @@ export async function signAccessToken(claims: AccessTokenClaims): Promise<string
     .setProtectedHeader({ alg: JWT_ALGORITHM, kid })
     .setIssuer(claims.iss)
     .setSubject(claims.sub)
-    .setAudience(claims.aud)
+    .setAudience(typeof claims.aud === "string" ? claims.aud : [...claims.aud])
     .setIssuedAt(claims.iat)
     .setExpirationTime(claims.exp)
     .setJti(claims.jti)

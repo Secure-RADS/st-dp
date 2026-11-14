@@ -12,6 +12,6 @@ See [../README.md](../README.md) for the full SCE context.
 
 ## Deployment
 
-`make -C sce deploy` deploys the Lambda stack. It requires result-consumer and registry-service storage to exist first.
+`make -C sce deploy` deploys the Lambda stack. It requires result-consumer, registry-service storage, and kms-service to exist first.
 
-The new enclave-host role has a new ARN. Rebuild and reseed each algorithm after deployment so its per-algorithm KMS key policy names that role. Existing algorithm KMS keys refer to the old enclave-host role and cannot decrypt records for the new role.
+The enclave host pulls the EIF and publishes the result; it has no algorithm-key KMS permission. Data-key decryption runs in kms-service, so the per-algorithm key policy names the kms-service role rather than this per-deployment host role. `KMS_HOST` is passed as `KMS_SERVICE_HOST` and baked into the host user data, which proxies the enclave's `/decrypt` call.

@@ -11,18 +11,18 @@ Serverless Framework v4, TypeScript. Receives `AlgorithmId` + PCR values from re
 
 ### Access token format (ML-DSA-87 compact JWS)
 
-Downstream services (pdm-service) verify the JWT locally against the JWKS endpoint - there is no `/validate` round-trip. Claims:
+Downstream services (pdm-service, kms-service) verify the JWT locally against the JWKS endpoint - there is no `/validate` round-trip. Claims:
 
 | Claim | Value | Meaning |
 | --- | --- | --- |
 | `iss` | `verifier-service` | fixed issuer, checked on every verification |
 | `sub` | algorithm ID | the only source of `algorithmId` pdm-service trusts; PCRs were already matched at `/attest` |
-| `aud` | `pdm-service` | audience restriction, checked on every verification |
+| `aud` | `pdm-service`, `kms-service` | audience restriction, checked on every verification; each service accepts only its own audience |
 | `iat` | unix seconds | issuance time (not enforced, informational) |
 | `exp` | unix seconds | expiry; `exp * 1000 <= now` rejects the token, no clock skew tolerance (both sides are AWS-hosted) |
 | `jti` | random 32 hex chars | unique per minted token, even within one refresh session |
 
-Expiry behavior: access tokens live **5 minutes** (`ACCESS_TOKEN_TTL_SECONDS` in `src/lib/tokens.ts`). sce-unit refreshes 30 s before expiry via `/refresh`; the refresh token itself is opaque, lives **1 hour**, and is stored SHA-256-hashed with a `Revoked` flag in `AttestationSessionTable` - revoking a session row stops refreshes immediately, and already-minted access JWTs die within at most 5 minutes. Signing key: an ML-DSA-87 (FIPS 204) private key in SSM SecureString `/verifier-service/jwt-signing-key`, whose `kid` is the RFC 7638 thumbprint of its public JWK.
+Expiry behavior: access tokens live **2 hours** (`ACCESS_TOKEN_TTL_SECONDS` in `src/lib/tokens.ts`). sce-unit refreshes 30 s before expiry via `/refresh`; the refresh token itself is opaque, lives **4 hours** (it must outlive the access token), and is stored SHA-256-hashed with a `Revoked` flag in `AttestationSessionTable` - revoking a session row stops refreshes immediately, and already-minted access JWTs die within at most 2 hours. Signing key: an ML-DSA-87 (FIPS 204) private key in SSM SecureString `/verifier-service/jwt-signing-key`, whose `kid` is the RFC 7638 thumbprint of its public JWK.
 
 `/attest` and `/refresh` are deliberately not behind mTLS: a static client cert baked into the EIF would be extractable by anyone who can pull the artifact from S3 and decompose it, and would be redundant anyway - the attestation document itself (PCR0/1/2) is the real identity proof. So they (plus the JWKS endpoint) live on a second `AWS::ApiGatewayV2::Api` with a plain-TLS custom domain, pinned by callers to its leaf pubkey instead (same scheme registry-service already uses against the mTLS domain).
 

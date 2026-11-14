@@ -1,0 +1,68 @@
+service: secure-rads-kms-service
+
+# Bundled as CJS, same as the other services - esbuild's ESM output can't interop with plain top-level
+# require() in some deps, and nothing here needs ESM at runtime.
+build:
+  esbuild:
+    format: cjs
+    outExtension:
+      ".js": ".cjs"
+
+provider:
+  name: aws
+  runtime: nodejs24.x
+  region: ${env:AWS_REGION}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action: dynamodb:GetItem
+          Resource:
+            - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${param:algorithmTable}"
+            - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${param:dataKeyTable}"
+        # Every algorithm gets its own CMK, created at build time, so the key ARN is not known when this
+        # stack deploys. The key policy's kms:RecipientAttestation conditions are what actually gate the
+        # call: Decrypt succeeds only when the forwarded attestation document matches the registered PCRs.
+        - Effect: Allow
+          Action: kms:Decrypt
+          Resource: "*"
+  environment:
+    ALGORITHM_TABLE: ${param:algorithmTable}
+    DATA_KEY_TABLE: ${param:dataKeyTable}
+    COST_HOST: ${env:COST_HOST_SECURE_RADS}
+    VERIFIER_JWKS_URL: ${env:VERIFIER_JWKS_URL}
+    VERIFIER_JWKS_PUBKEY_SHA256: ${env:VERIFIER_JWKS_PUBKEY_SHA256}
+
+functions:
+  decrypt:
+    handler: src/handlers/decrypt.handler
+    events:
+      - httpApi:
+          method: POST
+          path: /decrypt
+
+resources:
+  Resources:
+    # Plain server-auth TLS only - the enclave authenticates with its verifier access token, not a client
+    # cert (which would be extractable from the EIF). The enclave pins this domain's leaf pubkey.
+    ApiCustomDomain:
+      Type: AWS::ApiGatewayV2::DomainName
+      Properties:
+        DomainName: ${param:domainName}
+        DomainNameConfigurations:
+          - CertificateArn: ${param:certificateArn}
+
+    ApiDomainMapping:
+      Type: AWS::ApiGatewayV2::ApiMapping
+      Properties:
+        DomainName: !Ref ApiCustomDomain
+        ApiId: !Ref HttpApi
+        Stage: !Ref HttpApiStage
+
+  Outputs:
+    # registry-service adds this role to each per-algorithm key policy; execution-service uses the stack
+    # only to resolve the host the enclave dials.
+    KmsServiceRoleArn:
+      Value: !GetAtt IamRoleLambdaExecution.Arn
+    ApiRegionalDomainName:
+      Value: !GetAtt ApiCustomDomain.RegionalDomainName

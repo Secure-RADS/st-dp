@@ -32,7 +32,7 @@ The unit for each operation is fixed by the price table, not sent on the wire.
 
 - Prices are pinned in `src/lib/prices.ts` for `ap-southeast-2`, stamped with an as-of date. Re-check them against the AWS Price List API when the stamp is old. Every row also records its computed `costUsd`, so a price change does not rewrite history.
 - This is an **estimate from list prices**, not the invoice: it ignores credits, free tier, and volume-discount tiers above the first, and AWS Cost Explorer is not comparable per run.
-- **KMS is excluded by design.** Per-run enclave decrypts, verifier cold-start decrypts, and per-algorithm key storage are not attributed. Ongoing/fixed costs (S3 object storage, CloudWatch Logs, the persistent CSAV host, data transfer) are likewise excluded and listed in `docs/cost-service.md`.
+- **KMS is excluded by design.** kms-service data-key decrypts, verifier cold-start decrypts, and per-algorithm key storage are not attributed. Ongoing/fixed costs (S3 object storage, CloudWatch Logs, the persistent CSAV host, data transfer) are likewise excluded and listed in `docs/cost-service.md`.
 - EC2 is priced as the per-run `c6g.large` executor. A different `ENCLAVE_INSTANCE_TYPE` needs a new price-table entry.
 
 ## EC2 timing

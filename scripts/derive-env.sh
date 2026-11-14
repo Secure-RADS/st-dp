@@ -72,11 +72,13 @@ verifier_host=$(sed -n 's/^VERIFIER_HOST=//p' "$env_file" | tail -1)
 verifier_attest_host=$(sed -n 's/^VERIFIER_ATTEST_HOST=//p' "$env_file" | tail -1)
 pdm_host=$(sed -n 's/^PDM_HOST=//p' "$env_file" | tail -1)
 log_host=$(sed -n 's/^LOG_HOST_SECURE_RADS=//p' "$env_file" | tail -1)
+kms_host=$(sed -n 's/^KMS_HOST=//p' "$env_file" | tail -1)
 
 set_key VERIFIER_PUBKEY_SHA256 "$(pin_for "$verifier_host")"
 set_key VERIFIER_HOST_PUBKEY_SHA256 "$(pin_for "$verifier_attest_host")"
 set_key PDM_HOST_PUBKEY_SHA256 "$(pin_for "$pdm_host")"
 set_key LOG_HOST_PUBKEY_SHA256 "$(pin_for "$log_host")"
+set_key KMS_HOST_PUBKEY_SHA256 "$(pin_for "$kms_host")"
 
 pdm_function=$(aws lambda list-functions --region "$region" \
     --query "Functions[?starts_with(FunctionName, 'secure-rads-pdm-service')].FunctionName | [0]" \

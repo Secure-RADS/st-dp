@@ -17,13 +17,13 @@ import (
 )
 
 var (
-	s3Client           *s3.Client
-	artifactBucket     string
-	dynamoClient       *dynamodb.Client
-	dynamoTable        string
-	kmsClient          *kms.Client
-	stsClient          *sts.Client
-	enclaveHostRoleArn string
+	s3Client          *s3.Client
+	artifactBucket    string
+	dynamoClient      *dynamodb.Client
+	dynamoTable       string
+	kmsClient         *kms.Client
+	stsClient         *sts.Client
+	kmsServiceRoleArn string
 )
 
 func main() {
@@ -43,7 +43,7 @@ func main() {
 	}
 	kmsClient = kms.NewFromConfig(cfg)
 	stsClient = sts.NewFromConfig(cfg)
-	enclaveHostRoleArn = os.Getenv("ENCLAVE_HOST_ROLE_ARN")
+	kmsServiceRoleArn = os.Getenv("KMS_SERVICE_ROLE_ARN")
 	csavRoleArn = os.Getenv("CSAV_ROLE_ARN")
 
 	r := gin.Default()

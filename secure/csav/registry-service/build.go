@@ -77,6 +77,9 @@ func buildAndPush(ctx context.Context, algorithmId, tarPath, existingKmsKeyArn s
 	if logHost == "" || logHostPubKeySHA256 == "" {
 		return "", fmt.Errorf("LOG_HOST / LOG_HOST_PUBKEY_SHA256 not configured")
 	}
+	if kmsHost == "" || kmsHostPubKeySHA256 == "" {
+		return "", fmt.Errorf("KMS_HOST / KMS_HOST_PUBKEY_SHA256 not configured")
+	}
 
 	log.Printf("build[%s]: composing final rootfs", tarPath)
 	rc := runConfig{
@@ -84,7 +87,7 @@ func buildAndPush(ctx context.Context, algorithmId, tarPath, existingKmsKeyArn s
 		VerifierHost: verifierHost, VerifierPubKeySHA256: verifierHostPubKeySHA256,
 		PdmHost: pdmHost, PdmPubKeySHA256: pdmHostPubKeySHA256,
 		LogHost: logHost, LogPubKeySHA256: logHostPubKeySHA256,
-		Region: region,
+		KmsHost: kmsHost, KmsPubKeySHA256: kmsHostPubKeySHA256,
 	}
 	if err := composeFinalRootfs(bundleDir, execPath, pathEnv, args, rc); err != nil {
 		return "", fmt.Errorf("compose final rootfs: %w", err)
@@ -129,13 +132,13 @@ func buildAndPush(ctx context.Context, algorithmId, tarPath, existingKmsKeyArn s
 	timelineLog.EmitEvent(algorithmId, nil, sharedlog.EventPCRsRegistered, nil)
 
 	log.Printf("build[%s]: ensuring per-algorithm KMS key", tarPath)
-	if enclaveHostRoleArn == "" {
-		return "", fmt.Errorf("ENCLAVE_HOST_ROLE_ARN not configured")
+	if kmsServiceRoleArn == "" {
+		return "", fmt.Errorf("KMS_SERVICE_ROLE_ARN not configured")
 	}
 	if csavRoleArn == "" {
 		return "", fmt.Errorf("CSAV_ROLE_ARN not configured")
 	}
-	kmsKeyArn, err := ensureAlgorithmKmsKey(ctx, algorithmId, pcrs, existingKmsKeyArn, enclaveHostRoleArn, csavRoleArn)
+	kmsKeyArn, err := ensureAlgorithmKmsKey(ctx, algorithmId, pcrs, existingKmsKeyArn, kmsServiceRoleArn, csavRoleArn)
 	if err != nil {
 		return "", fmt.Errorf("provision KMS key: %w", err)
 	}

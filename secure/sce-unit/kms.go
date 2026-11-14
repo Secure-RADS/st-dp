@@ -1,32 +1,25 @@
 package main
 
 import (
+	"bytes"
 	"context"
-	"crypto/tls"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
-	"net"
+	"io"
 	"net/http"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/aws/aws-sdk-go-v2/service/kms"
-	"github.com/aws/aws-sdk-go-v2/service/kms/types"
 	enclave "github.com/edgebitio/nitro-enclaves-sdk-go"
 )
 
-// The host runs a vsock-proxy that forwards port 8000 to kms.<region>.amazonaws.com:443 (see
-// userdata.sh.tmpl). The KMS client dials that proxy over vsock; TLS terminates against the real KMS
-// endpoint through the relay.
-const kmsProxyPort = 8000
-
 const kmsRequestTimeout = 30 * time.Second
 
-// decryptDataKey unwraps an envelope data key that KMS returned, via a Decrypt call carrying this
-// enclave's attestation document. KMS only returns the key (wrapped to the enclave's ephemeral public
-// key) when the attestation's PCRs match the key policy's kms:RecipientAttestation conditions - so only
-// the measured enclave can obtain the plaintext data key.
-func decryptDataKey(cfg runConfig, creds awsCreds, encDataKey []byte) ([]byte, error) {
+// decryptDataKey asks kms-service to unwrap this algorithm's data key. kms-service authenticates the access
+// token, looks up the algorithm's CMK and wrapped data key, and calls KMS Decrypt with this enclave's
+// attestation document as the Recipient - so KMS returns CiphertextForRecipient, which only this enclave's
+// ephemeral private key can unwrap. The enclave holds no AWS credentials and never reaches KMS directly.
+func decryptDataKey(cfg runConfig, runID string) ([]byte, error) {
 	handle, err := enclave.GetOrInitializeHandle()
 	if err != nil {
 		return nil, fmt.Errorf("initialize enclave handle: %w", err)
@@ -36,66 +29,52 @@ func decryptDataKey(cfg runConfig, creds awsCreds, encDataKey []byte) ([]byte, e
 		return nil, fmt.Errorf("request attestation document: %w", err)
 	}
 
-	awsCfg, err := config.LoadDefaultConfig(context.Background(),
-		config.WithRegion(cfg.Region),
-		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
-			creds.AccessKeyId, creds.SecretAccessKey, creds.SessionToken)),
-		config.WithHTTPClient(vsockKMSHTTPClient(cfg.Region)),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("load AWS config: %w", err)
+	accessToken, ok := CurrentAccessToken()
+	if !ok {
+		return nil, fmt.Errorf("decrypt data key: no access token")
 	}
-	kmsClient := kms.NewFromConfig(awsCfg)
+
+	body, err := json.Marshal(struct {
+		AttestationDocument string `json:"attestationDocument"`
+	}{AttestationDocument: base64.StdEncoding.EncodeToString(attestationDocument)})
+	if err != nil {
+		return nil, err
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), kmsRequestTimeout)
 	defer cancel()
-	res, err := kmsClient.Decrypt(ctx, &kms.DecryptInput{
-		CiphertextBlob: encDataKey,
-		Recipient: &types.RecipientInfoType{
-			AttestationDocument:    attestationDocument,
-			KeyEncryptionAlgorithm: types.EncryptionAlgorithmSpecRsaesOaepSha256,
-		},
-	})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://"+cfg.KmsHost+"/decrypt", bytes.NewReader(body))
 	if err != nil {
-		return nil, fmt.Errorf("kms decrypt: %w", err)
+		return nil, err
 	}
-	if res.CiphertextForRecipient == nil {
-		return nil, fmt.Errorf("kms decrypt: no CiphertextForRecipient returned")
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Run-Id", runID)
+
+	resp, err := cfg.kmsSvc().client().Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("POST /decrypt: %w", err)
 	}
-	key, err := handle.DecryptKMSEnvelopedKey(res.CiphertextForRecipient)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("kms-service returned %s: %s", resp.Status, respBody)
+	}
+
+	var out struct {
+		CiphertextForRecipient string `json:"ciphertextForRecipient"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, fmt.Errorf("decode /decrypt response: %w", err)
+	}
+	wrapped, err := base64.StdEncoding.DecodeString(out.CiphertextForRecipient)
+	if err != nil || len(wrapped) == 0 {
+		return nil, fmt.Errorf("decode ciphertextForRecipient: %w", err)
+	}
+
+	key, err := handle.DecryptKMSEnvelopedKey(wrapped)
 	if err != nil {
 		return nil, fmt.Errorf("unwrap KMS recipient payload: %w", err)
 	}
 	return key, nil
-}
-
-// vsockKMSHTTPClient routes KMS HTTP/TLS through the host's vsock-proxy instead of real TCP - the enclave
-// has no network. TLS still verifies the real KMS endpoint cert through the relay.
-func vsockKMSHTTPClient(region string) *http.Client {
-	endpoint := fmt.Sprintf("kms.%s.amazonaws.com", region)
-	return &http.Client{
-		Transport: &http.Transport{
-			DisableKeepAlives: true,
-			DialTLSContext: func(ctx context.Context, _ string, _ string) (net.Conn, error) {
-				conn, err := dialVsock(ctx, hostCID, kmsProxyPort)
-				if err != nil {
-					return nil, err
-				}
-				if err := conn.SetDeadline(time.Now().Add(tlsHandshakeTimeout)); err != nil {
-					conn.Close()
-					return nil, err
-				}
-				tlsConn := tls.Client(conn, &tls.Config{ServerName: endpoint})
-				if err := tlsConn.Handshake(); err != nil {
-					conn.Close()
-					return nil, err
-				}
-				if err := conn.SetDeadline(time.Time{}); err != nil {
-					tlsConn.Close()
-					return nil, err
-				}
-				return tlsConn, nil
-			},
-		},
-	}
 }

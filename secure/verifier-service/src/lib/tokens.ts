@@ -3,7 +3,7 @@ import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, PutCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { CostPhase, costEvent } from "@srads/common/cost";
 import { requiredEnv } from "@srads/common/env";
-import { JWT_AUDIENCE, JWT_ISSUER, signAccessToken } from "./jwt.js";
+import { JWT_AUDIENCES, JWT_ISSUER, signAccessToken } from "./jwt.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const tableName = requiredEnv("ATTESTATION_SESSION_TABLE");
@@ -12,7 +12,8 @@ const tableName = requiredEnv("ATTESTATION_SESSION_TABLE");
 // JWKS endpoint - no /validate round-trip. They are short-lived so a revoked session stops working within
 // minutes. Refresh tokens stay opaque and stored hashed: the DB row is what makes revocation possible.
 const ACCESS_TOKEN_TTL_SECONDS = 2 * 60 * 60;
-const REFRESH_TOKEN_TTL_SECONDS = 60 * 60;
+// The refresh token must outlive the access token, otherwise sce-unit's pre-expiry refresh can never succeed.
+const REFRESH_TOKEN_TTL_SECONDS = 4 * 60 * 60;
 
 export interface TokenPair {
   accessToken: string;
@@ -34,7 +35,7 @@ async function mintAccessToken(algorithmId: string): Promise<{ accessToken: stri
   const accessToken = await signAccessToken({
     iss: JWT_ISSUER,
     sub: algorithmId,
-    aud: JWT_AUDIENCE,
+    aud: JWT_AUDIENCES,
     iat: now,
     exp,
     jti: randomBytes(16).toString("hex"),

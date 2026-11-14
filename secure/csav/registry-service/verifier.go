@@ -28,8 +28,9 @@ var (
 	pdmHostPubKeySHA256      = os.Getenv("PDM_HOST_PUBKEY_SHA256")
 	logHost                  = os.Getenv("LOG_HOST")
 	logHostPubKeySHA256      = os.Getenv("LOG_HOST_PUBKEY_SHA256")
+	kmsHost                  = os.Getenv("KMS_HOST")
+	kmsHostPubKeySHA256      = os.Getenv("KMS_HOST_PUBKEY_SHA256")
 	costHost                 = os.Getenv("COST_HOST")
-	region                   = os.Getenv("AWS_REGION")
 	csavRoleArn              = os.Getenv("CSAV_ROLE_ARN")
 )
 

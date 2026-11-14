@@ -19,7 +19,8 @@ type runConfig struct {
 	PdmPubKeySHA256      string `json:"pdmPubKeySHA256"`
 	LogHost              string `json:"logHost"`
 	LogPubKeySHA256      string `json:"logPubKeySHA256"`
-	Region               string `json:"region"`
+	KmsHost              string `json:"kmsHost"`
+	KmsPubKeySHA256      string `json:"kmsPubKeySHA256"`
 }
 
 func loadRunConfig() (runConfig, error) {

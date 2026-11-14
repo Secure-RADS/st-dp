@@ -1,5 +1,5 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, GetCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { CostPhase, costEvent, recordRequest } from "@srads/common/cost";
 import { requiredEnv } from "@srads/common/env";
 import { logSubjectAccess } from "@srads/common/log";
@@ -8,7 +8,6 @@ import { verifyAccessToken } from "../lib/jwt.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const table = requiredEnv("PDM_TABLE");
-const dataKeyTable = requiredEnv("DATA_KEY_TABLE");
 
 const PAGE_SIZE = 500;
 
@@ -49,31 +48,6 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     }
   }
 
-  let dataKey: string | undefined;
-  if (!cursor) {
-    const keyItem = await ddb.send(
-      new GetCommand({
-        TableName: dataKeyTable,
-        Key: { AlgorithmId: validation.algorithmId },
-        ReturnConsumedCapacity: "TOTAL",
-      }),
-    );
-    await costEvent(
-      validation.algorithmId,
-      runId,
-      CostPhase.Execution,
-      "dynamodb",
-      "read-capacity",
-      keyItem.ConsumedCapacity?.CapacityUnits ?? 0,
-    );
-    const stored = keyItem.Item?.DataKey;
-    if (typeof stored !== "string" || stored.length === 0) {
-      await recordRequest(validation.algorithmId, runId, CostPhase.Execution, startedAt);
-      return jsonResponse(500, { error: "missing data key" });
-    }
-    dataKey = stored;
-  }
-
   const result = await ddb.send(
     new QueryCommand({
       TableName: table,
@@ -106,5 +80,5 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     : null;
 
   await recordRequest(validation.algorithmId, runId, CostPhase.Execution, startedAt);
-  return jsonResponse(200, { algorithmId: validation.algorithmId, records, dataKey, nextCursor });
+  return jsonResponse(200, { algorithmId: validation.algorithmId, records, nextCursor });
 };

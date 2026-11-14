@@ -20,12 +20,8 @@ provider:
         - Effect: Allow
           Action: dynamodb:Query
           Resource: !GetAtt PersonalDataTable.Arn
-        - Effect: Allow
-          Action: dynamodb:GetItem
-          Resource: !GetAtt DataKeyTable.Arn
   environment:
     PDM_TABLE: !Ref PersonalDataTable
-    DATA_KEY_TABLE: !Ref DataKeyTable
     LOG_HOST: ${env:LOG_HOST_SECURE_RADS}
     COST_HOST: ${env:COST_HOST_SECURE_RADS}
     VERIFIER_JWKS_URL: ${env:VERIFIER_JWKS_URL}
