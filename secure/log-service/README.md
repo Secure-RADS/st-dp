@@ -28,7 +28,7 @@ On the public domain, when `VERIFIER_JWKS_URL` is set, `POST /events` and `POST 
 
 sce-unit queues its events in memory before attestation, flushes them with the token, then sends every later event authenticated. The host holds no log-service credential: it buffers its timeline events and relays them to sce-unit over vsock, so they arrive over the attested channel with `origin: host`.
 
-`executor-finished` and `run-failed` are emitted by result-consumer from the SQS run result, so a run that dies before attestation is still recorded and terminal failures have one owner.
+`executor-finished` and `run-failed` are emitted by the enclave before it exits. result-consumer only emits `result-persisted`; a run that dies before attestation has no timeline events, and its failure is carried by the run result.
 
 This applies to `secure` only. The `rads` baseline has no verifier or attested producer, so its log-service is unchanged.
 

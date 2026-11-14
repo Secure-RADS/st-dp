@@ -48,22 +48,21 @@ func main() {
 	}
 	info, err := readRunInfo()
 	if err != nil {
-		failRun(err)
+		failRun(timelineLog, cfg.AlgorithmId, "", err)
 	}
 	runID := info.RunID
 	startHostEventRelay(timelineLog, cfg.AlgorithmId, runID)
-	timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventEnclaveStarted, nil)
 
 	// Must run before any crypto/rand use (attestation, TLS) - see entropy.go.
 	if err := seedEntropy(); err != nil {
-		failRun(fmt.Errorf("seed entropy: %w", err))
+		failRun(timelineLog, cfg.AlgorithmId, runID, fmt.Errorf("seed entropy: %w", err))
 	}
 	log.Printf("sce-unit: seeded kernel entropy from NSM")
-	timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventUnitReady, nil)
 
 	// Attest, fetch, decrypt, and write records.json before nsjail starts - same file contract as rads.
+	// Timeline events start inside prepareRecordsFile, after attestation, so every event carries a token.
 	if err := prepareRecordsFile(cfg, timelineLog, runID, info.Size); err != nil {
-		failRun(err)
+		failRun(timelineLog, cfg.AlgorithmId, runID, err)
 	}
 
 	var jailLog bytes.Buffer
@@ -71,7 +70,7 @@ func main() {
 	cmd.Stdout = io.MultiWriter(os.Stdout, &jailLog)
 	cmd.Stderr = io.MultiWriter(os.Stderr, &jailLog)
 	if err := cmd.Start(); err != nil {
-		failRun(fmt.Errorf("start nsjail: %w", err))
+		failRun(timelineLog, cfg.AlgorithmId, runID, fmt.Errorf("start nsjail: %w", err))
 	}
 	log.Printf("sce-unit: nsjail started (pid %d)", cmd.Process.Pid)
 
@@ -82,8 +81,11 @@ func main() {
 
 	failed := waitErr != nil || readErr != nil || len(output) == 0
 	if failed {
-	}
-	if !failed {
+		timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventRunFailed, map[string]any{
+			"error":       fmt.Sprintf("dc app failed: waitErr=%v readErr=%v outputBytes=%d", waitErr, readErr, len(output)),
+			"outputBytes": len(output),
+		})
+	} else {
 		timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventDCAppCompleted, map[string]any{"outputBytes": len(output)})
 	}
 	if readErr != nil || len(output) == 0 {
@@ -104,16 +106,34 @@ func main() {
 	}
 	if err := sendOutput(output); err != nil {
 		log.Printf("sce-unit: send output to host failed: %v", err)
+		timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventRunFailed, map[string]any{"error": err.Error()})
+		timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventExecutorFinished, map[string]any{"status": "failed"})
 		os.Exit(1)
 	}
 	timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventOutputSent, nil)
+	status := "ok"
+	if failed {
+		status = "failed"
+	}
+	timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventExecutorFinished, map[string]any{
+		"status":      status,
+		"outputBytes": len(output),
+	})
 	if failed {
 		os.Exit(1)
 	}
 }
 
-func failRun(err error) {
+func failRun(timelineLog *sharedlog.Client, algorithmID, runID string, err error) {
 	log.Printf("sce-unit: %v", err)
+	// Before attestation there is no token, so no timeline event can be emitted. The run result still
+	// carries the failure.
+	if runID != "" {
+		if token, ok := CurrentAccessToken(); ok && token != "" {
+			timelineLog.EmitEvent(algorithmID, &runID, sharedlog.EventRunFailed, map[string]any{"error": err.Error()})
+			timelineLog.EmitEvent(algorithmID, &runID, sharedlog.EventExecutorFinished, map[string]any{"status": "failed"})
+		}
+	}
 	failure, _ := json.Marshal(struct {
 		Error string `json:"error"`
 	}{Error: err.Error()})
@@ -131,10 +151,13 @@ func prepareRecordsFile(cfg runConfig, timelineLog *sharedlog.Client, runID stri
 		return fmt.Errorf("attestation failed: %w", err)
 	}
 	log.Printf("sce-unit: attested successfully, access token expires %s", tp.AccessTokenExpiresAt.Format(time.RFC3339))
-	timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventAttested, nil)
 	setTokens(tp)
 	go refreshLoop(cfg, runID)
 	timelineLog.Flush()
+	// Every timeline event from here on carries the token. If attestation fails, none of these exist.
+	timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventEnclaveStarted, nil)
+	timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventUnitReady, nil)
+	timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventAttested, nil)
 
 	records, err := fetchAllRecords(cfg, limit)
 	if err != nil {

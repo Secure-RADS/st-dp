@@ -84,7 +84,7 @@ Input:
 18 START nsjail                         // RECORDS_PATH, RESULT_PATH
 19 wait for nsjail exit
 20 output ← read /data/result.json
-21 emit dc-app-completed
+21 emit dc-app-completed               // on success, else run-failed
 22 STREAM output to parent              // vsock :5000
 23 emit output-sent
 24 // on failure: emit run-failed
@@ -110,6 +110,6 @@ Input:
   result ← processing result returned by the SCE-UNIT
 1  SQS delivers result batch; invoke Lambda // receive is billed before the handler runs
 2  persist result to DynamoDB
-3  cost dynamodb:write-capacity; emit result-persisted, executor-finished, and run-failed for a non-zero exit
+3  cost dynamodb:write-capacity; emit result-persisted
 4  cost sqs:receive + lambda:invocation + lambda:compute // reported by handler after processing
 5  cost sqs:delete                         // reported on success; Lambda deletes after return

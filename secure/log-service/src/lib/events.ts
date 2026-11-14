@@ -8,6 +8,8 @@ export const ENCLAVE_EVENTS = [
   "records-stored-locally",
   "dc-app-completed",
   "output-sent",
+  "run-failed",
+  "executor-finished",
 ] as const;
 
 // Host events relayed by sce-unit over the enclave's authenticated channel. The content is host-supplied,
@@ -26,8 +28,6 @@ export const INTERNAL_EVENTS = [
   "run-requested",
   "executor-launched",
   "launch-failed",
-  "executor-finished",
-  "run-failed",
   "result-persisted",
 ] as const;
 

@@ -31,6 +31,7 @@ const (
 	EventDCAppCompleted       = "dc-app-completed"
 	EventOutputSent           = "output-sent"
 	EventRunFailed            = "run-failed"
+	EventExecutorFinished     = "executor-finished"
 	EventExecutorReady        = "executor-ready"
 	EventArtifactRetrieved    = "artifact-retrieved"
 	EventEnclaveLaunched      = "enclave-launched"

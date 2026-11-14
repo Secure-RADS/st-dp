@@ -53,10 +53,10 @@ Input:
 13 write records to records.json
 14 emit records-stored-locally
 15 DOCKER-RUN(image, bind ← /data/records.json)
-16 emit compute-completed
-17 publish result to SQS
-18 cost sqs:send                        // message bytes
-19 emit executor-finished
+16 emit compute-completed               // on success
+17 emit executor-finished               // workload finished, exit status carried
+18 publish result to SQS
+19 cost sqs:send                        // message bytes
 20 cost ec2:instance                    // captured before the cost POST and terminate request
 21 terminate instance
 
