@@ -53,21 +53,26 @@ Bun is used as the local dev/bundle tool only (`bun install`) - the Lambda itsel
 
 ## Prerequisites (manual, one-time, outside this repo's IaC)
 
-- Two hostnames: `log.sr.secure-rads.org` (public) and `log-mtls.sr.secure-rads.org` (mTLS). The stack creates one ACM certificate covering both through the Cloudflare API, so `CLOUDFLARE_ZONE` and a Cloudflare API token are needed.
-- The Cloudflare token needs `Zone.DNS:Edit` on the zone and is stored as the SSM SecureString `/secure-rads/log-service/cloudflare-token`:
-
-```
-aws ssm put-parameter --name /secure-rads/log-service/cloudflare-token --type SecureString \
-  --value "$CLOUDFLARE_API_TOKEN"
-```
-
+- Two hostnames with issued ACM certificates: `log.sr.secure-rads.org` (public) and `log-mtls.sr.secure-rads.org` (mTLS). Pass the certificate ARNs as params; the stack does not create them.
 - Client certs for registry-service, execution-service, result-consumer, and pdm-service in SSM under `/secure-rads/log-service/mtls/clients/<client>/cert|key`. Generate and upload them with `scripts/gen-log-mtls-certs.sh`.
 
 ## Deploy
 
+The mTLS domain needs a truststore version at creation, so the deploy is two-phase. The first deploy creates the stack and the versioned truststore bucket with the domain skipped:
+
 ```
 bun install
-bunx serverless deploy --param="domainName=log.sr.secure-rads.org" --param="mtlsDomainName=log-mtls.sr.secure-rads.org"
+bunx serverless deploy \
+  --param="domainName=log.sr.secure-rads.org" --param="certificateArn=$LOG_CERT_ARN" \
+  --param="mtlsDomainName=log-mtls.sr.secure-rads.org" --param="mtlsCertificateArn=$LOG_MTLS_CERT_ARN"
 ```
 
-After deploy, point both hostnames at the stack outputs `ApiRegionalDomainName` (mTLS) and `PublicApiRegionalDomainName` (public) with DNS-only records, then fill `LOG_MTLS_PUBKEY_SHA256` from the mTLS endpoint.
+Upload the truststore from the SSM client certs and capture the version:
+
+```
+export TRUSTSTORE_BUCKET=$(aws cloudformation describe-stacks --stack-name secure-rads-log-service-dev \
+  --query "Stacks[0].Outputs[?OutputKey=='TruststoreBucketName'].OutputValue" --output text)
+scripts/upload-log-truststore.sh
+```
+
+Deploy again with `truststoreVersionId=<version>` to create the mTLS domain. Point both hostnames at the stack outputs `ApiRegionalDomainName` (mTLS) and `PublicApiRegionalDomainName` (public) with DNS-only records, then fill `LOG_MTLS_PUBKEY_SHA256` from the public endpoint, which shares the certificate.

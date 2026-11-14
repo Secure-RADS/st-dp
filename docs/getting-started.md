@@ -129,13 +129,15 @@ This file is ignored by Git and must not be shared through the repository.
 
 ## 4. Deploy in Sydney
 
-Set the certificate ARNs for services that do not create their own before deploying. log-service creates its certificate in-stack, so it needs no ARN here. Devbox already exports `REGION=ap-southeast-2`:
+Set the certificate ARNs before deploying. Devbox already exports `REGION=ap-southeast-2`:
 
 ```sh
 export VERIFIER_CERT_ARN=<verifier-acm-certificate-arn>
 export VERIFIER_ATTEST_CERT_ARN=<verifier-attest-acm-certificate-arn>
 export PDM_CERT_ARN=<pdm-acm-certificate-arn>
 export KMS_CERT_ARN=<kms-acm-certificate-arn>
+export LOG_CERT_ARN=<log.sr-acm-certificate-arn>
+export LOG_MTLS_CERT_ARN=<log-mtls.sr-acm-certificate-arn>
 export SECURE_COST_CERT_ARN=<cost.sr-acm-certificate-arn>
 export RADS_COST_CERT_ARN=<cost.r-acm-certificate-arn>
 ```
@@ -201,12 +203,12 @@ VERIFIER_JWKS_PUBKEY_SHA256="$VERIFIER_ATTEST_PIN" \
   --param="region=$REGION" \
   --param="domainName=pdm.sr.secure-rads.org" \
   --param="certificateArn=$PDM_CERT_ARN")
-# log-service creates its own certificate (public + mTLS hostnames) through the Cloudflare API.
-# Prerequisites: the Cloudflare token in SSM and client certs from scripts/gen-log-mtls-certs.sh.
+# log-service mTLS is two-phase: deploy without truststoreVersionId, upload the truststore,
+# then deploy again with the printed version. See secure/log-service/README.md.
 (cd secure/log-service && bun install && bunx serverless deploy \
   --param="region=$REGION" \
-  --param="domainName=log.sr.secure-rads.org" \
-  --param="mtlsDomainName=log-mtls.sr.secure-rads.org")
+  --param="domainName=log.sr.secure-rads.org" --param="certificateArn=$LOG_CERT_ARN" \
+  --param="mtlsDomainName=log-mtls.sr.secure-rads.org" --param="mtlsCertificateArn=$LOG_MTLS_CERT_ARN")
 (cd secure/cost-service && bun install && bunx serverless deploy \
   --param="region=$REGION" \
   --param="domainName=cost.sr.secure-rads.org" \
