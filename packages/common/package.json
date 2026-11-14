@@ -15,6 +15,10 @@
     "./log": {
       "types": "./src/log.ts",
       "import": "./src/log.ts"
+    },
+    "./jwt": {
+      "types": "./src/jwt.ts",
+      "import": "./src/jwt.ts"
     }
   },
   "scripts": {
@@ -26,5 +30,8 @@
     "@biomejs/biome": "^2.5.10",
     "@types/node": "^22.0.0",
     "typescript": "^5.7.0"
+  },
+  "dependencies": {
+    "jose": "^6.2.10"
   }
 }

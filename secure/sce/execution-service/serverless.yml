@@ -56,6 +56,7 @@ provider:
     ENCLAVE_INSTANCE_PROFILE_ARN: !GetAtt EnclaveHostInstanceProfile.Arn
     VERIFIER_HOST: ${env:VERIFIER_ATTEST_HOST}
     PDM_HOST: ${env:PDM_HOST}
+    KMS_SERVICE_HOST: ${env:KMS_HOST}
     PDM_TABLE: ${param:pdmTable}
     LOG_HOST: ${env:LOG_HOST_SECURE_RADS}
     COST_HOST: ${env:COST_HOST_SECURE_RADS}
@@ -105,13 +106,6 @@ resources:
                 - Effect: Allow
                   Action: s3:GetObject
                   Resource: !Sub "arn:aws:s3:::${param:artifactBucket}/*"
-          - PolicyName: DecryptAlgorithmDataKeys
-            PolicyDocument:
-              Version: "2012-10-17"
-              Statement:
-                - Effect: Allow
-                  Action: kms:Decrypt
-                  Resource: "*"
           - PolicyName: SelfTerminate
             PolicyDocument:
               Version: "2012-10-17"

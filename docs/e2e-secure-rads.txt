@@ -14,7 +14,7 @@ Input:
 10 emit image-uploaded
 11 REGISTER-PCRS(a, PCRs)               // verifier API GW/Lambda and DynamoDB write metered
 12 emit pcrs-registered
-13 kmsArn ← CREATE-OR-REUSE-KMS-KEY(a)  // KMS excluded from cost
+13 kmsArn ← CREATE-OR-REUSE-KMS-KEY(a)  // policy names the kms-service role, gated on PCRs; KMS excluded from cost
 14 emit kms-key-provisioned
 15 write a ↦ ⟨S3-path, kmsArn⟩ to DynamoDB
 16 cost dynamodb:write-capacity
@@ -72,23 +72,39 @@ Input:
 5  emit unit-ready
 6  token ← ATTEST(Verifier, runId)      // verifier API GW/Lambda and DynamoDB metered
 7  emit attested
-8  creds ← FETCH-AWS-CREDS()            // host IMDS proxy, no AWS cost
-9  ⟨records, encDEK⟩ ← FETCH-PDM(a, token, limit ← n)
-10 cost apigateway:request + lambda:invocation + lambda:compute + dynamodb:read-capacity // PDM /records
-11 emit records-fetched
-12 DEK ← KMS-DECRYPT(encDEK, attestation)   // KMS excluded from cost
-13 plaintext ← DECRYPT(records, DEK)
-14 emit records-decrypted
-15 write {algorithmId, records} to /data/records.json
-16 emit records-stored-locally
-17 START nsjail                         // RECORDS_PATH, RESULT_PATH
-18 wait for nsjail exit
-19 output ← read /data/result.json
-20 emit dc-app-completed
-21 STREAM output to parent              // vsock :5000
-22 emit output-sent
-23 // on failure: emit run-failed
+8  records ← FETCH-PDM(a, token, limit ← n)
+9  cost apigateway:request + lambda:invocation + lambda:compute + dynamodb:read-capacity // PDM /records
+10 emit records-fetched
+11 ciphertext ← KMS-SERVICE-DECRYPT(token)  // unwraps the data key under this enclave's measurements
+12 cost apigateway:request + lambda:invocation + lambda:compute + dynamodb:read-capacity // kms-service /decrypt
+13 DEK ← UNWRAP(ciphertext, enclaveKey)   // KMS request itself is excluded from cost
+14 plaintext ← DECRYPT(records, DEK)
+15 emit records-decrypted
+16 write {algorithmId, records} to /data/records.json
+17 emit records-stored-locally
+18 START nsjail                         // RECORDS_PATH, RESULT_PATH
+19 wait for nsjail exit
+20 output ← read /data/result.json
+21 emit dc-app-completed
+22 STREAM output to parent              // vsock :5000
+23 emit output-sent
+24 // on failure: emit run-failed
 
+
+
+KMS-SERVICE-DECRYPT(token)
+Input:
+  token ← verifier access JWT (aud includes kms-service, sub is the algorithm id)
+1  verify token against verifier JWKS          // aud, iss, exp, signature
+2  a ← token.sub
+3  ⟨s3-path, kmsArn⟩ ← GET-ALGORITHM(a)
+4  wrapped ← GET-DATA-KEY(a)
+5  cost dynamodb:read-capacity                 // algorithm and data-key GetItems
+6  ⟨attestation⟩ ← READ-REQUEST()
+7  ciphertext ← KMS-DECRYPT(kmsArn, wrapped, recipient ← attestation)
+   // The key policy requires the attestation's PCR0/1/2 and KMS returns CiphertextForRecipient encrypted to
+   // the enclave's ephemeral key: the service never sees plaintext, and only the measured enclave can unwrap.
+8  return ciphertext to the enclave
 
 SECURE-RADS-RESULT-CONSUMER(result)
 Input:

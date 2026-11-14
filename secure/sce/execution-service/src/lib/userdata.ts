@@ -6,6 +6,7 @@ const template = readFileSync(join(process.env.LAMBDA_TASK_ROOT ?? process.cwd()
 export interface UserDataValues {
   algorithmId: string;
   costHost: string;
+  kmsHost: string;
   launchEpoch: number;
   logHost: string;
   pdmHost: string;
@@ -23,6 +24,7 @@ export function userData(values: UserDataValues): string {
     AlgorithmId: values.algorithmId,
     CostHost: values.costHost,
     CPUCount: "1",
+    KmsHost: values.kmsHost,
     LaunchEpoch: values.launchEpoch.toString(),
     LogHost: values.logHost,
     MemoryMiB: "2048",

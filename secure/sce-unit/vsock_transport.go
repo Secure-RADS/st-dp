@@ -15,6 +15,7 @@ import (
 
 // The host runs one vsock-proxy per outside host, each on a fixed port (see userdata.sh.tmpl).
 const (
+	kmsProxyPort      = 8000
 	verifierProxyPort = 8001
 	pdmProxyPort      = 8002
 	logProxyPort      = 8003
@@ -48,6 +49,10 @@ func (c runConfig) pdm() pinnedEndpoint {
 
 func (c runConfig) logSvc() pinnedEndpoint {
 	return pinnedEndpoint{c.LogHost, c.LogPubKeySHA256, logProxyPort}
+}
+
+func (c runConfig) kmsSvc() pinnedEndpoint {
+	return pinnedEndpoint{c.KmsHost, c.KmsPubKeySHA256, kmsProxyPort}
 }
 
 func pinnedVsockHTTPClient(host, pinSHA256 string, proxyPort uint32) *http.Client {

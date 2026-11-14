@@ -57,14 +57,16 @@ rads (`csav/registry-service`, Lambdas):
 - executor host (user-data, both trees): `s3:get` (artifact; rads also the host tools), `sqs:send` (result),
   `ec2:instance` (seconds from launch to the terminate call).
 - pdm-service `/records`: `apigateway:request`, `lambda:invocation`, `lambda:compute`, `dynamodb:read-capacity`
-  (data-key `GetItem` and each records `Query` page).
+  (each records `Query` page).
+- kms-service `/decrypt` (secure-rads): `apigateway:request`, `lambda:invocation`, `lambda:compute`,
+  `dynamodb:read-capacity` (algorithm and data-key `GetItem`s).
 - result-consumer (`batchSize` 1, so each run's receive + invoke lands on that run): `sqs:receive` (message
   bytes), `sqs:delete` (one request when the handler succeeds; Lambda performs the deletion),
   `dynamodb:write-capacity`, `lambda:invocation`, `lambda:compute`.
 - verifier-service (secure-rads): `/attest` and `/refresh` (the enclave's attestation and token refresh, keyed by
   the run) and `/algorithms` (build-time PCR registration, keyed by `algorithmId`): `dynamodb:read-capacity` and
   `dynamodb:write-capacity` where attributable, plus `apigateway:request`, `lambda:invocation`, `lambda:compute`.
-- sce-unit (in the enclave) performs no billable AWS operations other than KMS (excluded) - nothing to meter.
+- sce-unit (in the enclave) performs no billable AWS operations - its KMS call is metered on kms-service.
 
 ## EC2 timing
 
@@ -93,9 +95,9 @@ per-run against Cost Explorer.
 
 ## Excluded costs (documented, not metered)
 
-- **KMS** - excluded by decision. Enclave data-key decryption, verifier cold starts, and per-algorithm
+- **KMS** - excluded by decision. kms-service data-key decryption, verifier cold starts, and per-algorithm
   key lifecycle also use KMS. Per-algorithm key storage incurs ongoing cost. None of these KMS costs are
-  currently attributed.
+  currently attributed, though the kms-service Lambda and API Gateway requests around them are.
 - verifier-service `/.well-known/jwks.json` and `pdm-service`'s `/subject` DSAR lookup - neither carries an
   `algorithmId` to attribute to.
 - log-service and cost-service self-cost (ingest API Gateway/Lambda/queue/DynamoDB).

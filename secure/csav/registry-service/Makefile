@@ -25,8 +25,9 @@ DYNAMO_TABLE = $(shell aws cloudformation describe-stacks --stack-name $(STORAGE
 # stack's role.
 CSAV_ROLE_ARN = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='CsavInstanceRoleArn'].OutputValue" --output text)
-ENCLAVE_HOST_ROLE_ARN = $(shell aws cloudformation describe-stacks --stack-name secure-rads-execution-service-dev --region $(REGION) \
-	--query "Stacks[0].Outputs[?OutputKey=='EnclaveHostInstanceRoleArn'].OutputValue" --output text)
+# kms-service performs the runtime Decrypt on the enclave's behalf; each algorithm's key policy names this role.
+KMS_SERVICE_ROLE_ARN = $(shell aws cloudformation describe-stacks --stack-name secure-rads-kms-service-dev --region $(REGION) \
+	--query "Stacks[0].Outputs[?OutputKey=='KmsServiceRoleArn'].OutputValue" --output text)
 # mTLS domain (registerPCRs -> /algorithms) and its pin.
 # Plain-TLS public domain (/attest, /refresh, /validate) baked into the EIF's run config - a different
 # domain and cert from the mTLS one above, so it gets its own pin.
@@ -80,6 +81,8 @@ ship: image
 	@$(call env_require,VERIFIER_HOST_PUBKEY_SHA256)
 	@$(call env_require,PDM_HOST_PUBKEY_SHA256)
 	@$(call env_require,LOG_HOST_PUBKEY_SHA256)
+	@$(call env_require,KMS_HOST)
+	@$(call env_require,KMS_HOST_PUBKEY_SHA256)
 	docker save $(IMAGE) -o /tmp/registry-service.tar
 	echo "ARTIFACT_BUCKET=$(ARTIFACT_BUCKET)" > /tmp/registry-service.env
 	echo "AWS_REGION=$(REGION)" >> /tmp/registry-service.env
@@ -92,8 +95,10 @@ ship: image
 	echo "PDM_HOST_PUBKEY_SHA256=$(PDM_HOST_PUBKEY_SHA256)" >> /tmp/registry-service.env
 	echo "LOG_HOST=$(LOG_HOST)" >> /tmp/registry-service.env
 	echo "LOG_HOST_PUBKEY_SHA256=$(LOG_HOST_PUBKEY_SHA256)" >> /tmp/registry-service.env
+	echo "KMS_HOST=$(KMS_HOST)" >> /tmp/registry-service.env
+	echo "KMS_HOST_PUBKEY_SHA256=$(KMS_HOST_PUBKEY_SHA256)" >> /tmp/registry-service.env
 	echo "COST_HOST=$(COST_HOST)" >> /tmp/registry-service.env
-	echo "ENCLAVE_HOST_ROLE_ARN=$(ENCLAVE_HOST_ROLE_ARN)" >> /tmp/registry-service.env
+	echo "KMS_SERVICE_ROLE_ARN=$(KMS_SERVICE_ROLE_ARN)" >> /tmp/registry-service.env
 	echo "CSAV_ROLE_ARN=$(CSAV_ROLE_ARN)" >> /tmp/registry-service.env
 	$(SSH) "mkdir -p $(REMOTE_DIR)"
 	$(SCP) /tmp/registry-service.tar $(REMOTE):$(REMOTE_DIR)/

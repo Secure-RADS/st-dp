@@ -18,8 +18,8 @@ func algorithmKeyDescription(algorithmId string) string {
 
 // ensureAlgorithmKmsKey returns the algorithm's PCR-bound KMS key. It creates the key on first build and reuses
 // the existing one on rebuild, rewriting the policy to the new measurements, so a build never orphans a key.
-func ensureAlgorithmKmsKey(ctx context.Context, algorithmId string, pcrs pcrMeasurements, existingKeyArn, enclaveHostRoleArn, csavRoleArn string) (string, error) {
-	policy, err := algorithmKeyPolicy(ctx, pcrs, enclaveHostRoleArn, csavRoleArn)
+func ensureAlgorithmKmsKey(ctx context.Context, algorithmId string, pcrs pcrMeasurements, existingKeyArn, kmsServiceRoleArn, csavRoleArn string) (string, error) {
+	policy, err := algorithmKeyPolicy(ctx, pcrs, kmsServiceRoleArn, csavRoleArn)
 	if err != nil {
 		return "", err
 	}
@@ -81,7 +81,7 @@ func reusableAlgorithmKey(ctx context.Context, keyArn, algorithmId string) (bool
 
 // algorithmKeyPolicy binds Decrypt to the EIF measurements. Only the matching enclave can unwrap this
 // algorithm's data keys; the host and key administrators cannot.
-func algorithmKeyPolicy(ctx context.Context, pcrs pcrMeasurements, enclaveHostRoleArn, csavRoleArn string) (string, error) {
+func algorithmKeyPolicy(ctx context.Context, pcrs pcrMeasurements, kmsServiceRoleArn, csavRoleArn string) (string, error) {
 	identity, err := stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
 	if err != nil {
 		return "", fmt.Errorf("get AWS account identity: %w", err)
@@ -121,9 +121,12 @@ func algorithmKeyPolicy(ctx context.Context, pcrs pcrMeasurements, enclaveHostRo
 				"Resource": "*",
 			},
 			{
-				"Sid":       "EnclaveOnlyDecrypt",
+				// kms-service calls Decrypt on the enclave's behalf and forwards its attestation document as
+				// the Recipient, so the attested measurements below still gate access and kms-service only
+				// ever receives ciphertext addressed to the enclave.
+				"Sid":       "KmsServiceDecrypt",
 				"Effect":    "Allow",
-				"Principal": map[string]any{"AWS": enclaveHostRoleArn},
+				"Principal": map[string]any{"AWS": kmsServiceRoleArn},
 				"Action":    "kms:Decrypt",
 				"Resource":  "*",
 				"Condition": map[string]any{

@@ -136,25 +136,20 @@ func prepareRecordsFile(cfg runConfig, timelineLog *sharedlog.Client, runID stri
 	setTokens(tp)
 	go refreshLoop(cfg, runID)
 
-	creds, err := fetchAWSCreds()
-	if err != nil {
-		return fmt.Errorf("fetch AWS creds: %w", err)
-	}
-
-	records, encDataKey, err := fetchAllRecords(cfg, runID, limit)
+	records, err := fetchAllRecords(cfg, runID, limit)
 	if err != nil {
 		return fmt.Errorf("fetch records: %w", err)
 	}
 	log.Printf("sce-unit: fetched %d records from pdm-service", len(records))
 	timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventRecordsFetched, map[string]any{"count": len(records)})
 
-	// pdm-service only ever returns ciphertext; the data key that unwraps it is obtained from KMS under
-	// this enclave's attestation. Only the measured image can do this - see the per-algorithm key policy.
-	dek, err := decryptDataKey(cfg, creds, encDataKey)
+	// pdm-service only ever returns ciphertext; kms-service unwraps the data key under this enclave's
+	// attestation. Only the measured image can do this - see the per-algorithm key policy.
+	dek, err := decryptDataKey(cfg, runID)
 	if err != nil {
 		return fmt.Errorf("decrypt data key: %w", err)
 	}
-	log.Printf("sce-unit: unwrapped data key via KMS (%d bytes)", len(dek))
+	log.Printf("sce-unit: unwrapped data key via kms-service (%d bytes)", len(dek))
 
 	plainRecords := make([]pdmRecord, 0, len(records))
 	for _, rec := range records {
