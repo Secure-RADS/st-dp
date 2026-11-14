@@ -19,7 +19,7 @@ const kmsRequestTimeout = 30 * time.Second
 // token, looks up the algorithm's CMK and wrapped data key, and calls KMS Decrypt with this enclave's
 // attestation document as the Recipient - so KMS returns CiphertextForRecipient, which only this enclave's
 // ephemeral private key can unwrap. The enclave holds no AWS credentials and never reaches KMS directly.
-func decryptDataKey(cfg runConfig, runID string) ([]byte, error) {
+func decryptDataKey(cfg runConfig) ([]byte, error) {
 	handle, err := enclave.GetOrInitializeHandle()
 	if err != nil {
 		return nil, fmt.Errorf("initialize enclave handle: %w", err)
@@ -49,7 +49,6 @@ func decryptDataKey(cfg runConfig, runID string) ([]byte, error) {
 	}
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Run-Id", runID)
 
 	resp, err := cfg.kmsSvc().client().Do(req)
 	if err != nil {

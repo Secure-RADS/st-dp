@@ -136,7 +136,7 @@ func prepareRecordsFile(cfg runConfig, timelineLog *sharedlog.Client, runID stri
 	setTokens(tp)
 	go refreshLoop(cfg, runID)
 
-	records, err := fetchAllRecords(cfg, runID, limit)
+	records, err := fetchAllRecords(cfg, limit)
 	if err != nil {
 		return fmt.Errorf("fetch records: %w", err)
 	}
@@ -145,7 +145,7 @@ func prepareRecordsFile(cfg runConfig, timelineLog *sharedlog.Client, runID stri
 
 	// pdm-service only ever returns ciphertext; kms-service unwraps the data key under this enclave's
 	// attestation. Only the measured image can do this - see the per-algorithm key policy.
-	dek, err := decryptDataKey(cfg, runID)
+	dek, err := decryptDataKey(cfg)
 	if err != nil {
 		return fmt.Errorf("decrypt data key: %w", err)
 	}

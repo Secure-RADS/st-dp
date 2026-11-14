@@ -10,8 +10,7 @@ Before this service existed, the enclave held AWS credentials served over vsock 
 
 `POST /decrypt`
 
-- `Authorization: Bearer <access JWT>` from verifier-service `/attest`. The token must carry `aud=kms-service`; `algorithmId` comes only from `sub`.
-- `X-Run-Id` (optional) for cost attribution.
+- `Authorization: Bearer <access JWT>` from verifier-service `/attest`. The token must carry `aud=kms-service`; `algorithmId` and `runId` come from the verified token's `sub` and `run_id` claims.
 - Body: `{ "attestationDocument": "<base64 COSE_Sign1>" }`.
 - Response: `{ "ciphertextForRecipient": "<base64>" }` or an error.
 

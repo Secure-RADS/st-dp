@@ -5,8 +5,8 @@ Serverless Framework v4, TypeScript. Receives `AlgorithmId` + PCR values from re
 ## Endpoints (two separate custom domains, see below)
 
 - `POST /algorithms` (mTLS domain) - registry-service registers `AlgorithmId` -> PCR0/1/2 at build time.
-- `POST /attest` (public domain) - sce-unit submits a real Nitro attestation document (base64 COSE_Sign1 bytes) + `algorithmId`. Verified against the pinned AWS Nitro root cert chain and the registered PCRs; on success, issues a signed access JWT + opaque refresh token (persisted in `AttestationSessionTable`).
-- `POST /refresh` (public domain) - exchanges a still-valid refresh token for a new access JWT, without requiring a fresh attestation document.
+- `POST /attest` (public domain) - sce-unit submits a real Nitro attestation document (base64 COSE_Sign1 bytes) + `algorithmId` + `runId`. Verified against the pinned AWS Nitro root cert chain and the registered PCRs; on success, issues a signed access JWT + opaque refresh token (persisted in `AttestationSessionTable`, including `RunId`).
+- `POST /refresh` (public domain) - exchanges a still-valid refresh token plus its `runId` for a new access JWT, without requiring a fresh attestation document. The `runId` must match the one stored on the session.
 - `GET /.well-known/jwks.json` (public domain) - the ML-DSA-87 public key downstream services use to verify access JWTs locally. Public by definition, no auth.
 
 ### Access token format (ML-DSA-87 compact JWS)
@@ -21,6 +21,7 @@ Downstream services (pdm-service, kms-service) verify the JWT locally against th
 | `iat` | unix seconds | issuance time (not enforced, informational) |
 | `exp` | unix seconds | expiry; `exp * 1000 <= now` rejects the token, no clock skew tolerance (both sides are AWS-hosted) |
 | `jti` | random 32 hex chars | unique per minted token, even within one refresh session |
+| `run_id` | run ID from `/attest` | the only source of `runId` pdm-service and kms-service trust for cost and DSAR attribution; a token without it is rejected |
 
 Expiry behavior: access tokens live **2 hours** (`ACCESS_TOKEN_TTL_SECONDS` in `src/lib/tokens.ts`). sce-unit refreshes 30 s before expiry via `/refresh`; the refresh token itself is opaque, lives **4 hours** (it must outlive the access token), and is stored SHA-256-hashed with a `Revoked` flag in `AttestationSessionTable` - revoking a session row stops refreshes immediately, and already-minted access JWTs die within at most 2 hours. Signing key: an ML-DSA-87 (FIPS 204) private key in SSM SecureString `/verifier-service/jwt-signing-key`, whose `kid` is the RFC 7638 thumbprint of its public JWK.
 
