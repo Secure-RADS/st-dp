@@ -29,7 +29,10 @@ function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
-async function mintAccessToken(algorithmId: string): Promise<{ accessToken: string; accessTokenExpiresAt: string }> {
+async function mintAccessToken(
+  algorithmId: string,
+  runId: string,
+): Promise<{ accessToken: string; accessTokenExpiresAt: string }> {
   const now = Math.floor(Date.now() / 1000);
   const exp = now + ACCESS_TOKEN_TTL_SECONDS;
   const accessToken = await signAccessToken({
@@ -39,6 +42,7 @@ async function mintAccessToken(algorithmId: string): Promise<{ accessToken: stri
     iat: now,
     exp,
     jti: randomBytes(16).toString("hex"),
+    runId,
   });
   return { accessToken, accessTokenExpiresAt: new Date(exp * 1000).toISOString() };
 }
@@ -47,7 +51,7 @@ export async function issueTokenPair(algorithmId: string, runId: string): Promis
   const sessionId = randomBytes(16).toString("hex");
   const refreshToken = newRefreshToken();
   const now = Date.now();
-  const access = await mintAccessToken(algorithmId);
+  const access = await mintAccessToken(algorithmId, runId);
 
   const write = await ddb.send(
     new PutCommand({
@@ -55,6 +59,7 @@ export async function issueTokenPair(algorithmId: string, runId: string): Promis
       Item: {
         SessionId: sessionId,
         AlgorithmId: algorithmId,
+        RunId: runId,
         RefreshTokenHash: hashToken(refreshToken),
         RefreshTokenExpiresAt: new Date(now + REFRESH_TOKEN_TTL_SECONDS * 1000).toISOString(),
         Revoked: false,
@@ -78,6 +83,7 @@ export async function issueTokenPair(algorithmId: string, runId: string): Promis
 interface RefreshSession {
   sessionId: string;
   algorithmId: string;
+  runId: string;
   refreshTokenExpiresAt: string;
   revoked: boolean;
 }
@@ -106,6 +112,7 @@ async function findByRefreshHash(refreshToken: string, runId: string): Promise<R
   return {
     sessionId: item.SessionId,
     algorithmId: item.AlgorithmId,
+    runId: item.RunId,
     refreshTokenExpiresAt: item.RefreshTokenExpiresAt,
     revoked: item.Revoked,
   };
@@ -120,8 +127,10 @@ export async function refreshAccessToken(refreshToken: string, runId: string): P
   const session = await findByRefreshHash(refreshToken, runId);
   if (!session || session.revoked) return null;
   if (new Date(session.refreshTokenExpiresAt) < new Date()) return null;
+  // The token's run_id comes from the session; a body runId that disagrees would misattribute the refresh.
+  if (typeof session.runId !== "string" || session.runId !== runId) return null;
 
-  const access = await mintAccessToken(session.algorithmId);
+  const access = await mintAccessToken(session.algorithmId, session.runId);
   return {
     algorithmId: session.algorithmId,
     tokens: { accessToken: access.accessToken, refreshToken, accessTokenExpiresAt: access.accessTokenExpiresAt },

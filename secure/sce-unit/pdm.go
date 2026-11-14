@@ -19,9 +19,9 @@ type pdmRecord struct {
 
 // fetchAllRecords pulls personal-data records for this enclave's algorithm from the PDM service, following
 // pagination cursors until the dataset ends or `limit` records have been read (limit 0 = the whole dataset).
-// The bearer token is all pdm-service needs - it derives the algorithmId from the token's attestation
-// session via verifier-service, never from us.
-func fetchAllRecords(cfg runConfig, runID string, limit int) ([]pdmRecord, error) {
+// The bearer token is all pdm-service needs - it derives the algorithmId and runId from the token's claims,
+// never from us.
+func fetchAllRecords(cfg runConfig, limit int) ([]pdmRecord, error) {
 	client := cfg.pdm().client()
 
 	var records []pdmRecord
@@ -45,7 +45,6 @@ func fetchAllRecords(cfg runConfig, runID string, limit int) ([]pdmRecord, error
 			return nil, err
 		}
 		req.Header.Set("Authorization", "Bearer "+accessToken)
-		req.Header.Set("X-Run-Id", runID)
 
 		resp, err := client.Do(req)
 		if err != nil {

@@ -57,8 +57,8 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     return jsonResponse(400, { error: "expected attestationDocument (base64) in the request body" });
   }
 
-  const runId = event.headers["x-run-id"] ?? "";
   const algorithmId = validation.algorithmId;
+  const runId = validation.runId;
 
   const algorithm = await ddb.send(
     new GetCommand({

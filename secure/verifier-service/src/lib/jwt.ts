@@ -56,11 +56,12 @@ export interface AccessTokenClaims {
   iat: number;
   exp: number;
   jti: string;
+  runId: string;
 }
 
 export async function signAccessToken(claims: AccessTokenClaims): Promise<string> {
   const { key, kid } = await getSigningKey();
-  return new SignJWT({ jti: claims.jti })
+  return new SignJWT({ jti: claims.jti, run_id: claims.runId })
     .setProtectedHeader({ alg: JWT_ALGORITHM, kid })
     .setIssuer(claims.iss)
     .setSubject(claims.sub)

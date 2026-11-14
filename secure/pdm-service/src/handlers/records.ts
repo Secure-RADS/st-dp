@@ -37,7 +37,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   if (!validation) {
     return jsonResponse(401, { error: "invalid token" });
   }
-  const runId = event.headers["x-run-id"] ?? "";
+  const runId = validation.runId;
 
   let exclusiveStartKey: Record<string, unknown> | undefined;
   const cursor = event.queryStringParameters?.cursor;
@@ -72,7 +72,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     .filter((id): id is string => typeof id === "string" && id.length > 0);
   // DSAR trail: which data subjects this page actually read. Awaited so the request is not lost to a Lambda
   // freeze (bounded by the function timeout); failures are swallowed inside logSubjectAccess.
-  await logSubjectAccess(validation.algorithmId, runId || "unknown", dataSubjectIds);
+  await logSubjectAccess(validation.algorithmId, validation.runId, dataSubjectIds);
 
   const records = (result.Items ?? []).map((item) => ({ recordId: item.RecordId, data: item.Data }));
   const nextCursor = result.LastEvaluatedKey

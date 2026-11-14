@@ -9,6 +9,7 @@ interface JsonWebKeySet {
 
 export interface JwtValidation {
   algorithmId: string;
+  runId: string;
 }
 
 const JWT_ISSUER = "verifier-service";
@@ -75,12 +76,14 @@ export function buildVerifierJwksVerifier(
     });
   }
 
-  function subToResult(payload: { sub?: unknown }): JwtValidation | null {
-    return typeof payload.sub === "string" && payload.sub.length > 0 ? { algorithmId: payload.sub } : null;
+  function subToResult(payload: { sub?: unknown; run_id?: unknown }): JwtValidation | null {
+    if (typeof payload.sub !== "string" || payload.sub.length === 0) return null;
+    if (typeof payload.run_id !== "string" || payload.run_id.length === 0) return null;
+    return { algorithmId: payload.sub, runId: payload.run_id };
   }
 
-  // jose verifies the ML-DSA-87 signature, iss, aud, and exp in one call; algorithmId comes only from the
-  // verified token's sub - never the request.
+  // jose verifies the ML-DSA-87 signature, iss, aud, and exp in one call; algorithmId and runId come only from
+  // the verified token's claims - never the request.
   return async (token) => {
     try {
       return subToResult((await verifyWithJwks(token, await (jwksCache ?? fetchJwks()))).payload);
