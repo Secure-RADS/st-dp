@@ -80,6 +80,13 @@ Resources:
               - Effect: Allow
                 Action: [kms:CreateKey, kms:ListKeys, kms:DescribeKey, kms:GetKeyPolicy, kms:PutKeyPolicy]
                 Resource: "*"
+        - PolicyName: LogMtlsCert
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: ssm:GetParameter
+                Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/secure-rads/log-service/mtls/clients/registry-service/*"
         - PolicyName: AlgorithmTableWrite
           PolicyDocument:
             Version: "2012-10-17"

@@ -1,5 +1,13 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "entry": ["src/handlers/*.ts"],
-  "project": ["src/**/*.ts"]
+  "entry": [
+    "src/handlers/*.ts"
+  ],
+  "project": [
+    "src/**/*.ts"
+  ],
+  "ignoreDependencies": [
+    "jose",
+    "@aws-sdk/client-ssm"
+  ]
 }

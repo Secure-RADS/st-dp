@@ -18,9 +18,18 @@ provider:
         - Effect: Allow
           Action: dynamodb:PutItem
           Resource: !GetAtt RunResultsTable.Arn
+        - Effect: Allow
+          Action: ssm:GetParameter
+          Resource:
+            - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/secure-rads/log-service/mtls/clients/result-consumer/cert"
+            - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/secure-rads/log-service/mtls/clients/result-consumer/key"
   environment:
     RUN_RESULTS_TABLE: !Ref RunResultsTable
     LOG_HOST: ${env:LOG_HOST_SECURE_RADS}
+    LOG_MTLS_HOST: ${env:LOG_MTLS_HOST_SECURE_RADS}
+    LOG_MTLS_PUBKEY_SHA256: ${env:LOG_MTLS_PUBKEY_SHA256}
+    LOG_MTLS_CERT_PARAM: /secure-rads/log-service/mtls/clients/result-consumer/cert
+    LOG_MTLS_KEY_PARAM: /secure-rads/log-service/mtls/clients/result-consumer/key
     COST_HOST: ${env:COST_HOST_SECURE_RADS}
 
 functions:

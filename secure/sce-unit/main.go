@@ -40,6 +40,11 @@ func main() {
 	var timelineLog *sharedlog.Client
 	if cfg.LogHost != "" {
 		timelineLog = &sharedlog.Client{Host: cfg.LogHost, HTTPClient: cfg.logSvc().client()}
+		// Before attestation the token is empty, so those events are sent unauthenticated and tagged none.
+		timelineLog.Token = func() string {
+			token, _ := CurrentAccessToken()
+			return token
+		}
 	}
 	info, err := readRunInfo()
 	if err != nil {
@@ -77,10 +82,10 @@ func main() {
 	failed := waitErr != nil || readErr != nil || len(output) == 0
 	if failed {
 		timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventRunFailed, map[string]any{
-			"error": fmt.Sprintf("dc app failed: waitErr=%v readErr=%v outputBytes=%d", waitErr, readErr, len(output)),
+			"error":       fmt.Sprintf("dc app failed: waitErr=%v readErr=%v outputBytes=%d", waitErr, readErr, len(output)),
+			"outputBytes": len(output),
 		})
-	}
-	if !failed {
+	} else {
 		timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventDCAppCompleted, map[string]any{"outputBytes": len(output)})
 	}
 	if readErr != nil || len(output) == 0 {
@@ -132,9 +137,10 @@ func prepareRecordsFile(cfg runConfig, timelineLog *sharedlog.Client, runID stri
 		return fmt.Errorf("attestation failed: %w", err)
 	}
 	log.Printf("sce-unit: attested successfully, access token expires %s", tp.AccessTokenExpiresAt.Format(time.RFC3339))
-	timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventAttested, nil)
 	setTokens(tp)
 	go refreshLoop(cfg, runID)
+	// Every event from here on carries the token.
+	timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventAttested, nil)
 
 	records, err := fetchAllRecords(cfg, limit)
 	if err != nil {

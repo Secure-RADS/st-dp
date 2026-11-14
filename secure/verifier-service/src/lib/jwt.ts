@@ -7,7 +7,7 @@ const ssm = new SSMClient({});
 const signingKeyParam = requiredEnv("JWT_SIGNING_KEY_PARAM");
 
 export const JWT_ISSUER = "verifier-service";
-export const JWT_AUDIENCES = ["pdm-service", "kms-service"] as const;
+export const JWT_AUDIENCES = ["pdm-service", "kms-service", "log-service"] as const;
 const JWT_ALGORITHM = "ML-DSA-87";
 
 export interface PublicJwk {

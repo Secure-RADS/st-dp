@@ -19,6 +19,10 @@
     "./jwt": {
       "types": "./src/jwt.ts",
       "import": "./src/jwt.ts"
+    },
+    "./log-mtls": {
+      "types": "./src/log-mtls.ts",
+      "import": "./src/log-mtls.ts"
     }
   },
   "scripts": {
@@ -32,6 +36,7 @@
     "typescript": "^5.7.0"
   },
   "dependencies": {
-    "jose": "^6.2.10"
+    "jose": "^6.2.10",
+    "@aws-sdk/client-ssm": "^3.700.0"
   }
 }

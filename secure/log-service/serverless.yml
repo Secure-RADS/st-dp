@@ -13,6 +13,9 @@ provider:
   runtime: nodejs24.x
   region: ${env:AWS_REGION}
   httpApi:
+    # The default API is the mTLS API. The execute-api endpoint bypasses mutual TLS, so it is disabled and
+    # only the custom domain below is reachable.
+    disableDefaultEndpoint: true
     cors: true
   iam:
     role:
@@ -40,14 +43,24 @@ provider:
     RUN_LOG_TABLE: !Ref RunLogTable
     SUBJECT_ACCESS_TABLE: !Ref SubjectAccessTable
     EVENT_QUEUE_URL: !Ref EventQueue
+    # Enables attestation-token verification for enclave-originated ingest. Left unset in the baseline,
+    # which has no verifier.
+    VERIFIER_JWKS_URL: ${env:VERIFIER_JWKS_URL}
+    VERIFIER_JWKS_PUBKEY_SHA256: ${env:VERIFIER_JWKS_PUBKEY_SHA256}
 
 functions:
-  events:
-    handler: src/handlers/events.handler
+  # Internal producers: registry-service, execution-service, result-consumer. Auth is the client cert
+  # enforced by the mTLS custom domain.
+  eventsInternal:
+    handler: src/handlers/eventsInternal.handler
     events:
       - httpApi:
           method: POST
           path: /events
+
+  # The functions below are wired to PublicHttpApi by hand in resources, not to the default mTLS API.
+  events:
+    handler: src/handlers/events.handler
   worker:
     handler: src/handlers/worker.handler
     timeout: 30
@@ -59,16 +72,10 @@ functions:
           functionResponseType: ReportBatchItemFailures
   byAlgorithm:
     handler: src/handlers/byAlgorithm.handler
-    events:
-      - httpApi:
-          method: GET
-          path: /logs/{algorithmId}
   all:
     handler: src/handlers/all.handler
-    events:
-      - httpApi:
-          method: GET
-          path: /logs
+  # PDM writes the subject-access trail over the mTLS domain and forwards the enclave token, so the trail
+  # is authenticated as both PDM and the enclave.
   subjectAccessIngest:
     handler: src/handlers/subjectAccessIngest.handler
     events:
@@ -77,18 +84,16 @@ functions:
           path: /subject-access
   subjectAccessBySubject:
     handler: src/handlers/subjectAccessBySubject.handler
-    events:
-      - httpApi:
-          method: GET
-          path: /subject-access/{dataSubjectId}
   subjectAccessAll:
     handler: src/handlers/subjectAccessAll.handler
-    events:
-      - httpApi:
-          method: GET
-          path: /subject-access
 
 resources:
+  Conditions:
+    HasTruststoreVersion:
+      Fn::Not:
+        - Fn::Equals:
+            - "${param:truststoreVersionId, ''}"
+            - ""
   Resources:
     RunLogTable:
       Type: AWS::DynamoDB::Table
@@ -135,21 +140,176 @@ resources:
           - AttributeName: Sk
             KeyType: RANGE
 
-    # Plain server-auth TLS only - producers are internal SCE components on a trusted network, and the
-    # log is fire-and-forget benchmarking data, not a secret store, so no client cert is required.
+    TruststoreBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        VersioningConfiguration:
+          Status: Enabled
+
+    # mTLS domain for internal producers. The default API (with the internal /events route) is mapped here.
+    # Both the domain and its mapping are skipped until a truststore version is supplied, so the first deploy
+    # can create the bucket, the truststore can be uploaded, and a second deploy can create the domain.
     ApiCustomDomain:
+      Type: AWS::ApiGatewayV2::DomainName
+      Condition: HasTruststoreVersion
+      Properties:
+        DomainName: ${param:mtlsDomainName}
+        DomainNameConfigurations:
+          - CertificateArn: ${param:mtlsCertificateArn}
+        MutualTlsAuthentication:
+          TruststoreUri: !Sub "s3://${TruststoreBucket}/truststore.pem"
+          TruststoreVersion: ${param:truststoreVersionId, ''}
+
+    ApiDomainMapping:
+      Type: AWS::ApiGatewayV2::ApiMapping
+      Condition: HasTruststoreVersion
+      Properties:
+        DomainName: !Ref ApiCustomDomain
+        ApiId: !Ref HttpApi
+        Stage: !Ref HttpApiStage
+
+    # Public domain, pinned by callers. Carries the enclave token routes and the read endpoints.
+    PublicHttpApi:
+      Type: AWS::ApiGatewayV2::Api
+      Properties:
+        Name: secure-rads-log-service-public
+        ProtocolType: HTTP
+        CorsConfiguration:
+          AllowOrigins:
+            - "*"
+          AllowMethods:
+            - GET
+            - POST
+            - OPTIONS
+          AllowHeaders:
+            - content-type
+            - authorization
+
+    PublicHttpApiStage:
+      Type: AWS::ApiGatewayV2::Stage
+      Properties:
+        ApiId: !Ref PublicHttpApi
+        StageName: $default
+        AutoDeploy: true
+
+    PublicApiCustomDomain:
       Type: AWS::ApiGatewayV2::DomainName
       Properties:
         DomainName: ${param:domainName}
         DomainNameConfigurations:
           - CertificateArn: ${param:certificateArn}
 
-    ApiDomainMapping:
+    PublicApiDomainMapping:
       Type: AWS::ApiGatewayV2::ApiMapping
       Properties:
-        DomainName: !Ref ApiCustomDomain
-        ApiId: !Ref HttpApi
-        Stage: !Ref HttpApiStage
+        DomainName: !Ref PublicApiCustomDomain
+        ApiId: !Ref PublicHttpApi
+        Stage: !Ref PublicHttpApiStage
+
+    EventsIntegration:
+      Type: AWS::ApiGatewayV2::Integration
+      Properties:
+        ApiId: !Ref PublicHttpApi
+        IntegrationType: AWS_PROXY
+        IntegrationUri: !GetAtt EventsLambdaFunction.Arn
+        PayloadFormatVersion: "2.0"
+    EventsRoute:
+      Type: AWS::ApiGatewayV2::Route
+      Properties:
+        ApiId: !Ref PublicHttpApi
+        RouteKey: POST /events
+        Target: !Sub "integrations/${EventsIntegration}"
+    EventsInvokePermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        FunctionName: !Ref EventsLambdaFunction
+        Action: lambda:InvokeFunction
+        Principal: apigateway.amazonaws.com
+        SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicHttpApi}/*/POST/events"
+
+    ByAlgorithmIntegration:
+      Type: AWS::ApiGatewayV2::Integration
+      Properties:
+        ApiId: !Ref PublicHttpApi
+        IntegrationType: AWS_PROXY
+        IntegrationUri: !GetAtt ByAlgorithmLambdaFunction.Arn
+        PayloadFormatVersion: "2.0"
+    ByAlgorithmRoute:
+      Type: AWS::ApiGatewayV2::Route
+      Properties:
+        ApiId: !Ref PublicHttpApi
+        RouteKey: GET /logs/{algorithmId}
+        Target: !Sub "integrations/${ByAlgorithmIntegration}"
+    ByAlgorithmInvokePermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        FunctionName: !Ref ByAlgorithmLambdaFunction
+        Action: lambda:InvokeFunction
+        Principal: apigateway.amazonaws.com
+        SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicHttpApi}/*/GET/logs/*"
+
+    AllIntegration:
+      Type: AWS::ApiGatewayV2::Integration
+      Properties:
+        ApiId: !Ref PublicHttpApi
+        IntegrationType: AWS_PROXY
+        IntegrationUri: !GetAtt AllLambdaFunction.Arn
+        PayloadFormatVersion: "2.0"
+    AllRoute:
+      Type: AWS::ApiGatewayV2::Route
+      Properties:
+        ApiId: !Ref PublicHttpApi
+        RouteKey: GET /logs
+        Target: !Sub "integrations/${AllIntegration}"
+    AllInvokePermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        FunctionName: !Ref AllLambdaFunction
+        Action: lambda:InvokeFunction
+        Principal: apigateway.amazonaws.com
+        SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicHttpApi}/*/GET/logs"
+
+    SubjectAccessBySubjectIntegration:
+      Type: AWS::ApiGatewayV2::Integration
+      Properties:
+        ApiId: !Ref PublicHttpApi
+        IntegrationType: AWS_PROXY
+        IntegrationUri: !GetAtt SubjectAccessBySubjectLambdaFunction.Arn
+        PayloadFormatVersion: "2.0"
+    SubjectAccessBySubjectRoute:
+      Type: AWS::ApiGatewayV2::Route
+      Properties:
+        ApiId: !Ref PublicHttpApi
+        RouteKey: GET /subject-access/{dataSubjectId}
+        Target: !Sub "integrations/${SubjectAccessBySubjectIntegration}"
+    SubjectAccessBySubjectInvokePermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        FunctionName: !Ref SubjectAccessBySubjectLambdaFunction
+        Action: lambda:InvokeFunction
+        Principal: apigateway.amazonaws.com
+        SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicHttpApi}/*/GET/subject-access/*"
+
+    SubjectAccessAllIntegration:
+      Type: AWS::ApiGatewayV2::Integration
+      Properties:
+        ApiId: !Ref PublicHttpApi
+        IntegrationType: AWS_PROXY
+        IntegrationUri: !GetAtt SubjectAccessAllLambdaFunction.Arn
+        PayloadFormatVersion: "2.0"
+    SubjectAccessAllRoute:
+      Type: AWS::ApiGatewayV2::Route
+      Properties:
+        ApiId: !Ref PublicHttpApi
+        RouteKey: GET /subject-access
+        Target: !Sub "integrations/${SubjectAccessAllIntegration}"
+    SubjectAccessAllInvokePermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        FunctionName: !Ref SubjectAccessAllLambdaFunction
+        Action: lambda:InvokeFunction
+        Principal: apigateway.amazonaws.com
+        SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicHttpApi}/*/GET/subject-access"
 
   Outputs:
     RunLogTableName:
@@ -162,3 +322,7 @@ resources:
       Value: !Ref SubjectAccessTable
     ApiRegionalDomainName:
       Value: !GetAtt ApiCustomDomain.RegionalDomainName
+    PublicApiRegionalDomainName:
+      Value: !GetAtt PublicApiCustomDomain.RegionalDomainName
+    TruststoreBucketName:
+      Value: !Ref TruststoreBucket

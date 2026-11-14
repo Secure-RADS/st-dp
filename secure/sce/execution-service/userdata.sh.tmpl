@@ -2,9 +2,11 @@
 set -euo pipefail
 exec > >(tee /var/log/execution-service-run.log) 2>&1
 
+# The host has no attested token, so these events are posted directly and log-service records them as
+# auth=none, origin=host. The enclave owns the post-attestation and terminal events.
 emit_event() {
   curl -sS --max-time 5 -X POST "https://{{.LogHost}}/events" -H 'content-type: application/json' \
-    -d "{\"algorithmId\":\"{{.AlgorithmId}}\",\"runId\":\"{{.RunId}}\",\"event\":\"$1\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)\"}" >/dev/null || true
+    -d "{\"algorithmId\":\"{{.AlgorithmId}}\",\"runId\":\"{{.RunId}}\",\"event\":\"$1\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)\",\"origin\":\"host\"}" >/dev/null || true
 }
 
 # Cost metering reports selected AWS operations, keyed by (AlgorithmId, runId). Best-effort.

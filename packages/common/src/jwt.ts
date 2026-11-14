@@ -1,7 +1,6 @@
-import { createHash, X509Certificate } from "node:crypto";
 import https from "node:https";
-import type { PeerCertificate } from "node:tls";
 import { createLocalJWKSet, jwtVerify } from "jose";
+import { pinnedServerIdentity } from "./tls.js";
 
 interface JsonWebKeySet {
   keys: { kty: string; pub: string; kid: string; alg: string; use: string }[];
@@ -29,15 +28,7 @@ export interface VerifierJwksOptions {
 export function buildVerifierJwksVerifier(
   options: VerifierJwksOptions,
 ): (token: string) => Promise<JwtValidation | null> {
-  const pinnedPubkeySha256 = options.pubkeySha256.toLowerCase();
-
-  function checkServerIdentity(_hostname: string, cert: PeerCertificate): Error | undefined {
-    const spki = new X509Certificate(cert.raw).publicKey.export({ type: "spki", format: "der" });
-    const got = createHash("sha256").update(spki).digest("hex");
-    return got === pinnedPubkeySha256
-      ? undefined
-      : new Error("verifier JWKS server public key does not match pinned hash");
-  }
+  const checkServerIdentity = pinnedServerIdentity(options.pubkeySha256, "verifier JWKS server");
 
   function httpsGet(url: URL): Promise<string> {
     return new Promise((resolve, reject) => {

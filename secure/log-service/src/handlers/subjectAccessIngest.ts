@@ -3,6 +3,7 @@ import { BatchWriteCommand, DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb
 import { requiredEnv } from "@srads/common/env";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { retryAsync } from "ts-retry";
+import { requireEnclaveToken } from "../lib/auth.js";
 import { parseSubjectAccessBody, toItem } from "../lib/subjectAccess.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -47,6 +48,11 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
 
   const parsed = parseSubjectAccessBody(body);
   if ("error" in parsed) return jsonResponse(400, { error: parsed.error });
+
+  // pdm-service forwards the enclave's bearer token, so the access trail can only be written by an
+  // attested enclave reading records for its own algorithm.
+  const authError = await requireEnclaveToken(event.headers.authorization, parsed.algorithmId, parsed.runId);
+  if (authError) return jsonResponse(401, { error: authError });
 
   // A DS-keyed subject-access row per data subject; the sort key is (timestamp, algorithmId, runId).
   // BatchWrite takes WriteRequests, not bare items: the document client only marshals PutRequest.Item.

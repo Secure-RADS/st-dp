@@ -30,14 +30,24 @@ const (
 	EventDCAppCompleted       = "dc-app-completed"
 	EventOutputSent           = "output-sent"
 	EventRunFailed            = "run-failed"
+	EventExecutorFinished     = "executor-finished"
 )
 
 type Client struct {
 	Host       string
 	HTTPClient *http.Client
+	// Token returns the current access token, or "" before attestation. A nil Token means this producer
+	// does not use the enclave channel and sends immediately without one (registry-service).
+	Token func() string
 }
 
+// EmitEvent sends one event. Once a token is available it is attached; before attestation the event is
+// sent without one and log-service records it as unauthenticated.
 func (c *Client) EmitEvent(algorithmID string, runID *string, event string, detail map[string]any) {
+	c.emit(algorithmID, runID, event, detail)
+}
+
+func (c *Client) emit(algorithmID string, runID *string, event string, detail map[string]any) {
 	if c == nil || c.Host == "" || algorithmID == "" || (runID != nil && *runID == "") {
 		return
 	}
@@ -53,7 +63,14 @@ func (c *Client) EmitEvent(algorithmID string, runID *string, event string, deta
 		return
 	}
 
-	c.send("/events", body, "log event "+event)
+	c.send(body, "/events", "log event "+event, c.currentToken())
+}
+
+func (c *Client) currentToken() string {
+	if c.Token == nil {
+		return ""
+	}
+	return c.Token()
 }
 
 func (c *Client) EmitSubjectAccess(algorithmID, runID string, dataSubjectIDs []string) {
@@ -70,10 +87,11 @@ func (c *Client) EmitSubjectAccess(algorithmID, runID string, dataSubjectIDs []s
 	if err != nil {
 		return
 	}
-	c.send("/subject-access", body, "subject-access log")
+
+	c.send(body, "/subject-access", "subject-access log", "")
 }
 
-func (c *Client) send(path string, body []byte, label string) {
+func (c *Client) send(body []byte, path, label, token string) {
 	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://"+strings.TrimRight(c.Host, "/")+path, bytes.NewReader(body))
@@ -81,6 +99,9 @@ func (c *Client) send(path string, body []byte, label string) {
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
 	client := c.HTTPClient
 	if client == nil {
 		client = http.DefaultClient
