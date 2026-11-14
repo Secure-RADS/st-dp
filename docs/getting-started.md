@@ -227,14 +227,13 @@ PDM_PIN=$(spki_pin pdm.sr.secure-rads.org)
 LOG_PIN=$(spki_pin log.sr.secure-rads.org)
 ```
 
-Deploy shared storage, then the CSAV host and serverless execution-service, then update storage to grant both host roles KMS access:
+Deploy shared storage first, then the CSAV host and the serverless execution-service:
 
 ```sh
 make -C secure/csav/registry-service deploy-storage REGION="$REGION"
 make csav-key REGION="$REGION"
 make csav-deploy REGION="$REGION"
 make sce-deploy REGION="$REGION"
-make -C secure/csav/registry-service deploy-storage REGION="$REGION"
 ```
 
 Ship registry-service with the new domains and their pinned keys:

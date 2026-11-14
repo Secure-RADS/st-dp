@@ -1,63 +1,10 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
-  Registry Service storage: S3 bucket for uploaded OCI images and the KMS key
-  that encrypts the EIF artifacts at rest. The roles that write (CSAV host) and
-  read (enclave host) the bucket are granted access through this key's policy,
-  so the ARNs are added after the host stacks exist.
-
-Parameters:
-  CsavInstanceRoleArn:
-    Type: String
-    Default: ""
-    Description: ARN of the CSAV host instance role (from the csav stack). It PUTs EIF artifacts and must get kms:GenerateDataKey on this key.
-
-  EnclaveHostInstanceRoleArn:
-    Type: String
-    Default: ""
-    Description: ARN of the enclave host instance role (from the execution-service stack). It GETs/downloads EIF artifacts and must get kms:Decrypt on this key.
-
-Conditions:
-  HasCsavInstanceRole: !And
-    - !Not [!Equals [!Ref CsavInstanceRoleArn, ""]]
-    - !Not [!Equals [!Ref CsavInstanceRoleArn, "None"]]
-  HasEnclaveHostInstanceRole: !And
-    - !Not [!Equals [!Ref EnclaveHostInstanceRoleArn, ""]]
-    - !Not [!Equals [!Ref EnclaveHostInstanceRoleArn, "None"]]
+  Registry Service storage: S3 bucket for uploaded OCI images and the
+  AlgorithmId table. EIF artifacts are stored unencrypted at rest; artifact
+  integrity comes from the PCR measurements registered per algorithm.
 
 Resources:
-  ArtifactBucketKmsKey:
-    Type: AWS::KMS::Key
-    Properties:
-      Description: KMS key for encrypting EIF artifacts at rest in the ArtifactBucket.
-      EnableKeyRotation: true
-      KeyPolicy:
-        Version: "2012-10-17"
-        Statement:
-          - Sid: RootAccountKeyManagement
-            Effect: Allow
-            Principal:
-              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
-            Action: kms:*
-            Resource: "*"
-          - !If
-            - HasCsavInstanceRole
-            - Sid: CsavHostCrypto
-              Effect: Allow
-              Principal:
-                AWS: !Ref CsavInstanceRoleArn
-              Action: [kms:GenerateDataKey, kms:Decrypt]
-              Resource: "*"
-            - !Ref AWS::NoValue
-          - !If
-            - HasEnclaveHostInstanceRole
-            - Sid: EnclaveHostDecrypt
-              Effect: Allow
-              Principal:
-                AWS: !Ref EnclaveHostInstanceRoleArn
-              Action: kms:Decrypt
-              Resource: "*"
-            - !Ref AWS::NoValue
-
   ArtifactBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -66,12 +13,6 @@ Resources:
         BlockPublicPolicy: true
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
-      BucketEncryption:
-        ServerSideEncryptionConfiguration:
-          - BucketKeyEnabled: true
-            ServerSideEncryptionByDefault:
-              SSEAlgorithm: aws:kms
-              KMSMasterKeyID: !GetAtt ArtifactBucketKmsKey.Arn
 
   AlgorithmTable:
     Type: AWS::DynamoDB::Table
@@ -87,7 +28,5 @@ Resources:
 Outputs:
   ArtifactBucketName:
     Value: !Ref ArtifactBucket
-  ArtifactBucketKmsKeyArn:
-    Value: !GetAtt ArtifactBucketKmsKey.Arn
   AlgorithmTableName:
     Value: !Ref AlgorithmTable

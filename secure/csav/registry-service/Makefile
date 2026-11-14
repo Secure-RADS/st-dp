@@ -20,17 +20,13 @@ ARTIFACT_BUCKET = $(shell aws cloudformation describe-stacks --stack-name $(STOR
 	--query "Stacks[0].Outputs[?OutputKey=='ArtifactBucketName'].OutputValue" --output text)
 DYNAMO_TABLE = $(shell aws cloudformation describe-stacks --stack-name $(STORAGE_STACK_NAME) --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='AlgorithmTableName'].OutputValue" --output text)
-# KMS key that encrypts the artifact bucket. Created by the storage stack; encryption set on the bucket via encrypt-bucket.
-ARTIFACT_BUCKET_KMS_KEY_ARN = $(shell aws cloudformation describe-stacks --stack-name $(STORAGE_STACK_NAME) --region $(REGION) \
-	--query "Stacks[0].Outputs[?OutputKey=='ArtifactBucketKmsKeyArn'].OutputValue" --output text)
-# CSAV writes EIFs (kms:GenerateDataKey); the enclave host reads them (kms:Decrypt). The key policy
-# references these role ARNs, so they're resolved from the stacks: IAM truncates role names at 64 chars,
-# and a name match on 'CsavInstanceRole' also hits the legacy csav stack's role.
+# The per-algorithm KMS key policy references these role ARNs, so they're resolved from the stacks: IAM
+# truncates role names at 64 chars, and a name match on 'CsavInstanceRole' also hits the legacy csav
+# stack's role.
 CSAV_ROLE_ARN = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='CsavInstanceRoleArn'].OutputValue" --output text)
 ENCLAVE_HOST_ROLE_ARN = $(shell aws cloudformation describe-stacks --stack-name secure-rads-execution-service-dev --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='EnclaveHostInstanceRoleArn'].OutputValue" --output text)
-ROLE_PARAMETERS = $(strip $(if $(filter None,$(CSAV_ROLE_ARN)),,CsavInstanceRoleArn=$(CSAV_ROLE_ARN)) $(if $(filter None,$(ENCLAVE_HOST_ROLE_ARN)),,EnclaveHostInstanceRoleArn=$(ENCLAVE_HOST_ROLE_ARN)))
 # mTLS domain (registerPCRs -> /algorithms) and its pin.
 # Plain-TLS public domain (/attest, /refresh, /validate) baked into the EIF's run config - a different
 # domain and cert from the mTLS one above, so it gets its own pin.
@@ -115,13 +111,12 @@ remote-down:
 logs:
 	$(SSH) "cd $(REMOTE_DIR) && sudo docker compose logs -f"
 
-# S3 bucket + the KMS key for uploads, independent of the csav EC2 stack.
+# S3 bucket + algorithm table, independent of the csav EC2 stack.
 deploy-storage:
 	aws cloudformation deploy \
 		--template-file cloudformation.yaml \
 		--stack-name $(STORAGE_STACK_NAME) \
-		--region $(REGION) \
-		--capabilities CAPABILITY_NAMED_IAM $(if $(ROLE_PARAMETERS),--parameter-overrides $(ROLE_PARAMETERS))
+		--region $(REGION)
 
 destroy-storage:
 	aws cloudformation delete-stack --stack-name $(STORAGE_STACK_NAME) --region $(REGION)
