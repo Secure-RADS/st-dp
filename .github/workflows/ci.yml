@@ -11,19 +11,158 @@ permissions:
 jobs:
   changes:
     runs-on: blacksmith-2vcpu-ubuntu-2404
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
-      ts_lint: ${{ steps.detect.outputs.ts_lint }}
-      ts_typecheck: ${{ steps.detect.outputs.ts_typecheck }}
-      go: ${{ steps.detect.outputs.go }}
-      python: ${{ steps.detect.outputs.python }}
+      ts_lint: ${{ steps.ts_lint.outputs.changes }}
+      ts_typecheck: ${{ steps.ts_typecheck.outputs.changes }}
+      go: ${{ steps.go.outputs.changes }}
+      python: ${{ steps.python.outputs.changes }}
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - id: detect
-        run: ./.github/scripts/changed-areas.sh
-        env:
-          BEFORE: ${{ github.event.before }}
+      - id: ts_lint
+        uses: dorny/paths-filter@v4
+        with:
+          filters: |
+            'packages/common':
+              - 'packages/common/**'
+              - '.github/workflows/ci.yml'
+            'rads/cost-service':
+              - 'rads/cost-service/**'
+              - 'packages/common/**'
+              - '.github/workflows/ci.yml'
+            'rads/csav/registry-service':
+              - 'rads/csav/registry-service/**'
+              - 'packages/common/**'
+              - '.github/workflows/ci.yml'
+            'rads/log-service':
+              - 'rads/log-service/**'
+              - 'packages/common/**'
+              - '.github/workflows/ci.yml'
+            'rads/pdm-service':
+              - 'rads/pdm-service/**'
+              - 'packages/common/**'
+              - '.github/workflows/ci.yml'
+            'rads/result-consumer':
+              - 'rads/result-consumer/**'
+              - 'packages/common/**'
+              - '.github/workflows/ci.yml'
+            'rads/sce/execution-service':
+              - 'rads/sce/execution-service/**'
+              - 'packages/common/**'
+              - '.github/workflows/ci.yml'
+            'rads/transparency-portal':
+              - 'rads/transparency-portal/**'
+              - '.github/workflows/ci.yml'
+            'secure/cost-service':
+              - 'secure/cost-service/**'
+              - 'packages/common/**'
+              - '.github/workflows/ci.yml'
+            'secure/log-service':
+              - 'secure/log-service/**'
+              - 'packages/common/**'
+              - '.github/workflows/ci.yml'
+            'secure/pdm-service':
+              - 'secure/pdm-service/**'
+              - 'packages/common/**'
+              - '.github/workflows/ci.yml'
+            'secure/result-consumer':
+              - 'secure/result-consumer/**'
+              - 'packages/common/**'
+              - '.github/workflows/ci.yml'
+            'secure/sce/execution-service':
+              - 'secure/sce/execution-service/**'
+              - 'packages/common/**'
+              - '.github/workflows/ci.yml'
+            'secure/transparency-portal':
+              - 'secure/transparency-portal/**'
+              - '.github/workflows/ci.yml'
+            'secure/verifier-service':
+              - 'secure/verifier-service/**'
+              - 'packages/common/**'
+              - '.github/workflows/ci.yml'
+            'seeding':
+              - 'seeding/**'
+              - '.github/workflows/ci.yml'
+      - id: ts_typecheck
+        uses: dorny/paths-filter@v4
+        with:
+          filters: |
+            'packages/common':
+              - 'packages/common/**'
+              - '.github/workflows/ci.yml'
+            'rads/cost-service':
+              - 'rads/cost-service/**'
+              - 'packages/common/**'
+              - '.github/workflows/ci.yml'
+            'rads/csav/registry-service':
+              - 'rads/csav/registry-service/**'
+              - 'packages/common/**'
+              - '.github/workflows/ci.yml'
+            'rads/log-service':
+              - 'rads/log-service/**'
+              - 'packages/common/**'
+              - '.github/workflows/ci.yml'
+            'rads/pdm-service':
+              - 'rads/pdm-service/**'
+              - 'packages/common/**'
+              - '.github/workflows/ci.yml'
+            'rads/result-consumer':
+              - 'rads/result-consumer/**'
+              - 'packages/common/**'
+              - '.github/workflows/ci.yml'
+            'rads/sce/execution-service':
+              - 'rads/sce/execution-service/**'
+              - 'packages/common/**'
+              - '.github/workflows/ci.yml'
+            'secure/cost-service':
+              - 'secure/cost-service/**'
+              - 'packages/common/**'
+              - '.github/workflows/ci.yml'
+            'secure/log-service':
+              - 'secure/log-service/**'
+              - 'packages/common/**'
+              - '.github/workflows/ci.yml'
+            'secure/pdm-service':
+              - 'secure/pdm-service/**'
+              - 'packages/common/**'
+              - '.github/workflows/ci.yml'
+            'secure/result-consumer':
+              - 'secure/result-consumer/**'
+              - 'packages/common/**'
+              - '.github/workflows/ci.yml'
+            'secure/sce/execution-service':
+              - 'secure/sce/execution-service/**'
+              - 'packages/common/**'
+              - '.github/workflows/ci.yml'
+            'secure/verifier-service':
+              - 'secure/verifier-service/**'
+              - 'packages/common/**'
+              - '.github/workflows/ci.yml'
+            'seeding':
+              - 'seeding/**'
+              - '.github/workflows/ci.yml'
+      - id: go
+        uses: dorny/paths-filter@v4
+        with:
+          filters: |
+            'packages/go-common':
+              - 'packages/go-common/**'
+              - '.github/workflows/ci.yml'
+            'secure/sce-unit':
+              - 'secure/sce-unit/**'
+              - 'packages/go-common/**'
+              - '.github/workflows/ci.yml'
+      - id: python
+        uses: dorny/paths-filter@v4
+        with:
+          filters: |
+            'benchmark':
+              - 'benchmark/**'
+              - '.github/workflows/ci.yml'
 
   lint-typescript:
     needs: changes
@@ -63,7 +202,7 @@ jobs:
 
   python:
     needs: changes
-    if: needs.changes.outputs.python == 'true'
+    if: needs.changes.outputs.python != '[]'
     runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@v5
