@@ -49,36 +49,6 @@ Every rads AWS resource is prefixed `rads-`; every secure-rads resource is prefi
 
 Throughout both phases every component posts timestamped events to the log-service, so a run's full timeline - build to execution - can be exported for benchmarking. Components also report selected, attributable AWS operations to the cost-service, keyed by the same `(AlgorithmId, runId)`, so their estimated costs can be summed per AWS service ([`docs/cost-service.md`](docs/cost-service.md)). Event-by-event plaintext flows: [`docs/e2e-rads.txt`](docs/e2e-rads.txt), [`docs/e2e-secure-rads.txt`](docs/e2e-secure-rads.txt).
 
-## Service map
-
-Build phase (CSAV):
-
-- [`secure/csav/`](secure/csav/README.md) - the CSAV EC2 host; runs registry-service.
-  - [`secure/csav/registry-service/`](secure/csav/registry-service/README.md) - image -> EIF build pipeline, S3/DynamoDB storage, attestation registration.
-- [`secure/eif-build/`](secure/eif-build/README.md) - base image supplying `eif_build` and the Nitro kernel/init blobs.
-- [`secure/sce-unit/`](secure/sce-unit/README.md) - the in-enclave entrypoint: entropy seeding, attestation, PDM fetch, nsjail, result relay.
-- [`secure/verifier-service/`](secure/verifier-service/README.md) - stores PCRs per `algorithmId`, verifies attestation documents at run time.
-
-Execution phase (SCE):
-
-- [`secure/sce/`](secure/sce/README.md) / [`secure/sce/execution-service/`](secure/sce/execution-service/README.md) - Lambda control plane that launches per-run enclaves, returns `runId`, and serves `GET /run/{runId}`.
-- [`secure/pdm-service/`](secure/pdm-service/README.md) - the Personal Data Management Service; serves records to an attested enclave.
-- [`secure/kms-service/`](secure/kms-service/README.md) - the enclave's only path to AWS KMS; authorizes a verifier token and performs `Decrypt` with the enclave's attestation document as the recipient, so the enclave holds no AWS credentials.
-- [`secure/result-consumer/`](secure/result-consumer/README.md) - SQS-triggered Lambda that persists enclave results to the `RunResults` table.
-- [`secure/log-service/`](secure/log-service/README.md) - fire-and-forget run-timeline logger (SQS + worker, JSON/CSV export).
-- [`secure/cost-service/`](secure/cost-service/README.md) - fire-and-forget AWS cost meter (SQS + worker, per-operation rows summed per run). See [`docs/cost-service.md`](docs/cost-service.md).
-
-Transparency portals:
-
-- [`secure/transparency-portal/`](secure/transparency-portal/README.md) - data-subject lookup and authority dashboard for the secure deployment.
-- [`rads/transparency-portal/`](rads/transparency-portal/README.md) - the same SPA pointed at the baseline endpoints.
-
-Sample assets:
-
-- [`secure/samples/`](secure/samples/README.md) - five reference Data Controller apps (one per context), each pinned to a fixed `algorithmId`.
-- [`seeding/`](seeding/README.md) - generates and seeds the five context datasets into the PDM table.
-- [`benchmark/`](benchmark/README.md) - Exp1/Exp2 size sweep (rads vs secure-rads). `make benchmark` / `make benchmark-report`; see that README for overrides.
-
 ## Quick start
 
 Everything runs through [Devbox](https://www.jetify.com/docs/devbox/) with a running Docker daemon and
