@@ -15,9 +15,15 @@ import (
 // One shared client keeps a single TLS session across PDM pages; fresh dials dominated large fetches.
 var pdmHTTP = &http.Client{Timeout: 60 * time.Second}
 
+type pdmRecord struct {
+	RecordId string          `json:"recordId"`
+	Data     json.RawMessage `json:"data"`
+}
+
 type pdmPage struct {
-	Records    []json.RawMessage `json:"records"`
-	NextCursor string            `json:"nextCursor"`
+	Records        []pdmRecord `json:"records"`
+	DataSubjectIds []string    `json:"dataSubjectIds"`
+	NextCursor     string      `json:"nextCursor"`
 }
 
 func fetchRecords(args []string) error {
@@ -35,7 +41,7 @@ func fetchRecords(args []string) error {
 		maxRecords = n
 	}
 
-	records, pages, err := downloadRecords(base, algorithmID, runID, maxRecords)
+	records, subjectIDs, pages, err := downloadRecords(base, algorithmID, runID, maxRecords)
 	if err != nil {
 		return err
 	}
@@ -43,10 +49,15 @@ func fetchRecords(args []string) error {
 		fmt.Fprintf(os.Stderr, "pdm: %v\n", err)
 	}
 
+	subjectIDs = uniqueDataSubjectIDs(subjectIDs)
+	if err := json.NewEncoder(os.Stdout).Encode(subjectIDs); err != nil {
+		return fmt.Errorf("write subject ids: %w", err)
+	}
+
 	body, err := json.Marshal(struct {
-		AlgorithmId string            `json:"algorithmId"`
-		Pages       int               `json:"pages"`
-		Records     []json.RawMessage `json:"records"`
+		AlgorithmId string      `json:"algorithmId"`
+		Pages       int         `json:"pages"`
+		Records     []pdmRecord `json:"records"`
 	}{AlgorithmId: algorithmID, Pages: pages, Records: records})
 	if err != nil {
 		return err
@@ -58,13 +69,30 @@ func fetchRecords(args []string) error {
 	return nil
 }
 
-func downloadRecords(base, algorithmID, runID string, maxRecords int) ([]json.RawMessage, int, error) {
+func uniqueDataSubjectIDs(ids []string) []string {
+	seen := make(map[string]struct{}, len(ids))
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
+}
+
+func downloadRecords(base, algorithmID, runID string, maxRecords int) ([]pdmRecord, []string, int, error) {
 	parsed, err := url.Parse(base)
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, 0, err
 	}
 
-	var records []json.RawMessage
+	var records []pdmRecord
+	var subjectIDs []string
 	var cursor string
 	pages := 0
 	for {
@@ -78,34 +106,35 @@ func downloadRecords(base, algorithmID, runID string, maxRecords int) ([]json.Ra
 
 		req, err := http.NewRequest(http.MethodGet, reqURL.String(), nil)
 		if err != nil {
-			return nil, 0, err
+			return nil, nil, 0, err
 		}
 		req.Header.Set("X-Run-Id", runID)
 
 		resp, err := pdmHTTP.Do(req)
 		if err != nil {
-			return nil, 0, err
+			return nil, nil, 0, err
 		}
 		payload, readErr := io.ReadAll(resp.Body)
 		resp.Body.Close()
 		if readErr != nil {
-			return nil, 0, readErr
+			return nil, nil, 0, readErr
 		}
 		if resp.StatusCode != http.StatusOK {
-			return nil, 0, fmt.Errorf("pdm-service returned %d: %s", resp.StatusCode, payload)
+			return nil, nil, 0, fmt.Errorf("pdm-service returned %d: %s", resp.StatusCode, payload)
 		}
 
 		var page pdmPage
 		if err := json.Unmarshal(payload, &page); err != nil {
-			return nil, 0, err
+			return nil, nil, 0, err
 		}
 		pages++
 		records = append(records, page.Records...)
+		subjectIDs = append(subjectIDs, page.DataSubjectIds...)
 		if maxRecords > 0 && len(records) >= maxRecords {
-			return records[:maxRecords], pages, nil
+			return records[:maxRecords], subjectIDs[:min(len(subjectIDs), maxRecords)], pages, nil
 		}
 		if page.NextCursor == "" {
-			return records, pages, nil
+			return records, subjectIDs, pages, nil
 		}
 		cursor = page.NextCursor
 	}

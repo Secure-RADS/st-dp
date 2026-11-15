@@ -2,7 +2,6 @@ import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { CostPhase, costEvent, recordRequest } from "@srads/common/cost";
 import { requiredEnv } from "@srads/common/env";
-import { logSubjectAccess } from "@srads/common/log";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -60,18 +59,15 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     result.ConsumedCapacity?.CapacityUnits ?? 0,
   );
 
-  const dataSubjectIds = (result.Items ?? [])
-    .map((item) => item.DataSubjectId)
-    .filter((id): id is string => typeof id === "string" && id.length > 0);
-  // DSAR trail: which data subjects this page actually read. Awaited so the request is not lost to a Lambda
-  // freeze (bounded by the function timeout); failures are swallowed inside logSubjectAccess.
-  await logSubjectAccess(algorithmId, runId || "unknown", dataSubjectIds);
-
-  const records = (result.Items ?? []).map((item) => ({ recordId: item.RecordId, data: item.Data }));
+  // A standalone list aligned with `records`; the rads host assembles the DSAR trail from it and posts after
+  // a successful DC app run. Record objects stay {recordId, data}, so the DC app never sees subject ids.
+  const items = result.Items ?? [];
+  const records = items.map((item) => ({ recordId: item.RecordId, data: item.Data }));
+  const dataSubjectIds = items.map((item) => (typeof item.DataSubjectId === "string" ? item.DataSubjectId : ""));
   const nextCursor = result.LastEvaluatedKey
     ? Buffer.from(JSON.stringify(result.LastEvaluatedKey)).toString("base64url")
     : null;
 
   await recordRequest(algorithmId, runId, CostPhase.Execution, startedAt);
-  return jsonResponse(200, { algorithmId, records, nextCursor });
+  return jsonResponse(200, { algorithmId, records, dataSubjectIds, nextCursor });
 };

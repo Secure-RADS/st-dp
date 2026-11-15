@@ -7,13 +7,15 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintf(os.Stderr, "usage: %s <fetch-records|checkpoint|executor-finished|run-result> ...\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "usage: %s <fetch-records|subject-access|checkpoint|executor-finished|run-result> ...\n", os.Args[0])
 		os.Exit(2)
 	}
 	var err error
 	switch os.Args[1] {
 	case "fetch-records":
 		err = fetchRecords(os.Args[2:])
+	case "subject-access":
+		err = logSubjectAccess(os.Args[2:])
 	case "checkpoint":
 		err = checkpoint(os.Args[2:])
 	case "executor-finished":

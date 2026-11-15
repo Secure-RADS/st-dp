@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -70,6 +71,42 @@ func (c *Client) currentToken() string {
 		return ""
 	}
 	return c.Token()
+}
+
+// subjectAccessBatch matches log-service's per-request cap, so large datasets are sent as several batches.
+const subjectAccessBatch = 1000
+
+func (c *Client) EmitSubjectAccess(algorithmID, runID string, dataSubjectIDs []string) {
+	if c == nil || c.Host == "" || algorithmID == "" || runID == "" || len(dataSubjectIDs) == 0 {
+		return
+	}
+
+	timestamp := time.Now().UTC().Format(time.RFC3339Nano)
+	bodies := make([][]byte, 0, (len(dataSubjectIDs)+subjectAccessBatch-1)/subjectAccessBatch)
+	for start := 0; start < len(dataSubjectIDs); start += subjectAccessBatch {
+		end := min(start+subjectAccessBatch, len(dataSubjectIDs))
+		body, err := json.Marshal(struct {
+			AlgorithmID    string   `json:"algorithmId"`
+			RunID          string   `json:"runId"`
+			DataSubjectIDs []string `json:"dataSubjectIds"`
+			Timestamp      string   `json:"timestamp"`
+		}{algorithmID, runID, dataSubjectIDs[start:end], timestamp})
+		if err != nil {
+			return
+		}
+		bodies = append(bodies, body)
+	}
+
+	token := c.currentToken()
+	var wg sync.WaitGroup
+	for _, body := range bodies {
+		wg.Add(1)
+		go func(body []byte) {
+			defer wg.Done()
+			c.send(body, "/subject-access", "subject-access log", token)
+		}(body)
+	}
+	wg.Wait()
 }
 
 func (c *Client) send(body []byte, path, label, token string) {

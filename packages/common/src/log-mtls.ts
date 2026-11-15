@@ -14,21 +14,3 @@ export async function emitSecureEvent(
     console.error(`log event ${event} failed`, error);
   }
 }
-
-export async function logSecureSubjectAccess(
-  algorithmId: string,
-  runId: string,
-  dataSubjectIds: string[],
-  accessToken: string,
-): Promise<void> {
-  if (dataSubjectIds.length === 0) return;
-  try {
-    await postInternal(
-      "/subject-access",
-      { algorithmId, runId, dataSubjectIds, timestamp: new Date().toISOString() },
-      accessToken,
-    );
-  } catch (error) {
-    console.error("subject-access log failed", error);
-  }
-}

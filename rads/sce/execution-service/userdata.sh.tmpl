@@ -80,9 +80,13 @@ fi
 emit_event artifact-retrieved
 
 # Download the algorithm's full record set before the app starts, so the DC app reads a local file.
-"$TOOLS_BIN" fetch-records "$PDM_URL" "$ALGORITHM_ID" "$RECORDS_FILE" "$RUN_ID" "$SIZE" "https://$LOG_HOST/events" || exit $?
+SUBJECT_IDS=$("$TOOLS_BIN" fetch-records "$PDM_URL" "$ALGORITHM_ID" "$RECORDS_FILE" "$RUN_ID" "$SIZE" "https://$LOG_HOST/events") || exit $?
 emit_event records-stored-locally
 
 # The app reads /data/records.json and writes /data/result.json; stdout is the diagnostic fallback.
 docker run --rm -v "$RUN_DIR:/data" -e RECORDS_PATH=/data/records.json -e RESULT_PATH=/data/result.json "$IMAGE" > "$OUTPUT_FILE"
+# DSAR trail: log the data subjects only after the DC app produced a result. Best-effort.
+if [ -s "$RESULT_FILE" ]; then
+  printf '%s' "$SUBJECT_IDS" | "$TOOLS_BIN" subject-access "https://$LOG_HOST/subject-access" "$ALGORITHM_ID" "$RUN_ID" || true
+fi
 emit_event compute-completed

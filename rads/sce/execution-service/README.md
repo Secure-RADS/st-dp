@@ -27,6 +27,11 @@ Lifecycle events are posted to log-service `POST /events` (the ingest contract
 The fetch helper emits `records-fetched` before serializing/writing the records file; userdata emits
 `records-stored-locally` only after that write succeeds. `executor-finished` is timestamped after result publication.
 
+PDM returns a standalone `dataSubjectIds` list aligned with the records. The fetch helper prints those ids
+on stdout, userdata holds them in a shell variable, and `records.json` stays `{recordId, data}`. After a
+successful `docker run`, the executor pipes the list to log-service `POST /subject-access`, so the DC app
+never sees subject ids.
+
 ## Deployment
 
 The Lambda stack references shared rads infrastructure by name/parameter. Deploy with all params:
