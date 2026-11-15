@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import subprocess
 
 from lib.catalog import CATALOG, ApiGatewayService, Ec2HttpService, ServiceKind
@@ -48,7 +49,13 @@ def stack_outputs(stack: str) -> dict[str, str]:
     return outputs
 
 
-def _api_gateway_url(outputs: dict[str, str]) -> str:
+def _api_gateway_url(outputs: dict[str, str], host_env: str | None) -> str:
+    if host_env:
+        host = os.environ.get(host_env)
+        if not host:
+            msg = f"{host_env} is required to resolve the service URL"
+            raise RuntimeError(msg)
+        return f"https://{host}"
     if url := outputs.get("HttpApiUrl"):
         return url
     domain = outputs.get("ApiRegionalDomainName")
@@ -84,7 +91,7 @@ def _ec2_http_url(service: Ec2HttpService, outputs: dict[str, str]) -> str:
 
 def _service_url(service: ApiGatewayService | Ec2HttpService, outputs: dict[str, str]) -> str:
     if service.kind is ServiceKind.API_GATEWAY:
-        return _api_gateway_url(outputs)
+        return _api_gateway_url(outputs, service.host_env)
     if service.kind is ServiceKind.EC2_HTTP:
         return _ec2_http_url(service, outputs)
     msg = f"unknown service kind {service.kind!r}"

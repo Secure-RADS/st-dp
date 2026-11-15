@@ -20,6 +20,8 @@ class ApiGatewayService(BaseModel):
     stack: str
     # False for stacks that only expose CFN outputs (e.g. Dynamo table names), not an HTTP API.
     has_url: bool = True
+    # Env var holding the caller-facing hostname, for stacks whose URL is a custom domain.
+    host_env: str | None = None
 
 
 class Ec2HttpService(BaseModel):
@@ -55,7 +57,10 @@ CATALOG: dict[Tree, dict[str, ApiGatewayService | Ec2HttpService]] = {
         ),
         "pdm": ApiGatewayService(stack="secure-rads-pdm-service-dev"),
         "execution": ApiGatewayService(stack="secure-rads-execution-service-dev"),
-        "log": ApiGatewayService(stack="secure-rads-log-service-dev"),
+        "log": ApiGatewayService(
+            stack="secure-rads-log-service-dev",
+            host_env="LOG_HOST_SECURE_RADS",
+        ),
         "cost": ApiGatewayService(stack="secure-rads-cost-service-dev"),
         "registry_storage": ApiGatewayService(
             stack="secure-rads-registry-service-storage",
