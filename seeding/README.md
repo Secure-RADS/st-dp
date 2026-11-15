@@ -6,7 +6,7 @@ Seed-data platform for the PDM DynamoDB table. Standalone bun + TypeScript, not 
 
 ## Usage
 
-```
+```sh
 bun install
 bun run generate
 PDM_TABLE=<table> DATA_KEY_TABLE=<table> ALGORITHM_TABLE=<table> bun run seed-secure-rads

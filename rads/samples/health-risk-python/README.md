@@ -1,6 +1,6 @@
 # health-risk-python
 
-Sample rads Data Controller app (Python stdlib only). Reads the records file the runner
+Sample rads Data Controller app (Python, pydantic). Reads the records file the runner
 downloaded at `RECORDS_PATH`, aggregates every record for that algorithm, and writes a single
 JSON summary to `RESULT_PATH`. Same file contract as secure-rads (`RECORDS_PATH` /
 `RESULT_PATH`); the runner fetches plaintext from PDM instead of sce-unit decrypting inside
@@ -12,7 +12,7 @@ the enclave. Progress lines go to stderr so the result holds exactly one JSON ob
 
 Build and run (writing the same `{"algorithmId", "records"}` file the runner produces):
 
-```
+```sh
 docker build -t health-risk-python .
 docker run --rm -v /tmp/rads-run:/data \
                  -e RECORDS_PATH=/data/records.json \

@@ -9,7 +9,7 @@ Vite + React + TypeScript + Tailwind + shadcn/ui SPA that gives two audiences vi
 
 The data-subject view deliberately goes through the PDM, not straight to the log service:
 
-```
+```text
 browser -> GET https://pdm.r.secure-rads.org/subject/{dataSubjectId}
         -> GET https://log.r.secure-rads.org/subject-access/{dataSubjectId}
 ```
@@ -29,7 +29,7 @@ Build-time Vite variables, defaulting to the deployed domains if unset:
 
 ## Develop
 
-```
+```sh
 bun install
 bun run dev
 ```
@@ -38,7 +38,7 @@ bun run dev
 
 Hosted on S3 + CloudFront behind `transparency.r.secure-rads.org`, with a dedicated us-east-1 ACM certificate (see `CERT_ARN` in the `Makefile`).
 
-```
+```sh
 make -C rads/transparency-portal deploy-infra   # one-time: S3 + CloudFront + DNS target
 make -C rads/transparency-portal deploy         # build, upload, invalidate
 ```

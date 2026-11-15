@@ -38,7 +38,7 @@ Bun is used as the local dev/bundle tool only (`bun install`) - the Lambda itsel
 - Once deployed, each custom domain's TLS leaf cert pubkey SHA-256 needs to be read back and pinned on the other side: the mTLS domain's into registry-service's `VERIFIER_PUBKEY_SHA256` (`secure/csav/registry-service/verifier.go`), the public domain's into registry-service's `VERIFIER_HOST`/pubkey used to bake `sce-unit`'s run config (`secure/csav/registry-service/rootfs.go`), into execution-service's `VERIFIER_HOST` (`secure/sce/execution-service/Makefile`), and into pdm-service's `verifierJwksPubkeySha256` (pinned on JWKS fetches). Manual bootstrap step since both sides pin each other.
 - An ML-DSA-87 (FIPS 204) JWT signing key, stored as an SSM SecureString at `/verifier-service/jwt-signing-key`:
 
-```
+```sh
 openssl genpkey -algorithm ML-DSA-87 -out jwt-signing-key.pem
 aws ssm put-parameter --name /verifier-service/jwt-signing-key --type SecureString --value file://jwt-signing-key.pem
 ```
@@ -49,7 +49,7 @@ aws ssm put-parameter --name /verifier-service/jwt-signing-key --type SecureStri
 
 First deploy the functions, tables, and truststore bucket without `truststoreVersionId`. Then upload the truststore and deploy again with the returned version ID to create the mTLS custom domain.
 
-```
+```sh
 bun install
 bunx serverless deploy --param="domainName=..." --param="certificateArn=..." --param="publicDomainName=..." --param="publicCertificateArn=..."
 

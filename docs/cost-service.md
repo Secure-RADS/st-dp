@@ -111,7 +111,7 @@ per-run against Cost Explorer.
 
 ## Querying
 
-```
+```sh
 make cost-csv      ALGORITHM_ID=<id> RUN_ID=<runId>   # one run  -> cost-<runId>.csv
 make cost-csv-algo ALGORITHM_ID=<id>                  # one algo -> cost-algo-<id>.csv
 make cost-csv-all                                     # whole table -> cost-all.csv

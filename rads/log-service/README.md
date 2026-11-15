@@ -35,7 +35,7 @@ SQS retries on the visibility interval, then parks on the DLQ. That is not expon
 
 Run-log items in `rads-log-events` are keyed by partition `AlgorithmId` and sort key `Sk = <runId or empty>#<timestamp>#<event>`. ISO-8601 timestamps sort lexically, so a run's events come back in chronological order, and the event name disambiguates events that share a timestamp. Subject-access rows live in a separate `rads-subject-access` table keyed by `DataSubjectId` with `Sk = <timestamp>#<algorithmId>#<runId>`, which makes a redelivered ingest overwrite an identical row instead of duplicating it.
 
-Bun is used as the local dev/bundle tool only (`bun install`) - the Lambda itself runs on the standard `nodejs20.x` runtime, no custom Bun runtime layer.
+Bun is used as the local dev/bundle tool only (`bun install`) - the Lambda itself runs on the standard `nodejs24.x` runtime, no custom Bun runtime layer.
 
 ## Prerequisites (manual, one-time, outside this repo's IaC)
 
@@ -43,7 +43,7 @@ Bun is used as the local dev/bundle tool only (`bun install`) - the Lambda itsel
 
 ## Deploy
 
-```
+```sh
 bun install
 bunx serverless deploy --param="domainName=log.r.secure-rads.org" --param="certificateArn=..."
 ```

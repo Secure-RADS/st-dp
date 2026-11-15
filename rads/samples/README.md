@@ -57,7 +57,7 @@ per-dataset record body (PII plus context fields - see `seeding/generate.ts`).
 Hand-run an app against a local records file. Write the same `{"algorithmId", "records"}`
 shape the runner produces, then mount it at `/data` and point `RECORDS_PATH` at it:
 
-```
+```sh
 mkdir -p /tmp/rads-run
 curl -sS 'https://<pdm-host>/records?algorithmId=662fa378-dc53-425d-9225-a187b11ea7dc' \
   | python3 -c 'import json,sys; print(json.dumps(json.load(sys.stdin)))' \

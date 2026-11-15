@@ -31,7 +31,7 @@ The fetch helper emits `records-fetched` before serializing/writing the records 
 
 The Lambda stack references shared rads infrastructure by name/parameter. Deploy with all params:
 
-```
+```sh
 bun install
 bunx serverless deploy \
   --param="imagesBucket=rads-images" \
@@ -48,7 +48,7 @@ The executor AMI defaults to the AL2023 arm64 build pinned in `serverless.yml`, 
 
 Ship the executor host helpers (linux/arm64 static binary) to the images bucket before the first run after a tools change:
 
-```
+```sh
 make -C rads/sce/execution-service ship
 ```
 
