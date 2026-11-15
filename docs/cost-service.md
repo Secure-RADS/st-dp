@@ -63,8 +63,8 @@ rads (`csav/registry-service`, Lambdas):
 - result-consumer (`batchSize` 1, so each run's receive + invoke lands on that run): `sqs:receive` (message
   bytes), `sqs:delete` (one request when the handler succeeds; Lambda performs the deletion),
   `dynamodb:write-capacity`, `lambda:invocation`, `lambda:compute`.
-- verifier-service (secure-rads): `/attest` and `/refresh` (the enclave's attestation and token refresh, keyed by
-  the run) and `/algorithms` (build-time PCR registration, keyed by `algorithmId`): `dynamodb:read-capacity` and
+- verifier-service (secure-rads): `/challenge`, `/attest` and `/refresh` (the enclave's challenge, attestation and
+  token refresh, keyed by the run) and `/algorithms` (build-time PCR registration, keyed by `algorithmId`): `dynamodb:read-capacity` and
   `dynamodb:write-capacity` where attributable, plus `apigateway:request`, `lambda:invocation`, `lambda:compute`.
 - sce-unit (in the enclave) performs no billable AWS operations - its KMS call is metered on kms-service.
 

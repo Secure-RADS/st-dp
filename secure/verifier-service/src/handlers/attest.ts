@@ -3,22 +3,23 @@ import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
 import { CostPhase, costEvent, recordRequest } from "@srads/common/cost";
 import { requiredEnv } from "@srads/common/env";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
-import { type AttestationDocument, pcrHex, verifyAttestationDocument } from "../lib/attestation.js";
+import { verifyAttestationDocument } from "../lib/attestation.js";
+import { type AttestBody, attestRequest } from "../lib/attestFlow.js";
+import { consumeChallenge } from "../lib/challenge.js";
 import { issueTokenPair } from "../lib/tokens.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const algorithmPcrTable = requiredEnv("ALGORITHM_PCR_TABLE");
 
-interface AttestBody {
-  algorithmId: string;
-  runId: string;
-  attestationDocument: string; // base64-encoded raw COSE_Sign1 bytes
-}
-
 function isAttestBody(body: unknown): body is AttestBody {
   if (typeof body !== "object" || body === null) return false;
   const b = body as Record<string, unknown>;
-  return typeof b.algorithmId === "string" && typeof b.runId === "string" && typeof b.attestationDocument === "string";
+  return (
+    typeof b.algorithmId === "string" &&
+    typeof b.runId === "string" &&
+    typeof b.attestationDocument === "string" &&
+    typeof b.challenge === "string"
+  );
 }
 
 export const handler: APIGatewayProxyHandlerV2 = async (event) => {
@@ -35,7 +36,10 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   }
 
   if (!isAttestBody(body)) {
-    return { statusCode: 400, body: "expected algorithmId, runId, and attestationDocument (base64) as strings" };
+    return {
+      statusCode: 400,
+      body: "expected algorithmId, runId, attestationDocument (base64), and challenge as strings",
+    };
   }
 
   try {
@@ -58,22 +62,12 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       return { statusCode: 404, body: "algorithmId not registered" };
     }
 
-    let doc: AttestationDocument;
-    try {
-      doc = verifyAttestationDocument(Buffer.from(body.attestationDocument, "base64"));
-    } catch (err) {
-      return { statusCode: 401, body: `attestation verification failed: ${(err as Error).message}` };
-    }
-
-    const gotPcr0 = pcrHex(doc.pcrs, 0);
-    const gotPcr1 = pcrHex(doc.pcrs, 1);
-    const gotPcr2 = pcrHex(doc.pcrs, 2);
-    if (gotPcr0 !== registered.Item.PCR0 || gotPcr1 !== registered.Item.PCR1 || gotPcr2 !== registered.Item.PCR2) {
-      return { statusCode: 401, body: "PCR mismatch: enclave measurements do not match registered algorithm" };
-    }
-
-    const tokens = await issueTokenPair(body.algorithmId, body.runId);
-    return { statusCode: 200, body: JSON.stringify(tokens) };
+    return await attestRequest(body, {
+      registered: registered.Item as { PCR0: string; PCR1: string; PCR2: string },
+      verifyDocument: verifyAttestationDocument,
+      consumeChallenge,
+      issueTokens: issueTokenPair,
+    });
   } finally {
     await recordRequest(body.algorithmId, body.runId, CostPhase.Execution, startedAt);
   }

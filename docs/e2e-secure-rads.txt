@@ -70,25 +70,26 @@ Input:
 3  emit enclave-started                 // no token yet, auth none
 4  SEED-ENTROPY from NSM                 // no AWS cost
 5  emit unit-ready                      // no token yet, auth none
-6  token ← ATTEST(Verifier, runId)      // verifier API GW/Lambda and DynamoDB metered
-7  emit attested
-8  records ← FETCH-PDM(a, token, limit ← n)
-9  cost apigateway:request + lambda:invocation + lambda:compute + dynamodb:read-capacity // PDM /records
-10 emit records-fetched
-11 ciphertext ← KMS-SERVICE-DECRYPT(token)  // unwraps the data key under this enclave's measurements
-12 cost apigateway:request + lambda:invocation + lambda:compute + dynamodb:read-capacity // kms-service /decrypt
-13 DEK ← UNWRAP(ciphertext, enclaveKey)   // KMS request itself is excluded from cost
-14 plaintext ← DECRYPT(records, DEK)
-15 emit records-decrypted
-16 write {algorithmId, records} to /data/records.json
-17 emit records-stored-locally
-18 START nsjail                         // RECORDS_PATH, RESULT_PATH
-19 wait for nsjail exit
-20 output ← read /data/result.json
-21 emit dc-app-completed               // on success, else run-failed
-22 STREAM output to parent              // vsock :5000
-23 emit output-sent
-24 // on failure: emit run-failed
+6  challenge ← REQUEST-CHALLENGE(Verifier, a, runId)   // single-use nonce, verifier API GW/Lambda and DynamoDB metered
+7  token ← ATTEST(Verifier, runId, challenge)          // NSM nonce ← challenge; verifier API GW/Lambda and DynamoDB metered
+8  emit attested
+9  records ← FETCH-PDM(a, token, limit ← n)
+10 cost apigateway:request + lambda:invocation + lambda:compute + dynamodb:read-capacity // PDM /records
+11 emit records-fetched
+12 ciphertext ← KMS-SERVICE-DECRYPT(token)  // unwraps the data key under this enclave's measurements
+13 cost apigateway:request + lambda:invocation + lambda:compute + dynamodb:read-capacity // kms-service /decrypt
+14 DEK ← UNWRAP(ciphertext, enclaveKey)   // KMS request itself is excluded from cost
+15 plaintext ← DECRYPT(records, DEK)
+16 emit records-decrypted
+17 write {algorithmId, records} to /data/records.json
+18 emit records-stored-locally
+19 START nsjail                         // RECORDS_PATH, RESULT_PATH
+20 wait for nsjail exit
+21 output ← read /data/result.json
+22 emit dc-app-completed               // on success, else run-failed
+23 STREAM output to parent              // vsock :5000
+24 emit output-sent
+25 // on failure: emit run-failed
 
 
 

@@ -26,9 +26,14 @@ func attest(cfg runConfig, runID string) (tokenPair, error) {
 	}
 	pubKey := elliptic.Marshal(elliptic.P384(), priv.PublicKey.X, priv.PublicKey.Y)
 
-	nonce := make([]byte, 32)
-	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		return tokenPair{}, fmt.Errorf("generate nonce: %w", err)
+	// The verifier issues the nonce, so the document it receives is bound to this specific /attest request.
+	challenge, err := fetchChallenge(cfg, runID)
+	if err != nil {
+		return tokenPair{}, fmt.Errorf("request challenge: %w", err)
+	}
+	nonce, err := base64.RawURLEncoding.DecodeString(challenge)
+	if err != nil {
+		return tokenPair{}, fmt.Errorf("decode challenge: %w", err)
 	}
 
 	sess, err := nsm.OpenDefaultSession()
@@ -52,16 +57,46 @@ func attest(cfg runConfig, runID string) (tokenPair, error) {
 		AlgorithmId         string `json:"algorithmId"`
 		RunId               string `json:"runId"`
 		AttestationDocument string `json:"attestationDocument"`
+		Challenge           string `json:"challenge"`
 	}{
 		AlgorithmId:         cfg.AlgorithmId,
 		RunId:               runID,
 		AttestationDocument: base64.StdEncoding.EncodeToString(res.Attestation.Document),
+		Challenge:           challenge,
 	})
 	if err != nil {
 		return tokenPair{}, err
 	}
 
 	return postForTokens(cfg, "/attest", body)
+}
+
+// fetchChallenge gets a single-use nonce from verifier-service before the NSM attestation request, so the
+// document it signs is valid for one /attest call only.
+func fetchChallenge(cfg runConfig, runID string) (string, error) {
+	body, err := json.Marshal(struct {
+		AlgorithmId string `json:"algorithmId"`
+		RunId       string `json:"runId"`
+	}{AlgorithmId: cfg.AlgorithmId, RunId: runID})
+	if err != nil {
+		return "", err
+	}
+
+	respBody, err := postVerifier(cfg, "/challenge", body)
+	if err != nil {
+		return "", err
+	}
+
+	var challenge struct {
+		Challenge string `json:"challenge"`
+	}
+	if err := json.Unmarshal(respBody, &challenge); err != nil {
+		return "", fmt.Errorf("decode challenge response: %w", err)
+	}
+	if challenge.Challenge == "" {
+		return "", fmt.Errorf("verifier-service returned an empty challenge")
+	}
+	return challenge.Challenge, nil
 }
 
 // refreshTokens exchanges a still-valid refresh token for a new access token, without a fresh attestation
@@ -81,25 +116,9 @@ func refreshTokens(cfg runConfig, runID, refreshToken string) (tokenPair, error)
 // postForTokens POSTs a JSON body to a verifier-service endpoint over the pinned vsock-proxy transport and
 // decodes the {accessToken, refreshToken, accessTokenExpiresAt} response shared by /attest and /refresh.
 func postForTokens(cfg runConfig, path string, body []byte) (tokenPair, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), attestRequestTimeout)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://"+cfg.VerifierHost+path, bytes.NewReader(body))
+	respBody, err := postVerifier(cfg, path, body)
 	if err != nil {
 		return tokenPair{}, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	client := cfg.verifier().client()
-	resp, err := client.Do(req)
-	if err != nil {
-		return tokenPair{}, fmt.Errorf("POST %s: %w", path, err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
-		return tokenPair{}, fmt.Errorf("verifier-service returned %s: %s", resp.Status, respBody)
 	}
 
 	var tokens struct {
@@ -107,7 +126,7 @@ func postForTokens(cfg runConfig, path string, body []byte) (tokenPair, error) {
 		RefreshToken         string `json:"refreshToken"`
 		AccessTokenExpiresAt string `json:"accessTokenExpiresAt"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&tokens); err != nil {
+	if err := json.Unmarshal(respBody, &tokens); err != nil {
 		return tokenPair{}, fmt.Errorf("decode token response: %w", err)
 	}
 
@@ -121,4 +140,32 @@ func postForTokens(cfg runConfig, path string, body []byte) (tokenPair, error) {
 		RefreshToken:         tokens.RefreshToken,
 		AccessTokenExpiresAt: expiresAt,
 	}, nil
+}
+
+// postVerifier sends a JSON body over the pinned vsock-proxy transport and returns the body of a 200 response.
+func postVerifier(cfg runConfig, path string, body []byte) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), attestRequestTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://"+cfg.VerifierHost+path, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := cfg.verifier().client()
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("POST %s: %w", path, err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read %s response: %w", path, err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("verifier-service returned %s: %s", resp.Status, respBody)
+	}
+	return respBody, nil
 }
