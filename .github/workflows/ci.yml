@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   lint-typescript:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     strategy:
       fail-fast: false
       matrix:
@@ -42,7 +42,7 @@ jobs:
         working-directory: ${{ matrix.package }}
 
   typecheck-typescript:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     strategy:
       fail-fast: false
       matrix:
@@ -72,7 +72,7 @@ jobs:
         working-directory: ${{ matrix.package }}
 
   python:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@v6
@@ -82,7 +82,7 @@ jobs:
         working-directory: benchmark
 
   go:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     strategy:
       fail-fast: false
       matrix:
