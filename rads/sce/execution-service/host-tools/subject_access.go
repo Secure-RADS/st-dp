@@ -19,18 +19,18 @@ const subjectAccessBatch = 1000
 // logSubjectAccess posts the DSAR trail after the DC app has completed successfully. The ids come from
 // the PDM records fetched for this run; they are kept out of records.json.
 func logSubjectAccess(args []string) error {
-	if len(args) != 4 {
-		return fmt.Errorf("usage: subject-access <url> <algorithmId> <runId> <subjectsPath>")
+	if len(args) != 3 {
+		return fmt.Errorf("usage: subject-access <url> <algorithmId> <runId>")
 	}
-	endpoint, algorithmID, runID, subjectsPath := args[0], args[1], args[2], args[3]
+	endpoint, algorithmID, runID := args[0], args[1], args[2]
 
-	raw, err := os.ReadFile(subjectsPath)
+	raw, err := io.ReadAll(os.Stdin)
 	if err != nil {
-		return fmt.Errorf("read %s: %w", subjectsPath, err)
+		return fmt.Errorf("read subject ids: %w", err)
 	}
 	var dataSubjectIDs []string
 	if err := json.Unmarshal(raw, &dataSubjectIDs); err != nil {
-		return fmt.Errorf("parse %s: %w", subjectsPath, err)
+		return fmt.Errorf("parse subject ids: %w", err)
 	}
 	if len(dataSubjectIDs) == 0 {
 		return nil

@@ -27,10 +27,10 @@ type pdmPage struct {
 }
 
 func fetchRecords(args []string) error {
-	if len(args) != 7 {
-		return fmt.Errorf("usage: fetch-records <pdmUrl> <algorithmId> <dest> <runId> <size> <logEventsUrl> <subjectsPath>")
+	if len(args) != 6 {
+		return fmt.Errorf("usage: fetch-records <pdmUrl> <algorithmId> <dest> <runId> <size> <logEventsUrl>")
 	}
-	base, algorithmID, dest, runID, sizeArg, subjectsPath := args[0], args[1], args[2], args[3], args[4], args[6]
+	base, algorithmID, dest, runID, sizeArg := args[0], args[1], args[2], args[3], args[4]
 
 	var maxRecords int
 	if sizeArg != "" {
@@ -50,8 +50,8 @@ func fetchRecords(args []string) error {
 	}
 
 	subjectIDs = uniqueDataSubjectIDs(subjectIDs)
-	if err := writeSubjectIDs(subjectsPath, subjectIDs); err != nil {
-		return err
+	if err := json.NewEncoder(os.Stdout).Encode(subjectIDs); err != nil {
+		return fmt.Errorf("write subject ids: %w", err)
 	}
 
 	body, err := json.Marshal(struct {
@@ -83,17 +83,6 @@ func uniqueDataSubjectIDs(ids []string) []string {
 		out = append(out, id)
 	}
 	return out
-}
-
-func writeSubjectIDs(path string, ids []string) error {
-	body, err := json.Marshal(ids)
-	if err != nil {
-		return err
-	}
-	if err := os.WriteFile(path, body, 0o600); err != nil {
-		return fmt.Errorf("write %s: %w", path, err)
-	}
-	return nil
 }
 
 func downloadRecords(base, algorithmID, runID string, maxRecords int) ([]pdmRecord, []string, int, error) {
