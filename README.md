@@ -16,11 +16,11 @@ Apache License 2.0; see [License](#license).
 
 ## Architecture
 
-![ST-DP architecture](docs/images/st-dp-architecture.png)
+![Secure-RADS architecture: the SCE Unit and the DC application run inside a measured Nitro Enclave](docs/images/st-dp-secure-architecture.png)
 
 ST-DP separates the entity that decides why personal data is processed from the services that hold,
-process, and record that processing. Green lines are data flows, purple lines are algorithm flows, and
-orange lines are remote attestation.
+process, and record that processing. Black edges are request and data paths, orange is remote
+attestation, and blue is data-key release.
 
 - **Data Subject (DS)** gives consent and personal data, and queries how the data was used.
 - **Personal Data Management (PDM)** stores personal data against its consent and algorithm, serves it only to an attested SCE, and answers DS queries by querying the Log Service.
@@ -38,6 +38,8 @@ service.
 ## rads (baseline)
 
 [`rads/`](rads/) is the fully-trusted baseline sibling: no KMS, no Nitro enclave, no verifier. A data controller's docker image tarball is uploaded to the registry-service (`rads/csav/registry-service`), stored raw in S3, and recorded as `algorithmId -> S3 path` in DynamoDB. At run time the execution-service (`rads/sce/execution-service`) launches a plain EC2 executor that docker-loads the image, fetches records from PDM into `records.json`, and runs the app with `RECORDS_PATH` / `RESULT_PATH`. The result file is delivered asynchronously to result-consumer; stdout is the diagnostic fallback. The same log-service records the run timeline.
+
+![RADS baseline architecture: a plain EC2 executor runs the DC application in Docker with no enclave or attestation](docs/images/rads-baseline-architecture.png)
 
 Every rads AWS resource is prefixed `rads-`; every secure-rads resource is prefixed `secure-rads-`, so both systems deploy and run side by side in one account/region.
 
