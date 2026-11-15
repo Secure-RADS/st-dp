@@ -16,11 +16,11 @@ Apache License 2.0; see [License](#license).
 
 ## Architecture
 
-![ST-DP architecture](docs/images/st-dp-architecture.png)
+![Secure-RADS architecture: the SCE Unit and the DC application run inside a measured Nitro Enclave](docs/images/st-dp-architecture.png)
 
 ST-DP separates the entity that decides why personal data is processed from the services that hold,
-process, and record that processing. Green lines are data flows, purple lines are algorithm flows, and
-orange lines are remote attestation.
+process, and record that processing. Black edges are request and data paths, orange is remote
+attestation, and blue is data-key release.
 
 - **Data Subject (DS)** gives consent and personal data, and queries how the data was used.
 - **Personal Data Management (PDM)** stores personal data against its consent and algorithm, serves it only to an attested SCE, and answers DS queries by querying the Log Service.
