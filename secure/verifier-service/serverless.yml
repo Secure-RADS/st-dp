@@ -33,11 +33,17 @@ provider:
           Action: dynamodb:Query
           Resource: !Sub "${AttestationSessionTable.Arn}/index/RefreshTokenIndex"
         - Effect: Allow
+          Action:
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+          Resource: !GetAtt AttestationChallengeTable.Arn
+        - Effect: Allow
           Action: ssm:GetParameter
           Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/secure-rads/verifier-service/jwt-signing-key"
   environment:
     ALGORITHM_PCR_TABLE: !Ref AlgorithmPCRTable
     ATTESTATION_SESSION_TABLE: !Ref AttestationSessionTable
+    ATTESTATION_CHALLENGE_TABLE: !Ref AttestationChallengeTable
     JWT_SIGNING_KEY_PARAM: /secure-rads/verifier-service/jwt-signing-key
     COST_HOST: ${env:COST_HOST_SECURE_RADS}
 
@@ -49,7 +55,10 @@ functions:
           method: POST
           path: /algorithms
 
-  # attest/refresh are plain TLS: wired by hand to PublicHttpApi in resources below, not the mTLS httpApi.
+  # attest/challenge/refresh are plain TLS: wired by hand to PublicHttpApi in resources below, not the mTLS httpApi.
+  challenge:
+    handler: src/handlers/challenge.handler
+
   attest:
     handler: src/handlers/attest.handler
 
@@ -102,6 +111,22 @@ resources:
                 KeyType: HASH
             Projection:
               ProjectionType: ALL
+
+    # Single-use nonces that bind a Nitro attestation document to one /attest request. Rows are small and
+    # short-lived; DynamoDB TTL reaps them after expiry and consumeChallenge checks ExpiresAt regardless.
+    AttestationChallengeTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: ChallengeId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: ChallengeId
+            KeyType: HASH
+        TimeToLiveSpecification:
+          AttributeName: ExpiresAt
+          Enabled: true
 
     # PEM bundle containing registry-service's client cert public cert
     # (csav/registry-service/tls/client.crt) - upload it here before deploy.
@@ -170,6 +195,29 @@ resources:
         Principal: apigateway.amazonaws.com
         SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicHttpApi}/*/*/attest"
 
+    ChallengeIntegration:
+      Type: AWS::ApiGatewayV2::Integration
+      Properties:
+        ApiId: !Ref PublicHttpApi
+        IntegrationType: AWS_PROXY
+        IntegrationUri: !GetAtt ChallengeLambdaFunction.Arn
+        PayloadFormatVersion: "2.0"
+
+    ChallengeRoute:
+      Type: AWS::ApiGatewayV2::Route
+      Properties:
+        ApiId: !Ref PublicHttpApi
+        RouteKey: POST /challenge
+        Target: !Sub "integrations/${ChallengeIntegration}"
+
+    ChallengeInvokePermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        FunctionName: !Ref ChallengeLambdaFunction
+        Action: lambda:InvokeFunction
+        Principal: apigateway.amazonaws.com
+        SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicHttpApi}/*/*/challenge"
+
     RefreshIntegration:
       Type: AWS::ApiGatewayV2::Integration
       Properties:
@@ -235,6 +283,8 @@ resources:
       Value: !Ref AlgorithmPCRTable
     AttestationSessionTableName:
       Value: !Ref AttestationSessionTable
+    AttestationChallengeTableName:
+      Value: !Ref AttestationChallengeTable
     TruststoreBucketName:
       Value: !Ref TruststoreBucket
     ApiRegionalDomainName:
