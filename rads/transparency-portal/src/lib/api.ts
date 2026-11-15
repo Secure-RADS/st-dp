@@ -33,9 +33,6 @@ async function getJson<T>(url: string): Promise<T> {
 
 export const getRunEvents = () => getJson<RunEvent[]>(`${LOG_SERVICE_URL}/logs`);
 
-export const getAlgorithmEvents = (algorithmId: string) =>
-  getJson<RunEvent[]>(`${LOG_SERVICE_URL}/logs/${encodeURIComponent(algorithmId)}`);
-
 export const getAllSubjectAccess = () => getJson<SubjectAccessResponse>(`${LOG_SERVICE_URL}/subject-access`);
 
 export const getSubjectAccess = (dataSubjectId: string) =>
@@ -49,4 +46,3 @@ export const exportUrl = (algorithmId?: string) =>
 export const exportJsonUrl = (algorithmId?: string) =>
   algorithmId ? `${LOG_SERVICE_URL}/logs/${encodeURIComponent(algorithmId)}` : `${LOG_SERVICE_URL}/logs`;
 
-export const logServiceUrl = LOG_SERVICE_URL;

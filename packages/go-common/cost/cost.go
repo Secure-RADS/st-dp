@@ -16,78 +16,23 @@ import (
 type Phase string
 
 const (
-	Build     Phase = "build"
-	Execution Phase = "execution"
+	Build Phase = "build"
 )
 
 type Service string
 
 const (
-	S3         Service = "s3"
-	DynamoDB   Service = "dynamodb"
-	SQS        Service = "sqs"
-	EC2        Service = "ec2"
-	Lambda     Service = "lambda"
-	APIGateway Service = "apigateway"
+	S3       Service = "s3"
+	DynamoDB Service = "dynamodb"
 )
 
 type Operation string
 
 const (
 	S3Put                 Operation = "put"
-	S3Get                 Operation = "get"
-	S3Head                Operation = "head"
-	S3List                Operation = "list"
-	DynamoDBRead          Operation = "read"
-	DynamoDBWrite         Operation = "write"
 	DynamoDBReadCapacity  Operation = "read-capacity"
 	DynamoDBWriteCapacity Operation = "write-capacity"
-	SQSSend               Operation = "send"
-	SQSReceive            Operation = "receive"
-	SQSDelete             Operation = "delete"
-	EC2Instance           Operation = "instance"
-	LambdaInvocation      Operation = "invocation"
-	LambdaCompute         Operation = "compute"
-	APIGatewayRequest     Operation = "request"
 )
-
-type Unit string
-
-const (
-	Request          Unit = "request"
-	Byte             Unit = "byte"
-	ReadRequestUnit  Unit = "read-request-unit"
-	WriteRequestUnit Unit = "write-request-unit"
-	Second           Unit = "second"
-	GBSecond         Unit = "gb-second"
-)
-
-var operationsByService = map[Service][]Operation{
-	S3:         {S3Put, S3Get, S3Head, S3List},
-	DynamoDB:   {DynamoDBReadCapacity, DynamoDBWriteCapacity, DynamoDBRead, DynamoDBWrite},
-	SQS:        {SQSSend, SQSReceive, SQSDelete},
-	EC2:        {EC2Instance},
-	Lambda:     {LambdaInvocation, LambdaCompute},
-	APIGateway: {APIGatewayRequest},
-}
-
-func IsPhase(value string) bool {
-	return value == string(Build) || value == string(Execution)
-}
-
-func IsService(value string) bool {
-	_, ok := operationsByService[Service(value)]
-	return ok
-}
-
-func IsValidOperation(service Service, operation string) bool {
-	for _, candidate := range operationsByService[service] {
-		if operation == string(candidate) {
-			return true
-		}
-	}
-	return false
-}
 
 const requestTimeout = time.Second
 

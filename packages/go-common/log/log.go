@@ -30,7 +30,6 @@ const (
 	EventDCAppCompleted       = "dc-app-completed"
 	EventOutputSent           = "output-sent"
 	EventRunFailed            = "run-failed"
-	EventExecutorFinished     = "executor-finished"
 )
 
 type Client struct {
@@ -71,24 +70,6 @@ func (c *Client) currentToken() string {
 		return ""
 	}
 	return c.Token()
-}
-
-func (c *Client) EmitSubjectAccess(algorithmID, runID string, dataSubjectIDs []string) {
-	if c == nil || c.Host == "" || algorithmID == "" || runID == "" || len(dataSubjectIDs) == 0 {
-		return
-	}
-
-	body, err := json.Marshal(struct {
-		AlgorithmID    string   `json:"algorithmId"`
-		RunID          string   `json:"runId"`
-		DataSubjectIDs []string `json:"dataSubjectIds"`
-		Timestamp      string   `json:"timestamp"`
-	}{algorithmID, runID, dataSubjectIDs, time.Now().UTC().Format(time.RFC3339Nano)})
-	if err != nil {
-		return
-	}
-
-	c.send(body, "/subject-access", "subject-access log", "")
 }
 
 func (c *Client) send(body []byte, path, label, token string) {
