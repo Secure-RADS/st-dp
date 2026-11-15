@@ -95,7 +95,9 @@ def run_once(harness: TreeHarness, dataset: str, size: int, rep: int) -> Result:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--reps", type=int, default=10)
+    parser.add_argument("--start-rep", type=int, default=1, help="first repetition to run (for resuming)")
     parser.add_argument("--trees", nargs="+", type=Tree, choices=list(Tree), default=list(Tree))
+    parser.add_argument("--sizes", nargs="+", type=int, help="size subset to sweep (default: config.TRIAL_SIZES)")
     parser.add_argument("--skip-generate", action="store_true")
     parser.add_argument("--skip-seed", action="store_true")
     parser.add_argument("--setup-only", action="store_true", help="generate, upload, and seed; skip the size sweep")
@@ -143,7 +145,7 @@ async def setup(
 
 async def amain() -> int:
     args = parse_args()
-    sizes = config.TRIAL_SIZES
+    sizes = args.sizes or config.TRIAL_SIZES
     dataset = config.TRIAL_DATASET
 
     try:
@@ -170,8 +172,11 @@ async def amain() -> int:
         return 0
 
     results: list[Result] = []
+    # Persist after every wave so a reboot or killed session loses at most one wave.
+    RAW_DIR.mkdir(parents=True, exist_ok=True)
+    out = RAW_DIR / f"sweep-{int(time.time())}.json"
     # One wave per (size, rep): all trees in parallel (separate PDM/execution stacks).
-    waves = [(size, rep) for size in sizes for rep in range(1, args.reps + 1)]
+    waves = [(size, rep) for size in sizes for rep in range(args.start_rep, args.reps + 1)]
     for size, rep in tqdm(waves, desc="execute", unit="wave"):
         batch = await asyncio.gather(
             *[asyncio.to_thread(run_once, harness, dataset, size, rep) for harness in harnesses],
@@ -188,10 +193,8 @@ async def amain() -> int:
                 result.status,
                 result.error,
             )
+        out.write_text(json.dumps([result.model_dump() for result in results], indent=2))
 
-    RAW_DIR.mkdir(parents=True, exist_ok=True)
-    out = RAW_DIR / f"sweep-{int(time.time())}.json"
-    out.write_text(json.dumps([result.model_dump() for result in results], indent=2))
     logger.info("wrote {} ({} rows)", out, len(results))
     return 0
 

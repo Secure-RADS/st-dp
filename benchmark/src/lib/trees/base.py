@@ -6,14 +6,13 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, ClassVar
 
 from lib import config, http
+from lib.tree import Tree
 from paths import BUILD_DIR, REPO_ROOT
 
 if TYPE_CHECKING:
     from pathlib import Path
 
     import httpx
-
-    from lib.tree import Tree
 
 
 class TreeHarness(ABC):
@@ -27,8 +26,9 @@ class TreeHarness(ABC):
 
     @staticmethod
     def build_sample_tar(tree: Tree) -> Path:
+        tree_dir = "secure" if tree is Tree.SECURE_RADS else str(tree)
         tar_path = BUILD_DIR / f"{tree}-{config.TRIAL_SAMPLE}.tar"
-        context = REPO_ROOT / str(tree) / "samples" / config.TRIAL_SAMPLE
+        context = REPO_ROOT / tree_dir / "samples" / config.TRIAL_SAMPLE
         # Rebuild when source is newer than the cached tar (stale cache overwrote a good EIF once).
         if tar_path.exists():
             tar_mtime = tar_path.stat().st_mtime

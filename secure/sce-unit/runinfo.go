@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -47,6 +48,10 @@ func readRunInfo() (runInfo, error) {
 			buf.Write(chunk[:n])
 		}
 		if err != nil {
+			// The host closes right after sending; vsock surfaces that as ENOTCONN/ECONNRESET, not EOF.
+			if errors.Is(err, unix.ENOTCONN) || errors.Is(err, unix.ECONNRESET) {
+				break
+			}
 			return runInfo{}, fmt.Errorf("read run-info: %w", err)
 		}
 		if n == 0 {

@@ -6,6 +6,7 @@ import csv
 import json
 from datetime import datetime
 from typing import Any
+from urllib.parse import quote
 
 from tqdm import tqdm
 
@@ -90,13 +91,18 @@ def fetch_events(url: str, algorithm_id: str, run_id: str) -> dict[str, str]:
 
 def fetch_costs(url: str, algorithm_id: str, run_id: str) -> dict[str, float]:
     endpoint = f"{url}/cost/{algorithm_id}?runId={run_id}"
-    status, body = http.request("GET", endpoint, timeout=60)
-    http.require(status, http.HTTP_OK, f"GET {endpoint}", body)
     totals = dict.fromkeys(COST_SERVICES, 0.0)
-    for event in json.loads(body).get("events", []):
-        service = event.get("service")
-        if service in totals:
-            totals[service] += float(event.get("costUsd", 0) or 0)
+    page = endpoint
+    while page:
+        status, body = http.request("GET", page, timeout=60)
+        http.require(status, http.HTTP_OK, f"GET {page}", body)
+        payload = json.loads(body)
+        for event in payload.get("events", []):
+            service = event.get("service")
+            if service in totals:
+                totals[service] += float(event.get("costUsd", 0) or 0)
+        cursor = payload.get("nextCursor")
+        page = f"{endpoint}&cursor={quote(cursor, safe='')}" if cursor else ""
     totals["total"] = sum(totals[service] for service in COST_SERVICES)
     return totals
 

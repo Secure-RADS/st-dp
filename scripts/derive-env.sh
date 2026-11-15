@@ -60,12 +60,13 @@ set_key CERT_ARN_RADS "$(cert_for "$domain_rads")"
 set_key CERT_ARN_SECURE_RADS "$(cert_for "$domain_secure")"
 
 pin_for() {
-    local host="$1"
+    local host="$1" pin
     [ -n "$host" ] || return 0
-    timeout 15 openssl s_client -connect "$host:443" -servername "$host" </dev/null 2>/dev/null \
+    pin=$(timeout 15 openssl s_client -connect "$host:443" -servername "$host" </dev/null 2>/dev/null \
         | openssl x509 -pubkey -noout 2>/dev/null \
         | openssl pkey -pubin -outform DER 2>/dev/null \
-        | openssl dgst -sha256 -r 2>/dev/null | cut -d' ' -f1
+        | openssl dgst -sha256 -r 2>/dev/null | cut -d' ' -f1)
+    [ -n "$pin" ] && printf '%s' "$pin"
 }
 
 verifier_host=$(sed -n 's/^VERIFIER_HOST=//p' "$env_file" | tail -1)
@@ -85,8 +86,8 @@ set_key LOG_HOST_PUBKEY_SHA256 "$log_pin"
 set_key LOG_MTLS_PUBKEY_SHA256 "$log_pin"
 
 pdm_function=$(aws lambda list-functions --region "$region" \
-    --query "Functions[?starts_with(FunctionName, 'secure-rads-pdm-service')].FunctionName | [0]" \
-    --output text)
+    --query "Functions[?starts_with(FunctionName, 'secure-rads-pdm-service')].FunctionName" \
+    --output text | head -n1)
 
 if [ -n "$pdm_function" ] && [ "$pdm_function" != "None" ]; then
     jwks_sha=$(aws lambda get-function-configuration --region "$region" \

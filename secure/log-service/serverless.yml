@@ -321,6 +321,7 @@ resources:
     SubjectAccessTableName:
       Value: !Ref SubjectAccessTable
     ApiRegionalDomainName:
+      Condition: HasTruststoreVersion
       Value: !GetAtt ApiCustomDomain.RegionalDomainName
     PublicApiRegionalDomainName:
       Value: !GetAtt PublicApiCustomDomain.RegionalDomainName
