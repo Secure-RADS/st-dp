@@ -8,6 +8,7 @@ import json
 import os
 import subprocess
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import httpx
 from pydantic import BaseModel
@@ -172,28 +173,31 @@ async def amain() -> int:
         return 0
 
     results: list[Result] = []
-    # Persist after every wave so a reboot or killed session loses at most one wave.
+    # Persist after every completed run so a reboot or killed session loses at most one run.
     RAW_DIR.mkdir(parents=True, exist_ok=True)
     out = RAW_DIR / f"sweep-{int(time.time())}.json"
-    # One wave per (size, rep): all trees in parallel (separate PDM/execution stacks).
-    waves = [(size, rep) for size in sizes for rep in range(args.start_rep, args.reps + 1)]
-    for size, rep in tqdm(waves, desc="execute", unit="wave"):
-        batch = await asyncio.gather(
-            *[asyncio.to_thread(run_once, harness, dataset, size, rep) for harness in harnesses],
-        )
-        for result in batch:
+    # Launch every (rep, size, tree) together; each run has its own PDM/execution stack.
+    jobs = [
+        (harness, size, rep) for rep in range(args.start_rep, args.reps + 1) for size in sizes for harness in harnesses
+    ]
+    loop = asyncio.get_running_loop()
+    with ThreadPoolExecutor(max_workers=max(1, len(jobs))) as pool:
+        tasks = [loop.run_in_executor(pool, run_once, harness, dataset, size, rep) for harness, size, rep in jobs]
+        for done in tqdm(asyncio.as_completed(tasks), total=len(tasks), desc="execute", unit="run"):
+            result = await done
             results.append(result)
             logger.info(
                 "execute {}/{} size={} rep={} {:.1f}s status={} err={}",
                 result.tree,
                 dataset,
-                size,
-                rep,
+                result.size,
+                result.rep,
                 result.seconds,
                 result.status,
                 result.error,
             )
-        out.write_text(json.dumps([result.model_dump() for result in results], indent=2))
+            rows = sorted(results, key=lambda row: (row.rep, row.size, row.tree.value))
+            out.write_text(json.dumps([row.model_dump() for row in rows], indent=2))
 
     logger.info("wrote {} ({} rows)", out, len(results))
     return 0
