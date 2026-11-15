@@ -147,7 +147,7 @@ func prepareRecordsFile(cfg runConfig, timelineLog *sharedlog.Client, runID stri
 	// Every event from here on carries the token.
 	timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventAttested, nil)
 
-	records, err := fetchAllRecords(cfg, limit)
+	records, subjectIDs, err := fetchAllRecords(cfg, limit)
 	if err != nil {
 		return nil, fmt.Errorf("fetch records: %w", err)
 	}
@@ -162,28 +162,21 @@ func prepareRecordsFile(cfg runConfig, timelineLog *sharedlog.Client, runID stri
 	}
 	log.Printf("sce-unit: unwrapped data key via kms-service (%d bytes)", len(dek))
 
-	plainRecords := make([]recordsFileRecord, 0, len(records))
-	subjectIDs := make([]string, 0, len(records))
-	seenSubject := make(map[string]struct{}, len(records))
+	plainRecords := make([]pdmRecord, 0, len(records))
 	for _, rec := range records {
 		plain, derr := decryptRecord(dek, rec.Data)
 		if derr != nil {
 			return nil, fmt.Errorf("decrypt record: %w", derr)
 		}
-		plainRecords = append(plainRecords, recordsFileRecord{RecordId: rec.RecordId, Data: plain})
-		if rec.DataSubjectId != "" {
-			if _, seen := seenSubject[rec.DataSubjectId]; !seen {
-				seenSubject[rec.DataSubjectId] = struct{}{}
-				subjectIDs = append(subjectIDs, rec.DataSubjectId)
-			}
-		}
+		plainRecords = append(plainRecords, pdmRecord{RecordId: rec.RecordId, Data: plain})
 	}
+	subjectIDs = uniqueIDs(subjectIDs)
 	log.Printf("sce-unit: decrypted %d records", len(plainRecords))
 	timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventRecordsDecrypted, map[string]any{"count": len(plainRecords)})
 
 	body, err := json.Marshal(struct {
-		AlgorithmId string              `json:"algorithmId"`
-		Records     []recordsFileRecord `json:"records"`
+		AlgorithmId string      `json:"algorithmId"`
+		Records     []pdmRecord `json:"records"`
 	}{AlgorithmId: cfg.AlgorithmId, Records: plainRecords})
 	if err != nil {
 		return nil, fmt.Errorf("marshal records file: %w", err)

@@ -27,9 +27,10 @@ Lifecycle events are posted to log-service `POST /events` (the ingest contract
 The fetch helper emits `records-fetched` before serializing/writing the records file; userdata emits
 `records-stored-locally` only after that write succeeds. `executor-finished` is timestamped after result publication.
 
-Each PDM record carries its `dataSubjectId`. The fetch helper keeps those ids in `/opt/rads/subject-ids.json`,
-outside the `/data` mount, and strips them from `records.json`. After a successful `docker run`, the executor
-posts the list to log-service `POST /subject-access`, so the DC app never sees subject ids.
+PDM returns a standalone `dataSubjectIds` list aligned with the records. The fetch helper keeps those ids
+in `/opt/rads/subject-ids.json`, outside the `/data` mount, and `records.json` stays `{recordId, data}`.
+After a successful `docker run`, the executor posts the list to log-service `POST /subject-access`, so the
+DC app never sees subject ids.
 
 ## Deployment
 

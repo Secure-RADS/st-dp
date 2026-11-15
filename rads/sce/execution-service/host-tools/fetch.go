@@ -16,20 +16,14 @@ import (
 var pdmHTTP = &http.Client{Timeout: 60 * time.Second}
 
 type pdmRecord struct {
-	RecordId      string          `json:"recordId"`
-	DataSubjectId string          `json:"dataSubjectId"`
-	Data          json.RawMessage `json:"data"`
-}
-
-// recordsFileRecord is the DC app's view: the data subject id never reaches records.json.
-type recordsFileRecord struct {
 	RecordId string          `json:"recordId"`
 	Data     json.RawMessage `json:"data"`
 }
 
 type pdmPage struct {
-	Records    []pdmRecord `json:"records"`
-	NextCursor string      `json:"nextCursor"`
+	Records        []pdmRecord `json:"records"`
+	DataSubjectIds []string    `json:"dataSubjectIds"`
+	NextCursor     string      `json:"nextCursor"`
 }
 
 func fetchRecords(args []string) error {
@@ -47,7 +41,7 @@ func fetchRecords(args []string) error {
 		maxRecords = n
 	}
 
-	records, pages, err := downloadRecords(base, algorithmID, runID, maxRecords)
+	records, subjectIDs, pages, err := downloadRecords(base, algorithmID, runID, maxRecords)
 	if err != nil {
 		return err
 	}
@@ -55,20 +49,16 @@ func fetchRecords(args []string) error {
 		fmt.Fprintf(os.Stderr, "pdm: %v\n", err)
 	}
 
-	subjectIDs := uniqueDataSubjectIDs(records)
+	subjectIDs = uniqueDataSubjectIDs(subjectIDs)
 	if err := writeSubjectIDs(subjectsPath, subjectIDs); err != nil {
 		return err
 	}
 
-	stripped := make([]recordsFileRecord, 0, len(records))
-	for _, rec := range records {
-		stripped = append(stripped, recordsFileRecord{RecordId: rec.RecordId, Data: rec.Data})
-	}
 	body, err := json.Marshal(struct {
-		AlgorithmId string              `json:"algorithmId"`
-		Pages       int                 `json:"pages"`
-		Records     []recordsFileRecord `json:"records"`
-	}{AlgorithmId: algorithmID, Pages: pages, Records: stripped})
+		AlgorithmId string      `json:"algorithmId"`
+		Pages       int         `json:"pages"`
+		Records     []pdmRecord `json:"records"`
+	}{AlgorithmId: algorithmID, Pages: pages, Records: records})
 	if err != nil {
 		return err
 	}
@@ -79,20 +69,20 @@ func fetchRecords(args []string) error {
 	return nil
 }
 
-func uniqueDataSubjectIDs(records []pdmRecord) []string {
-	seen := make(map[string]struct{}, len(records))
-	ids := make([]string, 0, len(records))
-	for _, rec := range records {
-		if rec.DataSubjectId == "" {
+func uniqueDataSubjectIDs(ids []string) []string {
+	seen := make(map[string]struct{}, len(ids))
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if id == "" {
 			continue
 		}
-		if _, ok := seen[rec.DataSubjectId]; ok {
+		if _, ok := seen[id]; ok {
 			continue
 		}
-		seen[rec.DataSubjectId] = struct{}{}
-		ids = append(ids, rec.DataSubjectId)
+		seen[id] = struct{}{}
+		out = append(out, id)
 	}
-	return ids
+	return out
 }
 
 func writeSubjectIDs(path string, ids []string) error {
@@ -106,13 +96,14 @@ func writeSubjectIDs(path string, ids []string) error {
 	return nil
 }
 
-func downloadRecords(base, algorithmID, runID string, maxRecords int) ([]pdmRecord, int, error) {
+func downloadRecords(base, algorithmID, runID string, maxRecords int) ([]pdmRecord, []string, int, error) {
 	parsed, err := url.Parse(base)
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, 0, err
 	}
 
 	var records []pdmRecord
+	var subjectIDs []string
 	var cursor string
 	pages := 0
 	for {
@@ -126,34 +117,35 @@ func downloadRecords(base, algorithmID, runID string, maxRecords int) ([]pdmReco
 
 		req, err := http.NewRequest(http.MethodGet, reqURL.String(), nil)
 		if err != nil {
-			return nil, 0, err
+			return nil, nil, 0, err
 		}
 		req.Header.Set("X-Run-Id", runID)
 
 		resp, err := pdmHTTP.Do(req)
 		if err != nil {
-			return nil, 0, err
+			return nil, nil, 0, err
 		}
 		payload, readErr := io.ReadAll(resp.Body)
 		resp.Body.Close()
 		if readErr != nil {
-			return nil, 0, readErr
+			return nil, nil, 0, readErr
 		}
 		if resp.StatusCode != http.StatusOK {
-			return nil, 0, fmt.Errorf("pdm-service returned %d: %s", resp.StatusCode, payload)
+			return nil, nil, 0, fmt.Errorf("pdm-service returned %d: %s", resp.StatusCode, payload)
 		}
 
 		var page pdmPage
 		if err := json.Unmarshal(payload, &page); err != nil {
-			return nil, 0, err
+			return nil, nil, 0, err
 		}
 		pages++
 		records = append(records, page.Records...)
+		subjectIDs = append(subjectIDs, page.DataSubjectIds...)
 		if maxRecords > 0 && len(records) >= maxRecords {
-			return records[:maxRecords], pages, nil
+			return records[:maxRecords], subjectIDs[:min(len(subjectIDs), maxRecords)], pages, nil
 		}
 		if page.NextCursor == "" {
-			return records, pages, nil
+			return records, subjectIDs, pages, nil
 		}
 		cursor = page.NextCursor
 	}

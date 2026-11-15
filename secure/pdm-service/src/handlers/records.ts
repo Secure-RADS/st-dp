@@ -66,16 +66,15 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     result.ConsumedCapacity?.CapacityUnits ?? 0,
   );
 
-  // The enclave assembles the DSAR trail from these ids and posts it after a successful DC app run.
-  const records = (result.Items ?? []).map((item) => ({
-    recordId: item.RecordId,
-    dataSubjectId: item.DataSubjectId,
-    data: item.Data,
-  }));
+  // A standalone list aligned with `records`; the enclave assembles the DSAR trail from it and posts after a
+  // successful DC app run. Record objects stay {recordId, data}, so the DC app never sees subject ids.
+  const items = result.Items ?? [];
+  const records = items.map((item) => ({ recordId: item.RecordId, data: item.Data }));
+  const dataSubjectIds = items.map((item) => (typeof item.DataSubjectId === "string" ? item.DataSubjectId : ""));
   const nextCursor = result.LastEvaluatedKey
     ? Buffer.from(JSON.stringify(result.LastEvaluatedKey)).toString("base64url")
     : null;
 
   await recordRequest(validation.algorithmId, runId, CostPhase.Execution, startedAt);
-  return jsonResponse(200, { algorithmId: validation.algorithmId, records, nextCursor });
+  return jsonResponse(200, { algorithmId: validation.algorithmId, records, dataSubjectIds, nextCursor });
 };
