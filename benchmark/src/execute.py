@@ -102,11 +102,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--start-rep", type=int, default=1, help="first repetition to run (for resuming)")
     parser.add_argument("--trees", nargs="+", type=Tree, choices=list(Tree), default=list(Tree))
     parser.add_argument("--sizes", nargs="+", type=int, help="size subset to sweep (default: config.TRIAL_SIZES)")
-    parser.add_argument(
-        "--serial-trees",
-        action="store_true",
-        help="run one tree's full size x rep matrix before the next tree (fewer concurrent instances)",
-    )
     parser.add_argument("--skip-generate", action="store_true")
     parser.add_argument("--skip-seed", action="store_true")
     parser.add_argument("--setup-only", action="store_true", help="generate, upload, and seed; skip the size sweep")
@@ -209,15 +204,14 @@ async def amain() -> int:
     # Persist after every completed run so a reboot or killed session loses at most one run.
     RAW_DIR.mkdir(parents=True, exist_ok=True)
     out = RAW_DIR / f"sweep-{int(time.time())}.json"
-    # Each batch launches together; --serial-trees puts one tree per batch.
+    # Run one tree's full size x rep matrix at a time; every run in the tree launches together.
     reps = range(args.start_rep, args.reps + 1)
-    batches = [[harness] for harness in harnesses] if args.serial_trees else [harnesses]
-    max_jobs = max(len(batch) for batch in batches) * len(sizes) * len(reps)
+    max_jobs = len(sizes) * len(reps)
     timeout = httpx.Timeout(http.HTTP_TIMEOUT_SECONDS)
     limits = httpx.Limits(max_connections=max(1, max_jobs))
     async with httpx.AsyncClient(timeout=timeout, limits=limits) as client:
-        for batch in batches:
-            jobs = [(harness, size, rep) for rep in reps for size in sizes for harness in batch]
+        for harness in harnesses:
+            jobs = [(harness, size, rep) for rep in reps for size in sizes]
             await _sweep(jobs, client, dataset, results, out)
 
     logger.info("wrote {} ({} rows)", out, len(results))

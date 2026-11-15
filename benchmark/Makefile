@@ -7,11 +7,9 @@ export PYTHONPATH := src
 
 REPS ?= 10
 TREES ?= rads secure-rads
-SERIAL_TREES ?=
 
 TREE_FLAGS := --trees $(TREES)
-SERIAL_FLAG := $(if $(SERIAL_TREES),--serial-trees,)
-RUN_FLAGS := --reps $(REPS) $(TREE_FLAGS) $(SERIAL_FLAG) --skip-generate --skip-seed
+RUN_FLAGS := --reps $(REPS) $(TREE_FLAGS) --skip-generate --skip-seed
 SEED_FLAGS := $(TREE_FLAGS) --setup-only
 
 .PHONY: help seed run export plot graph report all
@@ -19,7 +17,7 @@ SEED_FLAGS := $(TREE_FLAGS) --setup-only
 help:
 	@echo "benchmark targets:"
 	@echo "  make seed      # generate dataset, upload algorithms, BatchWrite PDM"
-	@echo "  make run       # size sweep only (override REPS= TREES= SERIAL_TREES=1)"
+	@echo "  make run       # size sweep only (override REPS= TREES=)"
 	@echo "  make export    # results/raw/ -> phase-timings.csv"
 	@echo "  make plot      # phase-timings.csv -> figures/ (alias: graph)"
 	@echo "  make report    # export + plot"
@@ -29,7 +27,6 @@ help:
 	@echo "  make seed"
 	@echo "  make run REPS=1"
 	@echo "  make run TREES=rads REPS=2"
-	@echo "  make run REPS=5 SERIAL_TREES=1"
 	@echo "  make export && make plot"
 	@echo "  make all REPS=3"
 
