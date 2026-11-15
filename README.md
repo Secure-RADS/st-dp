@@ -16,7 +16,7 @@ Apache License 2.0; see [License](#license).
 
 ## Architecture
 
-![Secure-RADS architecture: the SCE Unit and the DC application run inside a measured Nitro Enclave](docs/images/st-dp-secure-architecture.png)
+![Secure-RADS architecture: the SCE Unit and the DC application run inside a measured Nitro Enclave](docs/images/st-dp-architecture.png)
 
 ST-DP separates the entity that decides why personal data is processed from the services that hold,
 process, and record that processing. Black edges are request and data paths, orange is remote
