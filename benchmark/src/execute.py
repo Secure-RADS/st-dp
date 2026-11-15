@@ -96,6 +96,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--reps", type=int, default=10)
     parser.add_argument("--trees", nargs="+", type=Tree, choices=list(Tree), default=list(Tree))
+    parser.add_argument("--sizes", nargs="+", type=int, help="size subset to sweep (default: config.TRIAL_SIZES)")
     parser.add_argument("--skip-generate", action="store_true")
     parser.add_argument("--skip-seed", action="store_true")
     parser.add_argument("--setup-only", action="store_true", help="generate, upload, and seed; skip the size sweep")
@@ -143,7 +144,7 @@ async def setup(
 
 async def amain() -> int:
     args = parse_args()
-    sizes = config.TRIAL_SIZES
+    sizes = args.sizes or config.TRIAL_SIZES
     dataset = config.TRIAL_DATASET
 
     try:
