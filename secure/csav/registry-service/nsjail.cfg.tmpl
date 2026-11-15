@@ -18,6 +18,8 @@ mount_proc: true
 envar: "PATH={{.PathEnv}}"
 envar: "RECORDS_PATH=/data/records.json"
 envar: "RESULT_PATH=/data/result.json"
+# Without HOME, glibc NSS calls getpwuid for ~ expansion, which opens an AF_UNIX socket the jail now blocks.
+envar: "HOME=/data"
 
 # rlimits left deliberately loose — lockdown is the seccomp allowlist below (see csav/README.md).
 # fsize raised so large records.json dumps (size sweeps) fit on disk inside the jail.
@@ -45,7 +47,8 @@ mount {
 	nodev: true
 }
 
-# Allowlist for shipped samples (file I/O + process); AF_UNIX kept for DC apps that still open sockets.
+# Allowlist for the shipped samples: file I/O and process control only. No socket
+# syscalls are allowed; the DC app only reads/writes files under /data.
 seccomp_string: "ALLOW {"
 seccomp_string: "	read, write, close, lseek, pread64, pwrite64, readv, writev,"
 seccomp_string: "	openat, openat2, newfstatat, newfstat, statx, getdents64, faccessat, faccessat2,"
@@ -61,12 +64,7 @@ seccomp_string: "	getcwd, ioctl, fcntl, pipe2, dup, dup3,"
 seccomp_string: "	gettimeofday, clock_gettime, clock_nanosleep, nanosleep, getrandom,"
 seccomp_string: "	prctl, prlimit64, getrlimit, newuname, sysinfo, sched_yield, sched_getaffinity,"
 seccomp_string: "	epoll_create1, epoll_ctl, epoll_pwait, epoll_pwait2, ppoll, pselect6,"
-seccomp_string: "	eventfd2,"
-seccomp_string: "	socket { family == 1 },"
-seccomp_string: "	socketpair { family == 1 },"
-seccomp_string: "	bind, listen, accept, accept4, connect,"
-seccomp_string: "	sendto, recvfrom, sendmsg, recvmsg, sendmmsg, recvmmsg,"
-seccomp_string: "	shutdown, getsockname, getpeername, setsockopt, getsockopt"
+seccomp_string: "	eventfd2"
 seccomp_string: "}"
 seccomp_string: "DEFAULT KILL_PROCESS"
 
