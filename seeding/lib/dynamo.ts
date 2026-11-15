@@ -3,7 +3,6 @@ import { BatchWriteCommand, DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb
 import { NodeHttpHandler } from "@smithy/node-http-handler";
 import pMap from "p-map";
 
-const BATCH_SIZE = 25;
 const MAX_RETRIES = 16;
 const CONCURRENCY = Math.max(1, Number(process.env.SEED_WRITE_CONCURRENCY ?? 40));
 
@@ -20,14 +19,6 @@ export function documentClient(region: string): DynamoDBDocumentClient {
       }),
     }),
   );
-}
-
-export function batch(items: Record<string, unknown>[]): Record<string, unknown>[][] {
-  const batches: Record<string, unknown>[][] = [];
-  for (let i = 0; i < items.length; i += BATCH_SIZE) {
-    batches.push(items.slice(i, i + BATCH_SIZE));
-  }
-  return batches;
 }
 
 export async function writeAll(
