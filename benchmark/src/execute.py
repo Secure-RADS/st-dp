@@ -8,6 +8,7 @@ import json
 import os
 import subprocess
 import time
+from typing import TYPE_CHECKING
 
 import httpx
 from pydantic import BaseModel
@@ -17,6 +18,9 @@ from lib import config, http
 from lib.log import logger
 from lib.trees import Tree, TreeHarness, harness_for
 from paths import RAW_DIR, REPO_ROOT
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 SeedOutputs = dict[Tree, dict[str, dict[str, str]]]
 
@@ -98,6 +102,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--start-rep", type=int, default=1, help="first repetition to run (for resuming)")
     parser.add_argument("--trees", nargs="+", type=Tree, choices=list(Tree), default=list(Tree))
     parser.add_argument("--sizes", nargs="+", type=int, help="size subset to sweep (default: config.TRIAL_SIZES)")
+    parser.add_argument(
+        "--serial-trees",
+        action="store_true",
+        help="run one tree's full size x rep matrix before the next tree (fewer concurrent instances)",
+    )
     parser.add_argument("--skip-generate", action="store_true")
     parser.add_argument("--skip-seed", action="store_true")
     parser.add_argument("--setup-only", action="store_true", help="generate, upload, and seed; skip the size sweep")
@@ -143,6 +152,31 @@ async def setup(
     await asyncio.gather(*[_seed_one(harness, dataset, outputs) for harness in harnesses])
 
 
+async def _sweep(
+    jobs: list[tuple[TreeHarness, int, int]],
+    client: httpx.AsyncClient,
+    dataset: str,
+    results: list[Result],
+    out: Path,
+) -> None:
+    tasks = [run_once(harness, client, dataset, size, rep) for harness, size, rep in jobs]
+    for done in tqdm(asyncio.as_completed(tasks), total=len(tasks), desc="execute", unit="run"):
+        result = await done
+        results.append(result)
+        logger.info(
+            "execute {}/{} size={} rep={} {:.1f}s status={} err={}",
+            result.tree,
+            dataset,
+            result.size,
+            result.rep,
+            result.seconds,
+            result.status,
+            result.error,
+        )
+        rows = sorted(results, key=lambda row: (row.rep, row.size, row.tree.value))
+        await asyncio.to_thread(out.write_text, json.dumps([row.model_dump() for row in rows], indent=2))
+
+
 async def amain() -> int:
     args = parse_args()
     sizes = args.sizes or config.TRIAL_SIZES
@@ -175,29 +209,16 @@ async def amain() -> int:
     # Persist after every completed run so a reboot or killed session loses at most one run.
     RAW_DIR.mkdir(parents=True, exist_ok=True)
     out = RAW_DIR / f"sweep-{int(time.time())}.json"
-    # Launch every (rep, size, tree) together; each run has its own PDM/execution stack.
-    jobs = [
-        (harness, size, rep) for rep in range(args.start_rep, args.reps + 1) for size in sizes for harness in harnesses
-    ]
+    # Each batch launches together; --serial-trees puts one tree per batch.
+    reps = range(args.start_rep, args.reps + 1)
+    batches = [[harness] for harness in harnesses] if args.serial_trees else [harnesses]
+    max_jobs = max(len(batch) for batch in batches) * len(sizes) * len(reps)
     timeout = httpx.Timeout(http.HTTP_TIMEOUT_SECONDS)
-    limits = httpx.Limits(max_connections=max(1, len(jobs)))
+    limits = httpx.Limits(max_connections=max(1, max_jobs))
     async with httpx.AsyncClient(timeout=timeout, limits=limits) as client:
-        tasks = [run_once(harness, client, dataset, size, rep) for harness, size, rep in jobs]
-        for done in tqdm(asyncio.as_completed(tasks), total=len(tasks), desc="execute", unit="run"):
-            result = await done
-            results.append(result)
-            logger.info(
-                "execute {}/{} size={} rep={} {:.1f}s status={} err={}",
-                result.tree,
-                dataset,
-                result.size,
-                result.rep,
-                result.seconds,
-                result.status,
-                result.error,
-            )
-            rows = sorted(results, key=lambda row: (row.rep, row.size, row.tree.value))
-            out.write_text(json.dumps([row.model_dump() for row in rows], indent=2))
+        for batch in batches:
+            jobs = [(harness, size, rep) for rep in reps for size in sizes for harness in batch]
+            await _sweep(jobs, client, dataset, results, out)
 
     logger.info("wrote {} ({} rows)", out, len(results))
     return 0
