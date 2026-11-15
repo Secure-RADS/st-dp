@@ -112,7 +112,6 @@ def phases_figure_selected(df: pd.DataFrame) -> None:
     fig, ax = plt.subplots(figsize=(9, 6))
     plot_df.plot.bar(stacked=True, color=PHASE_COLORS, width=0.8, ax=ax, legend=False, rot=0)
 
-    # total time above each bar
     for i, total in enumerate(means["total_s"]):
         ax.text(i, total, f"{total:.0f}s", ha="center", va="bottom", fontsize=8.5)
 

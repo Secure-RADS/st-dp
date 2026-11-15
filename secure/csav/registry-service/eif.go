@@ -23,8 +23,6 @@ type pcrMeasurements struct {
 	PCR2 string `json:"PCR2"`
 }
 
-// AWS's own init binary (which we can't modify) requires /rootfs, /cmd (argv to exec after
-// pivoting into /rootfs), and /env (fopen'd unconditionally; missing it crashes musl's fclose(NULL)).
 const sceEntrypoint = "/usr/local/bin/sce"
 
 // buildEIF measurements come as JSON on stdout - eif_build has no --pcrs_output flag.
@@ -72,6 +70,8 @@ func buildEIF(ctx context.Context, rootfsDir, workDir string) (eifPath string, p
 	return eifPath, result, nil
 }
 
+// AWS's own init binary (which we can't modify) requires /rootfs, /cmd (argv to exec after
+// pivoting into /rootfs), and /env (fopen'd unconditionally; missing it crashes musl's fclose(NULL)).
 func stageAppRamdisk(rootfsDir, stagingDir string) error {
 	stagedRootfs := filepath.Join(stagingDir, "rootfs")
 	if err := os.MkdirAll(filepath.Dir(stagedRootfs), 0o755); err != nil {

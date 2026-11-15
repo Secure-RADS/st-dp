@@ -157,7 +157,7 @@ resources:
         ApiId: !Ref HttpApi
         Stage: !Ref HttpApiStage
 
-    # Separate API from the mTLS one above - /attest, /refresh, /.well-known/jwks.json are plain server-auth
+    # Separate API from the mTLS one above - /challenge, /attest, /refresh, /.well-known/jwks.json are plain server-auth
     # TLS, pinned to this domain's leaf pubkey by callers instead (sce-unit has no client cert to present).
     PublicHttpApi:
       Type: AWS::ApiGatewayV2::Api

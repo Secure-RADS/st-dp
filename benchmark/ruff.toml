@@ -1,9 +1,4 @@
-# --- Core Settings ---
-
-# Set line length to 120 characters
 line-length = 120
-
-# Target Python 3.12
 target-version = "py312"
 
 src = ["src"]
@@ -35,7 +30,6 @@ exclude = [
     "cdk.out",
 ]
 
-# --- Formatter Configuration ---
 [format]
 quote-style = "double"
 indent-style = "space"
@@ -43,21 +37,15 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 docstring-code-format = true
 
-# --- Linter Settings ---
 [lint]
 select = ["ALL"]
 
-# Ignore specific rules or rule categories.
-# Now enabling ANN (annotations) and C90 (complexity).
-# Docstring (D) rules are enabled via ALL, with specific ignores below.
 ignore = [
-    # --- Categories to Ignore ---
-    "DJ",   # django specific rules (Not needed for FastAPI)
+    "DJ",   # django-specific rules
     "EXE",  # flake8-executable (Checks for shebangs, etc.)
     "T10",  # debugger imports (like `import pdb`)
     "S",    # flake8-bandit (Security rules - enable selectively if needed, can be noisy)
 
-    # --- Specific Rules to Ignore ---
     "D100", # Missing docstring in public module
     "D101",
     "D102",
@@ -85,28 +73,22 @@ ignore = [
     "G004",
 ]
 
-# Allow autofix for all enabled rules (when --fix is provided)
 fixable = ["ALL"]
 unfixable = []
-
-# --- Rule-Specific Configurations ---
 
 [lint.isort]
 known-first-party = ["lib", "paths", "execute", "export", "plot"]
 [lint.mccabe]
-# Set max complexity threshold (C90 rules are now enabled)
 max-complexity = 10
 
 [lint.pydocstyle]
-# Enforce Google-style docstrings
 convention = "google"
 
-# --- Per-File Ignores ---
 [lint.per-file-ignores]
 "__init__.py" = [
     "F401", # Allow unused imports in __init__.py for re-exporting
     "D104",
-    "D107", # Missing docstring in __init__ # Allow missing docstrings in public packages (__init__.py)
+    "D107", # Missing docstring in __init__
 ]
 
 "tests/**/*.py" = [

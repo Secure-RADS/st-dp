@@ -9,8 +9,9 @@ const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const tableName = requiredEnv("ATTESTATION_SESSION_TABLE");
 
 // Access tokens are self-contained ML-DSA-87 JWTs that downstream services verify locally against the public
-// JWKS endpoint - no /validate round-trip. They are short-lived so a revoked session stops working within
-// minutes. Refresh tokens stay opaque and stored hashed: the DB row is what makes revocation possible.
+// JWKS endpoint - no /validate round-trip. They are short-lived (2 hours) so a revoked session stops working
+// once its access token expires. Refresh tokens stay opaque and stored hashed: the DB row is what makes
+// revocation possible.
 const ACCESS_TOKEN_TTL_SECONDS = 2 * 60 * 60;
 // The refresh token must outlive the access token, otherwise sce-unit's pre-expiry refresh can never succeed.
 const REFRESH_TOKEN_TTL_SECONDS = 4 * 60 * 60;

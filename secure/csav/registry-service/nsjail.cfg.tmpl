@@ -14,7 +14,7 @@ iface_no_lo: true
 
 mount_proc: true
 
-# nsjail strips env vars by default; PATH here is sourced from the DC's own image (see pathFromEnv in build.go).
+# nsjail strips env vars by default; PATH here is sourced from the DC's own image (see pathFromEnv in oci.go).
 envar: "PATH={{.PathEnv}}"
 envar: "RECORDS_PATH=/data/records.json"
 envar: "RESULT_PATH=/data/result.json"
