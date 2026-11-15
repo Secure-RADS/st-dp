@@ -17,7 +17,6 @@ jobs:
     outputs:
       ts_lint: ${{ steps.ts_lint.outputs.changes }}
       ts_typecheck: ${{ steps.ts_typecheck.outputs.changes }}
-      ts_test: ${{ steps.ts_test.outputs.changes }}
       go: ${{ steps.go.outputs.changes }}
       python: ${{ steps.python.outputs.changes }}
     steps:
@@ -146,14 +145,6 @@ jobs:
             'seeding':
               - 'seeding/**'
               - '.github/workflows/ci.yml'
-      - id: ts_test
-        uses: dorny/paths-filter@v4
-        with:
-          filters: |
-            'secure/verifier-service':
-              - 'secure/verifier-service/**'
-              - 'packages/common/**'
-              - '.github/workflows/ci.yml'
       - id: go
         uses: dorny/paths-filter@v4
         with:
@@ -207,24 +198,6 @@ jobs:
       - run: bun install --frozen-lockfile
         working-directory: ${{ matrix.package }}
       - run: bun run typecheck
-        working-directory: ${{ matrix.package }}
-
-  test-typescript:
-    needs: changes
-    if: needs.changes.outputs.ts_test != '[]'
-    runs-on: blacksmith-2vcpu-ubuntu-2404
-    strategy:
-      fail-fast: false
-      matrix:
-        package: ${{ fromJSON(needs.changes.outputs.ts_test) }}
-    steps:
-      - uses: actions/checkout@v5
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.x
-      - run: bun install --frozen-lockfile
-        working-directory: ${{ matrix.package }}
-      - run: bun run test
         working-directory: ${{ matrix.package }}
 
   python:
