@@ -9,6 +9,7 @@
         "@aws-sdk/client-kms": "^3.700.0",
         "@aws-sdk/lib-dynamodb": "^3.700.0",
         "@srads/common": "file:../../packages/common",
+        "jose": "^6.2.10",
       },
       "devDependencies": {
         "@biomejs/biome": "2.5.10",

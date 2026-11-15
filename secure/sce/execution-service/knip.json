@@ -5,5 +5,8 @@
   ],
   "project": [
     "src/**/*.ts"
+  ],
+  "ignoreDependencies": [
+    "@aws-sdk/client-ssm"
   ]
 }
