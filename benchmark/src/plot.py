@@ -77,8 +77,7 @@ def phases_figure(df: pd.DataFrame) -> None:
     ax.invert_yaxis()
     ax.set_xlabel("seconds (mean per run)")
     ax.set_ylabel("")
-    ax.set_title("Where an execution's wall clock goes, by dataset size")
-    fig.subplots_adjust(left=0.28, right=0.98, top=0.9, bottom=0.34)
+    fig.subplots_adjust(left=0.28, right=0.98, top=0.98, bottom=0.34)
     ax.legend(
         list(PHASES.values()),
         loc="upper center",
@@ -144,7 +143,6 @@ def scaling_figure(df: pd.DataFrame) -> None:
     )
     ax.set_xlabel("dataset size (records)")
     ax.set_ylabel("total execution time (seconds)")
-    ax.set_title("End-to-end execution time vs dataset size")
     ax.legend(title=None, frameon=False)
     ax.set_xticks([10_000, 30_000, 50_000, 70_000, 90_000, 110_000, 130_000, 150_000])
     ax.set_xticklabels([f"{x // 1000}K" for x in ax.get_xticks()])
@@ -166,7 +164,6 @@ def cost_size_figure(df: pd.DataFrame) -> None:
     )
     ax.set_xlabel("dataset size (records)")
     ax.set_ylabel("execution cost (USD)")
-    ax.set_title("Execution cost vs dataset size")
     ax.legend(title=None, frameon=False)
     _save(fig, "sweep-cost.png")
 
@@ -180,7 +177,6 @@ def cost_services_figure(df: pd.DataFrame) -> None:
     by_service.plot.barh(stacked=True, color=COST_COLORS, width=0.7, ax=ax)
     ax.set_xlabel("mean execution cost (USD)")
     ax.set_ylabel("")
-    ax.set_title("Cost by AWS service")
     ax.legend(title=None, loc="center left", bbox_to_anchor=(1.02, 0.5), frameon=False, fontsize=8)
     fig.subplots_adjust(right=0.78)
     _save(fig, "sweep-cost-services.png")
