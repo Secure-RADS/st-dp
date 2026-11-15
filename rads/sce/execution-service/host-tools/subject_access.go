@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 )
 
@@ -36,7 +37,7 @@ func logSubjectAccess(args []string) error {
 	}
 
 	timestamp := time.Now().UTC().Format(time.RFC3339Nano)
-	client := &http.Client{Timeout: subjectAccessTimeout}
+	bodies := make([][]byte, 0, (len(dataSubjectIDs)+subjectAccessBatch-1)/subjectAccessBatch)
 	for start := 0; start < len(dataSubjectIDs); start += subjectAccessBatch {
 		end := min(start+subjectAccessBatch, len(dataSubjectIDs))
 		body, err := json.Marshal(struct {
@@ -53,16 +54,32 @@ func logSubjectAccess(args []string) error {
 		if err != nil {
 			return err
 		}
+		bodies = append(bodies, body)
+	}
 
-		resp, err := client.Post(endpoint, "application/json", bytes.NewReader(body))
-		if err != nil {
-			return err
-		}
-		io.Copy(io.Discard, resp.Body)
-		resp.Body.Close()
-		if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-			return fmt.Errorf("subject-access rejected with %s", resp.Status)
-		}
+	client := &http.Client{Timeout: subjectAccessTimeout}
+	errs := make(chan error, len(bodies))
+	var wg sync.WaitGroup
+	for _, body := range bodies {
+		wg.Add(1)
+		go func(body []byte) {
+			defer wg.Done()
+			resp, err := client.Post(endpoint, "application/json", bytes.NewReader(body))
+			if err != nil {
+				errs <- err
+				return
+			}
+			io.Copy(io.Discard, resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+				errs <- fmt.Errorf("subject-access rejected with %s", resp.Status)
+			}
+		}(body)
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		return err
 	}
 	return nil
 }
