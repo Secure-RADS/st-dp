@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import math
+
 import matplotlib as mpl
 
 mpl.use("Agg")
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import seaborn as sns
 
@@ -128,6 +131,22 @@ def phases_figure_selected(df: pd.DataFrame) -> None:
     _save(fig, "sweep-selected-phases.png", tight=False)
 
 
+def lowess(x: np.ndarray, y: np.ndarray, frac: float = 0.35) -> np.ndarray:
+    """Tricube-weighted local linear fit, evaluated at each x (Cleveland LOWESS)."""
+    k = max(3, math.ceil(frac * len(x)))
+    out = np.empty_like(y, dtype=float)
+    for i, x0 in enumerate(x):
+        dist = np.abs(x - x0)
+        idx = np.argsort(dist)[:k]
+        h = dist[idx].max() or 1.0
+        weights = (1 - np.clip(dist[idx] / h, 0, 1) ** 3) ** 3
+        design = np.column_stack([np.ones(k), x[idx] - x0])
+        root_w = np.sqrt(weights)
+        beta, *_ = np.linalg.lstsq(design * root_w[:, None], y[idx] * root_w, rcond=None)
+        out[i] = beta[0]
+    return out
+
+
 def scaling_figure(df: pd.DataFrame) -> None:
     fig, ax = plt.subplots(figsize=(9, 5))
     sns.lineplot(
@@ -138,9 +157,16 @@ def scaling_figure(df: pd.DataFrame) -> None:
         hue_order=[LABELS[t] for t in Tree],
         palette={LABELS[t]: c for t, c in PALETTE.items()},
         marker="o",
+        alpha=0.45,
         errorbar=("ci", 95),
         ax=ax,
     )
+    means = df.groupby(["dataset_size", "tree"], as_index=False)["total_s"].mean()
+    for tree in Tree:
+        points = means[means["tree"] == tree].sort_values("dataset_size")
+        x = points["dataset_size"].to_numpy(dtype=float)
+        y = points["total_s"].to_numpy(dtype=float)
+        ax.plot(x, lowess(x, y), color=PALETTE[tree], linewidth=2.5, label="_smooth")
     ax.set_xlabel("dataset size (records)")
     ax.set_ylabel("total execution time (seconds)")
     ax.legend(title=None, frameon=False)

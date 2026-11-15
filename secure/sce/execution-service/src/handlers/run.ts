@@ -6,7 +6,7 @@ import { CostPhase, costEvent, recordRequest } from "@srads/common/cost";
 import { requiredEnv } from "@srads/common/env";
 import { emitSecureEvent as emitEvent } from "@srads/common/log-mtls";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
-import { countAlgorithmRecords } from "../lib/pdmCount.js";
+import { countAlgorithmRecords, isThrottlingError } from "../lib/pdmCount.js";
 import { userData } from "../lib/userdata.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -35,6 +35,7 @@ interface RunRequest {
 interface AlgorithmRecord {
   S3Bucket?: string;
   S3Key?: string;
+  RecordCount?: number;
 }
 
 interface RunResult {
@@ -95,18 +96,40 @@ export const create: APIGatewayProxyHandlerV2 = async (event) => {
     }
 
     if (request.size !== undefined) {
-      const { count: available, readCapacityUnits } = await countAlgorithmRecords(
-        ddb,
-        pdmTable,
-        request.algorithmId,
-        request.size,
-      );
-      await costEvent(request.algorithmId, runId, CostPhase.Execution, "dynamodb", "read-capacity", readCapacityUnits);
-      if (request.size > available) {
-        await recordRequest(request.algorithmId, runId, CostPhase.Execution, startedAt);
-        return jsonResponse(400, {
-          error: `size ${request.size} exceeds seeded dataset (${available} records)`,
-        });
+      if (record.RecordCount !== undefined) {
+        if (request.size > record.RecordCount) {
+          await recordRequest(request.algorithmId, runId, CostPhase.Execution, startedAt);
+          return jsonResponse(400, {
+            error: `size ${request.size} exceeds seeded dataset (${record.RecordCount} records)`,
+          });
+        }
+      } else {
+        try {
+          const { count: available, readCapacityUnits } = await countAlgorithmRecords(
+            ddb,
+            pdmTable,
+            request.algorithmId,
+            request.size,
+          );
+          await costEvent(
+            request.algorithmId,
+            runId,
+            CostPhase.Execution,
+            "dynamodb",
+            "read-capacity",
+            readCapacityUnits,
+          );
+          if (request.size > available) {
+            await recordRequest(request.algorithmId, runId, CostPhase.Execution, startedAt);
+            return jsonResponse(400, {
+              error: `size ${request.size} exceeds seeded dataset (${available} records)`,
+            });
+          }
+        } catch (error) {
+          // A concurrent sweep can throttle the fallback count; the executor caps at size anyway.
+          if (!isThrottlingError(error)) throw error;
+          console.warn("record count throttled; skipping size validation");
+        }
       }
     }
 

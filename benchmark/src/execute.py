@@ -8,6 +8,7 @@ import json
 import os
 import subprocess
 import time
+from typing import TYPE_CHECKING
 
 import httpx
 from pydantic import BaseModel
@@ -17,6 +18,9 @@ from lib import config, http
 from lib.log import logger
 from lib.trees import Tree, TreeHarness, harness_for
 from paths import RAW_DIR, REPO_ROOT
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 SeedOutputs = dict[Tree, dict[str, dict[str, str]]]
 
@@ -69,12 +73,12 @@ def payload_error(output: str | None) -> str | None:
     return str(parsed["error"]) if isinstance(parsed, dict) and parsed.get("error") else None
 
 
-def run_once(harness: TreeHarness, dataset: str, size: int, rep: int) -> Result:
+async def run_once(harness: TreeHarness, client: httpx.AsyncClient, dataset: str, size: int, rep: int) -> Result:
     start = time.perf_counter()
     run_id = status = output = None
     error = None
     try:
-        run_id, status, output = harness.execute(config.TRIAL_ALGORITHM_ID, size)
+        run_id, status, output = await harness.execute(client, config.TRIAL_ALGORITHM_ID, size)
         error = payload_error(output)
     except Exception as err:  # noqa: BLE001 - record and keep sweeping
         error = f"{type(err).__name__}: {err}"
@@ -143,6 +147,31 @@ async def setup(
     await asyncio.gather(*[_seed_one(harness, dataset, outputs) for harness in harnesses])
 
 
+async def _sweep(
+    jobs: list[tuple[TreeHarness, int, int]],
+    client: httpx.AsyncClient,
+    dataset: str,
+    results: list[Result],
+    out: Path,
+) -> None:
+    tasks = [run_once(harness, client, dataset, size, rep) for harness, size, rep in jobs]
+    for done in tqdm(asyncio.as_completed(tasks), total=len(tasks), desc="execute", unit="run"):
+        result = await done
+        results.append(result)
+        logger.info(
+            "execute {}/{} size={} rep={} {:.1f}s status={} err={}",
+            result.tree,
+            dataset,
+            result.size,
+            result.rep,
+            result.seconds,
+            result.status,
+            result.error,
+        )
+        rows = sorted(results, key=lambda row: (row.rep, row.size, row.tree.value))
+        await asyncio.to_thread(out.write_text, json.dumps([row.model_dump() for row in rows], indent=2))
+
+
 async def amain() -> int:
     args = parse_args()
     sizes = args.sizes or config.TRIAL_SIZES
@@ -172,28 +201,18 @@ async def amain() -> int:
         return 0
 
     results: list[Result] = []
-    # Persist after every wave so a reboot or killed session loses at most one wave.
+    # Persist after every completed run so a reboot or killed session loses at most one run.
     RAW_DIR.mkdir(parents=True, exist_ok=True)
     out = RAW_DIR / f"sweep-{int(time.time())}.json"
-    # One wave per (size, rep): all trees in parallel (separate PDM/execution stacks).
-    waves = [(size, rep) for size in sizes for rep in range(args.start_rep, args.reps + 1)]
-    for size, rep in tqdm(waves, desc="execute", unit="wave"):
-        batch = await asyncio.gather(
-            *[asyncio.to_thread(run_once, harness, dataset, size, rep) for harness in harnesses],
-        )
-        for result in batch:
-            results.append(result)
-            logger.info(
-                "execute {}/{} size={} rep={} {:.1f}s status={} err={}",
-                result.tree,
-                dataset,
-                size,
-                rep,
-                result.seconds,
-                result.status,
-                result.error,
-            )
-        out.write_text(json.dumps([result.model_dump() for result in results], indent=2))
+    # One size at a time; every selected tree races on that size, then the next size.
+    reps = range(args.start_rep, args.reps + 1)
+    timeout = httpx.Timeout(http.HTTP_TIMEOUT_SECONDS)
+    limits = httpx.Limits(max_connections=max(1, len(harnesses)))
+    async with httpx.AsyncClient(timeout=timeout, limits=limits) as client:
+        for size in sizes:
+            for rep in reps:
+                jobs = [(harness, size, rep) for harness in harnesses]
+                await _sweep(jobs, client, dataset, results, out)
 
     logger.info("wrote {} ({} rows)", out, len(results))
     return 0

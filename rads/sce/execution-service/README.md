@@ -11,8 +11,8 @@ count exceeds the rows already seeded for the algorithm in PDM. It then launches
 `202 {runId, algorithmId, instanceId, status: "pending"}`. The executor installs AWS CLI + Docker, downloads
 `rads-host-tools` from `s3://<images-bucket>/executor/rads-host-tools`, `aws s3 cp`s the image tar into place,
 `docker load`s it, fetches PDM records up to the requested size into `/opt/rads/run/records.json`, then `docker run`s the
-image with that directory bind-mounted at `/data` and `RECORDS_PATH=/data/records.json` / `RESULT_PATH=/data/result.json`
-set. The app reads the records file and writes its result file; the executor ships that file as the output, falling
+image with that directory bind-mounted at `/data`, `RECORDS_PATH=/data/records.json` / `RESULT_PATH=/data/result.json`
+set, and `--cpus 1 --memory 2048m` so the container matches the secure-rads enclave allocation. The app reads the records file and writes its result file; the executor ships that file as the output, falling
 back to the container's stdout for diagnostics. On exit it publishes
 `{runId, instanceId, algorithmId, status, output, diag?}` to the `rads-run-results` queue (a consumer Lambda
 persists it to the `rads-run-results` table, PK `RunId`) and terminates itself.

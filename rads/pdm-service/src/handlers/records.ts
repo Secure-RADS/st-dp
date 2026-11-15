@@ -8,6 +8,21 @@ const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const table = requiredEnv("PDM_TABLE");
 
 const PAGE_SIZE = 500;
+const MAX_QUERY_ATTEMPTS = 8;
+
+async function queryWithRetry(command: QueryCommand) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await ddb.send(command);
+    } catch (error) {
+      if (!(error instanceof Error) || error.name !== "ThrottlingException" || attempt >= MAX_QUERY_ATTEMPTS) {
+        throw error;
+      }
+      const backoffMs = 50 * 2 ** attempt + Math.random() * 100;
+      await new Promise((resolve) => setTimeout(resolve, backoffMs));
+    }
+  }
+}
 
 function jsonResponse(statusCode: number, body: unknown) {
   return { statusCode, headers: { "content-type": "application/json" }, body: JSON.stringify(body) };
@@ -40,7 +55,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     }
   }
 
-  const result = await ddb.send(
+  const result = await queryWithRetry(
     new QueryCommand({
       TableName: table,
       KeyConditionExpression: "AlgorithmId = :a",

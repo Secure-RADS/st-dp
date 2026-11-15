@@ -2,7 +2,7 @@
 
 End-to-end Exp1/Exp2 size sweep: `rads` (baseline) vs `secure-rads` (Nitro enclave) on the trial-eligibility algorithm over a shared e-health dataset.
 
-One algorithm id is reused across sizes. `make seed` generates the dataset, uploads both algorithm images, and BatchWrites the same JSON into both trees. `make run` then executes each size with a fetch `size` limit. Sizes come from `TRIAL_SIZES` in `src/lib/config.py` (10k..150k step 10k; not a CLI override). Each `(size, rep)` wave runs selected trees in parallel (separate stacks).
+One algorithm id is reused across sizes. `make seed` generates the dataset, uploads both algorithm images, and BatchWrites the same JSON into both trees. `make run` then executes each size with a fetch `size` limit. Sizes come from `TRIAL_SIZES` in `src/lib/config.py` (10k..150k step 10k; not a CLI override). Sizes run in ascending order; for each size both trees launch together, then the next size starts.
 
 Use [Devbox](https://www.jetify.com/docs/devbox/) from the repo root so AWS hits the local `.aws/` credentials and `ap-southeast-2` (`devbox shell` / `devbox run …`).
 
@@ -31,13 +31,14 @@ make benchmark-report
 | Variable | Default | Applies to | Meaning |
 | --- | --- | --- | --- |
 | `REPS` | `10` | `run`, `all` | Repetitions per size × tree |
-| `TREES` | `rads secure-rads` | `seed`, `run`, `all` | Which trees |
+| `TREES` | `rads secure-rads` | `seed`, `run`, `all` | Which trees, run in order |
 
 ```sh
 make seed
 make run REPS=1
 make all REPS=3
 make run TREES=rads REPS=2
+make run REPS=5
 ```
 
 Typical iteration: `make seed` once, then `make run REPS=1` / `make report` while tuning. Full paper matrix: `make all REPS=10`.
@@ -50,19 +51,21 @@ Typical iteration: `make seed` once, then `make run REPS=1` / `make report` whil
 - Docker (arm64) for the sample algorithm image on first upload
 - `uv` (Python); `bun` for `../seeding` generate/seed
 
-Executors default to `c6g.large` on both trees. Secure-rads enclave allocation on that size is 1 vCPU / 2048 MiB.
+Executors run on `c6g.large` on both trees. Secure-rads allocates a 1 vCPU / 2048 MiB enclave, and rads runs its container with `--cpus 1 --memory 2048m` so both trees give the algorithm the same compute.
 
 ### Runtime cost
 
-Each rep launches a **fresh EC2 executor**, boots (~70–90s), runs, then terminates:
+Each `(size, rep, tree)` launches a **fresh EC2 executor**, boots (~70–90s), runs, then terminates. Sizes run one after another with both trees in parallel per size, so wall clock is roughly one executor lifetime per size times reps:
 
-`len(TRIAL_SIZES) × trees × reps × ~100s`
+`trees` instances at once (one per tree)
 
-| Matrix | Launches | Rough wall clock |
+| Matrix | Instances at once | Rough wall clock |
 | --- | --- | --- |
-| 15 sizes, 2 trees, 1 rep | 30 | ~45–60 min |
-| 15 sizes, 2 trees, 3 reps | 90 | ~2.5–3 h |
-| 15 sizes, 2 trees, 10 reps | 300 | ~8–9 h |
+| 15 sizes, 2 trees, 1 rep | 2 | ~30–45 min |
+| 15 sizes, 2 trees, 3 reps | 2 | ~1.5–2 h |
+| 15 sizes, 2 trees, 5 reps | 2 | ~2.5–4 h |
+
+Only one instance per tree runs at a time, so the vCPU quota is not the constraint. PDM reads still share one DynamoDB partition, and the PDM handler retries throttled pages with backoff.
 
 ## Shared seed data
 
@@ -87,11 +90,11 @@ uv run python -m plot
 | --- | --- |
 | `--setup-only` | generate + upload + seed; no size sweep |
 | `--reps N` | Repetitions per size × tree (default 10) |
-| `--trees rads secure-rads` | Which trees |
+| `--trees rads secure-rads` | Which trees, run in order |
 | `--skip-generate` | Reuse `seeding/datasets/` |
 | `--skip-seed` | Reuse PDM rows already BatchWritten |
 
-Setup resolves the service catalog once (API Gateway URLs; CSAV registry via live EC2 public IP), then generate → parallel uploads → parallel seeds. `make run` is the serial size×tree×rep loop. Logging is loguru via richuru; execute/export use tqdm.
+Setup resolves the service catalog once (API Gateway URLs; CSAV registry via live EC2 public IP), then generate → parallel uploads → parallel seeds. `make run` walks sizes in order, running both trees together for each size, and rewrites the raw JSON after each completion. Logging is loguru via richuru; execute/export use tqdm.
 
 Each sweep writes `results/raw/sweep-<unix>.json`. Stop with Ctrl-C and terminate leftover `*-execution-service-run` EC2 instances if needed.
 

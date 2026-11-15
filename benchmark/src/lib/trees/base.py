@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+import asyncio
 import subprocess
-import time
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, ClassVar
 
@@ -48,8 +48,9 @@ class TreeHarness(ABC):
         subprocess.run(["docker", "save", tag, "-o", str(tar_path)], check=True)
         return tar_path
 
-    def execute(self, algorithm_id: str, size: int) -> tuple[str, str, str]:
-        status, body = http.request(
+    async def execute(self, client: httpx.AsyncClient, algorithm_id: str, size: int) -> tuple[str, str, str]:
+        status, body = await http.arequest(
+            client,
             "POST",
             f"{self._execution}/run",
             json={"algorithmId": algorithm_id, "size": size},
@@ -57,15 +58,17 @@ class TreeHarness(ABC):
         http.require(status, http.HTTP_ACCEPTED, "/run", body)
 
         run_id = http.parse_json(body)["runId"]
-        deadline = time.time() + http.POLL_TIMEOUT_SECONDS
-        while time.time() < deadline:
-            status, result_body = http.request("GET", f"{self._execution}/run/{run_id}?algorithmId={algorithm_id}")
+        deadline = asyncio.get_running_loop().time() + http.POLL_TIMEOUT_SECONDS
+        while asyncio.get_running_loop().time() < deadline:
+            status, result_body = await http.arequest(
+                client, "GET", f"{self._execution}/run/{run_id}?algorithmId={algorithm_id}"
+            )
             http.require(status, http.HTTP_OK, f"/run/{run_id}", result_body)
             result = http.parse_json(result_body)
             if result.get("status") != "pending":
                 output = result.get("output", "") or ""
                 return run_id, result.get("status", ""), output
-            time.sleep(http.POLL_INTERVAL_SECONDS)
+            await asyncio.sleep(http.POLL_INTERVAL_SECONDS)
 
         msg = f"timed out after {http.POLL_TIMEOUT_SECONDS:.0f}s waiting for runId={run_id}"
         raise http.FlowError(msg)

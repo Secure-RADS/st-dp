@@ -28,3 +28,14 @@ export async function countAlgorithmRecords(
   } while (exclusiveStartKey);
   return { count: total, readCapacityUnits };
 }
+
+const THROTTLING_ERRORS = new Set([
+  "ThrottlingException",
+  "ProvisionedThroughputExceededException",
+  "RequestLimitExceeded",
+  "TooManyRequestsException",
+]);
+
+export function isThrottlingError(error: unknown): boolean {
+  return error instanceof Error && THROTTLING_ERRORS.has(error.name);
+}
