@@ -170,6 +170,9 @@ async def amain() -> int:
         return 0
 
     results: list[Result] = []
+    # Persist after every wave so a reboot or killed session loses at most one wave.
+    RAW_DIR.mkdir(parents=True, exist_ok=True)
+    out = RAW_DIR / f"sweep-{int(time.time())}.json"
     # One wave per (size, rep): all trees in parallel (separate PDM/execution stacks).
     waves = [(size, rep) for size in sizes for rep in range(1, args.reps + 1)]
     for size, rep in tqdm(waves, desc="execute", unit="wave"):
@@ -188,10 +191,8 @@ async def amain() -> int:
                 result.status,
                 result.error,
             )
+        out.write_text(json.dumps([result.model_dump() for result in results], indent=2))
 
-    RAW_DIR.mkdir(parents=True, exist_ok=True)
-    out = RAW_DIR / f"sweep-{int(time.time())}.json"
-    out.write_text(json.dumps([result.model_dump() for result in results], indent=2))
     logger.info("wrote {} ({} rows)", out, len(results))
     return 0
 
