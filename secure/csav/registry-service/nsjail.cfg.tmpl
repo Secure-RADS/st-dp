@@ -18,6 +18,8 @@ mount_proc: true
 envar: "PATH={{.PathEnv}}"
 envar: "RECORDS_PATH=/data/records.json"
 envar: "RESULT_PATH=/data/result.json"
+# Without HOME, glibc NSS calls getpwuid for ~ expansion, which opens an AF_UNIX socket the jail now blocks.
+envar: "HOME=/data"
 
 # rlimits left deliberately loose — lockdown is the seccomp allowlist below (see csav/README.md).
 # fsize raised so large records.json dumps (size sweeps) fit on disk inside the jail.
