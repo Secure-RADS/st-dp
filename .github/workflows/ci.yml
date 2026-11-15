@@ -9,28 +9,30 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    outputs:
+      ts_lint: ${{ steps.detect.outputs.ts_lint }}
+      ts_typecheck: ${{ steps.detect.outputs.ts_typecheck }}
+      go: ${{ steps.detect.outputs.go }}
+      python: ${{ steps.detect.outputs.python }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - id: detect
+        run: ./.github/scripts/changed-areas.sh
+        env:
+          BEFORE: ${{ github.event.before }}
+
   lint-typescript:
+    needs: changes
+    if: needs.changes.outputs.ts_lint != '[]'
     runs-on: blacksmith-2vcpu-ubuntu-2404
     strategy:
       fail-fast: false
       matrix:
-        package:
-          - packages/common
-          - rads/cost-service
-          - rads/csav/registry-service
-          - rads/log-service
-          - rads/pdm-service
-          - rads/result-consumer
-          - rads/sce/execution-service
-          - rads/transparency-portal
-          - secure/cost-service
-          - secure/log-service
-          - secure/pdm-service
-          - secure/result-consumer
-          - secure/sce/execution-service
-          - secure/transparency-portal
-          - secure/verifier-service
-          - seeding
+        package: ${{ fromJSON(needs.changes.outputs.ts_lint) }}
     steps:
       - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
@@ -42,25 +44,13 @@ jobs:
         working-directory: ${{ matrix.package }}
 
   typecheck-typescript:
+    needs: changes
+    if: needs.changes.outputs.ts_typecheck != '[]'
     runs-on: blacksmith-2vcpu-ubuntu-2404
     strategy:
       fail-fast: false
       matrix:
-        package:
-          - packages/common
-          - rads/cost-service
-          - rads/csav/registry-service
-          - rads/log-service
-          - rads/pdm-service
-          - rads/result-consumer
-          - rads/sce/execution-service
-          - secure/cost-service
-          - secure/log-service
-          - secure/pdm-service
-          - secure/result-consumer
-          - secure/sce/execution-service
-          - secure/verifier-service
-          - seeding
+        package: ${{ fromJSON(needs.changes.outputs.ts_typecheck) }}
     steps:
       - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
@@ -72,6 +62,8 @@ jobs:
         working-directory: ${{ matrix.package }}
 
   python:
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
     runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@v5
@@ -82,13 +74,13 @@ jobs:
         working-directory: benchmark
 
   go:
+    needs: changes
+    if: needs.changes.outputs.go != '[]'
     runs-on: blacksmith-2vcpu-ubuntu-2404
     strategy:
       fail-fast: false
       matrix:
-        module:
-          - packages/go-common
-          - secure/sce-unit
+        module: ${{ fromJSON(needs.changes.outputs.go) }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6
