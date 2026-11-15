@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import math
 
 import matplotlib as mpl
@@ -146,7 +147,7 @@ def lowess(x: np.ndarray, y: np.ndarray, frac: float = 0.35) -> np.ndarray:
     return out
 
 
-def scaling_figure(df: pd.DataFrame) -> None:
+def scaling_figure(df: pd.DataFrame, *, smooth: bool = True) -> None:
     fig, ax = plt.subplots(figsize=(9, 5))
     sns.lineplot(
         data=df,
@@ -160,12 +161,13 @@ def scaling_figure(df: pd.DataFrame) -> None:
         errorbar=("ci", 95),
         ax=ax,
     )
-    means = df.groupby(["dataset_size", "tree"], as_index=False)["total_s"].mean()
-    for tree in Tree:
-        points = means[means["tree"] == tree].sort_values("dataset_size")
-        x = points["dataset_size"].to_numpy(dtype=float)
-        y = points["total_s"].to_numpy(dtype=float)
-        ax.plot(x, lowess(x, y), color=PALETTE[tree], linewidth=2.5, label="_smooth")
+    if smooth:
+        means = df.groupby(["dataset_size", "tree"], as_index=False)["total_s"].mean()
+        for tree in Tree:
+            points = means[means["tree"] == tree].sort_values("dataset_size")
+            x = points["dataset_size"].to_numpy(dtype=float)
+            y = points["total_s"].to_numpy(dtype=float)
+            ax.plot(x, lowess(x, y), color=PALETTE[tree], linewidth=2.5, label="_smooth")
     ax.set_xlabel("dataset size (records)")
     ax.set_ylabel("total execution time (seconds)")
     ax.legend(title=None, frameon=False)
@@ -207,14 +209,21 @@ def cost_services_figure(df: pd.DataFrame) -> None:
     _save(fig, "sweep-cost-services.png")
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--no-smooth", action="store_true", help="plot raw runs without the LOWESS overlay")
+    return parser.parse_args()
+
+
 def main() -> int:
+    args = parse_args()
     sns.set_theme(style="whitegrid", context="notebook")
     FIG_DIR.mkdir(parents=True, exist_ok=True)
     df = load()
     logger.info("loaded {} runs across {} sizes", len(df), df["dataset_size"].nunique())
     phases_figure(df)
     phases_figure_selected(df)
-    scaling_figure(df)
+    scaling_figure(df, smooth=not args.no_smooth)
     if "total_cost_usd" in df.columns:
         cost_size_figure(df)
         cost_services_figure(df)
