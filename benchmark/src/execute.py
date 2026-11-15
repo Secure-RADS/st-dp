@@ -8,7 +8,6 @@ import json
 import os
 import subprocess
 import time
-from concurrent.futures import ThreadPoolExecutor
 
 import httpx
 from pydantic import BaseModel
@@ -70,12 +69,12 @@ def payload_error(output: str | None) -> str | None:
     return str(parsed["error"]) if isinstance(parsed, dict) and parsed.get("error") else None
 
 
-def run_once(harness: TreeHarness, dataset: str, size: int, rep: int) -> Result:
+async def run_once(harness: TreeHarness, client: httpx.AsyncClient, dataset: str, size: int, rep: int) -> Result:
     start = time.perf_counter()
     run_id = status = output = None
     error = None
     try:
-        run_id, status, output = harness.execute(config.TRIAL_ALGORITHM_ID, size)
+        run_id, status, output = await harness.execute(client, config.TRIAL_ALGORITHM_ID, size)
         error = payload_error(output)
     except Exception as err:  # noqa: BLE001 - record and keep sweeping
         error = f"{type(err).__name__}: {err}"
@@ -180,9 +179,10 @@ async def amain() -> int:
     jobs = [
         (harness, size, rep) for rep in range(args.start_rep, args.reps + 1) for size in sizes for harness in harnesses
     ]
-    loop = asyncio.get_running_loop()
-    with ThreadPoolExecutor(max_workers=max(1, len(jobs))) as pool:
-        tasks = [loop.run_in_executor(pool, run_once, harness, dataset, size, rep) for harness, size, rep in jobs]
+    timeout = httpx.Timeout(http.HTTP_TIMEOUT_SECONDS)
+    limits = httpx.Limits(max_connections=max(1, len(jobs)))
+    async with httpx.AsyncClient(timeout=timeout, limits=limits) as client:
+        tasks = [run_once(harness, client, dataset, size, rep) for harness, size, rep in jobs]
         for done in tqdm(asyncio.as_completed(tasks), total=len(tasks), desc="execute", unit="run"):
             result = await done
             results.append(result)
