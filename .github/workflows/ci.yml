@@ -17,6 +17,7 @@ jobs:
     outputs:
       ts_lint: ${{ steps.ts_lint.outputs.changes }}
       ts_typecheck: ${{ steps.ts_typecheck.outputs.changes }}
+      ts_test: ${{ steps.ts_test.outputs.changes }}
       go: ${{ steps.go.outputs.changes }}
       python: ${{ steps.python.outputs.changes }}
     steps:
@@ -145,6 +146,14 @@ jobs:
             'seeding':
               - 'seeding/**'
               - '.github/workflows/ci.yml'
+      - id: ts_test
+        uses: dorny/paths-filter@v4
+        with:
+          filters: |
+            'secure/verifier-service':
+              - 'secure/verifier-service/**'
+              - 'packages/common/**'
+              - '.github/workflows/ci.yml'
       - id: go
         uses: dorny/paths-filter@v4
         with:
@@ -201,12 +210,13 @@ jobs:
         working-directory: ${{ matrix.package }}
 
   test-typescript:
-    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.ts_test != '[]'
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     strategy:
       fail-fast: false
       matrix:
-        package:
-          - secure/verifier-service
+        package: ${{ fromJSON(needs.changes.outputs.ts_test) }}
     steps:
       - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
