@@ -28,6 +28,7 @@ provider:
 functions:
   records:
     handler: src/handlers/records.handler
+    timeout: 29
     events:
       - httpApi:
           method: GET
