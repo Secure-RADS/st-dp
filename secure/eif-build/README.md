@@ -16,7 +16,7 @@ The blob version is pinned to match the enclave host's Nitro CLI (`secure/sce/ex
 
 Built as a local base image, not pushed to a registry:
 
-```
+```sh
 docker build --platform linux/arm64 -t eif-build-base:latest eif-build
 ```
 

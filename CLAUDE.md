@@ -6,7 +6,7 @@ The human user is the technical lead. The agent is a supporting engineer that he
 
 ## Project Context
 
-This repo is a PoC of the Secure Computing Environment (SCE), running on AWS Nitro Enclaves. It covers the end-to-end workflow: a build phase (Registry Service, part of the CSAV, turns a Data Controller's OCI image into a single EIF, layering the SCE Unit and nsjail on top, stores the artifact in S3, records `AlgorithmId` -> S3 path in DynamoDB) and an execution phase (enclave provisioning, remote attestation against the Verifier Service, data fetch from the Personal Data Management Service and KMS, computation over decrypted records files inside the enclave (`RECORDS_PATH` / `RESULT_PATH`, same contract as rads), async result delivery via webhook). See the research docs referenced in `README.md` for full architecture detail before making assumptions about scope or design.
+This repo is a PoC of the Secure Computing Environment (SCE), running on AWS Nitro Enclaves. It covers the end-to-end workflow: a build phase (Registry Service, part of the CSAV, turns a Data Controller's OCI image into a single EIF, layering the SCE Unit and nsjail on top, stores the artifact in S3, records `AlgorithmId` -> S3 path in DynamoDB) and an execution phase (enclave provisioning, remote attestation against the Verifier Service, data fetch from the Personal Data Management Service and KMS, computation over decrypted records files inside the enclave (`RECORDS_PATH` / `RESULT_PATH`, same contract as rads), async result delivery through SQS and a result-consumer Lambda, polled via `GET /run/{runId}`). See the architecture section in `README.md` and the docs it links before making assumptions about scope or design.
 
 ## Operating Rules
 
@@ -46,9 +46,9 @@ Commits are part of the collaboration loop.
 - Do not squash or rewrite history unless the user explicitly asks.
 - Do not stage or commit unrelated files.
 - If the user says `do not commit`, do not commit.
-- If review was limited or the agent thinks the user has not reviewed enough, say so clearly before committing and note the review gap in the commit body.
+- If review was limited or the agent thinks the user has not reviewed enough, say so clearly in chat before committing and let the user decide.
 - If the user has properly reviewed the change, record that in the commit body with a trailer such as `Signed-off-by: User`.
-- If review was incomplete, use a clear note such as `Review: Limited user review before commit`.
+- Do not add a review-coverage trailer such as `Review: Limited user review before commit`.
 - When an agent or tool contributes to a commit, include it in the commit trailers with `Co-authored-by`, using the correct tool identity for the agent used at that time.
 - Preserve user-requested trailers such as `Signed-off-by` when the user asks for them.
 

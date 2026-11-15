@@ -18,7 +18,7 @@ Bun is used as the local dev/bundle tool only (`bun install`) - the Lambda itsel
 
 ## Deploy
 
-```
+```sh
 bun install
 bunx serverless deploy
 ```

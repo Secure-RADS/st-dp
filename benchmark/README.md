@@ -10,7 +10,7 @@ Use [Devbox](https://www.jetify.com/docs/devbox/) from the repo root so AWS hits
 
 From `benchmark/`:
 
-```
+```sh
 make seed      # generate + upload + BatchWrite PDM
 make run       # size sweep only (needs a prior seed, or existing PDM rows)
 make export    # results/raw/ -> phase-timings.csv
@@ -21,7 +21,7 @@ make all       # seed + run + report
 
 From the repo root:
 
-```
+```sh
 make benchmark           # make -C benchmark all
 make benchmark-seed
 make benchmark-run
@@ -33,7 +33,7 @@ make benchmark-report
 | `REPS` | `10` | `run`, `all` | Repetitions per size × tree |
 | `TREES` | `rads secure-rads` | `seed`, `run`, `all` | Which trees |
 
-```
+```sh
 make seed
 make run REPS=1
 make all REPS=3
@@ -45,7 +45,7 @@ Typical iteration: `make seed` once, then `make run REPS=1` / `make report` whil
 ## Prerequisites
 
 - Devbox + repo `.aws/credentials` (not the global AWS root profile)
-- Both trees deployed (PDM, execution, log, cost, result-consumer; secure-rads also needs CSAV registry + verifier)
+- Both trees deployed (registry, PDM, execution, log, cost, result-consumer; secure-rads also needs CSAV, verifier, and kms-service)
 - CSAV host running (`make up` / `make secure-rads-ready` from the repo root)
 - Docker (arm64) for the sample algorithm image on first upload
 - `uv` (Python); `bun` for `../seeding` generate/seed
@@ -60,13 +60,13 @@ Each rep launches a **fresh EC2 executor**, boots (~70–90s), runs, then termin
 
 | Matrix | Launches | Rough wall clock |
 | --- | --- | --- |
-| 5 sizes, 2 trees, 1 rep | 10 | ~15–20 min |
-| 5 sizes, 2 trees, 3 reps | 30 | ~45–60 min |
-| 5 sizes, 2 trees, 10 reps | 100 | ~3 h |
+| 15 sizes, 2 trees, 1 rep | 30 | ~45–60 min |
+| 15 sizes, 2 trees, 3 reps | 90 | ~2.5–3 h |
+| 15 sizes, 2 trees, 10 reps | 300 | ~8–9 h |
 
 ## Shared seed data
 
-`make seed` BatchWrites the same `ehealth.json` (100K records) into both trees (rads plaintext; secure-rads envelope-encrypted under a KMS-wrapped DEK). `make run` passes `size` so each executor reads only the first N rows.
+`make seed` BatchWrites the same `ehealth.json` (150K records) into both trees (rads plaintext; secure-rads envelope-encrypted under a KMS-wrapped DEK). `make run` passes `size` so each executor reads only the first N rows.
 
 Seed overwrites matching `(AlgorithmId, RecordId)` keys; it does not delete orphan rows from an older larger seed. Use BatchWrite via `seed-rads` / `seed-secure-rads` only — not DynamoDB ImportTable / S3 import.
 
@@ -74,7 +74,7 @@ Sample image tarballs are cached under `benchmark/build/`. The cache is invalida
 
 ## Run without Make
 
-```
+```sh
 cd benchmark
 export PYTHONPATH=src
 uv run python -m execute --setup-only
@@ -97,7 +97,7 @@ Each sweep writes `results/raw/sweep-<unix>.json`. Stop with Ctrl-C and terminat
 
 ## Export and figures
 
-```
+```sh
 make export    # every results/raw/sweep-*.json + log-service + cost-service -> phase-timings.csv
 make plot      # -> results/figures/sweep-phases.png, sweep-scaling.png, sweep-cost.png, sweep-cost-services.png
 make report    # both

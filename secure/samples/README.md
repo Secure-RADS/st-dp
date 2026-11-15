@@ -16,7 +16,7 @@ Each app's own README documents its exact input shape and the report it returns.
 
 ## Build one
 
-```
+```sh
 docker build --platform linux/arm64 -t <app>:local secure/samples/<app>
 ```
 

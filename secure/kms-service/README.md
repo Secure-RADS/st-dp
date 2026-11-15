@@ -31,7 +31,7 @@ The wrapped data key and the KMS key ARN both come from DynamoDB (`AlgorithmTabl
 
 ## Deploy
 
-```
+```sh
 bun install
 bunx serverless deploy \
   --param="domainName=kms.sr.secure-rads.org" --param="certificateArn=..." \

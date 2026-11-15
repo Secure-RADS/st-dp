@@ -9,7 +9,7 @@ Serverless Framework v4, TypeScript. The Personal Data Management Service for th
 
 The baseline PDM is fully trusted: there is no access token, verifier round-trip, or envelope encryption, and records are stored and returned as plaintext. Both routes are plain server-auth TLS and the HTTP API sets `cors: true` for the transparency portal.
 
-Bun is used as the local dev/bundle tool only (`bun install`) - the Lambda itself runs on the standard `nodejs20.x` runtime, no custom Bun runtime layer.
+Bun is used as the local dev/bundle tool only (`bun install`) - the Lambda itself runs on the standard `nodejs24.x` runtime, no custom Bun runtime layer.
 
 ## Prerequisites (manual, one-time, outside this repo's IaC)
 
@@ -17,7 +17,7 @@ Bun is used as the local dev/bundle tool only (`bun install`) - the Lambda itsel
 
 ## Deploy
 
-```
+```sh
 bun install
 bunx serverless deploy --param="domainName=pdm.r.secure-rads.org" --param="certificateArn=..."
 ```

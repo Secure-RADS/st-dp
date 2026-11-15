@@ -18,7 +18,7 @@ Work identified during the PoC that is out of scope for this repository. The PoC
 
 ## Build and delivery
 
-- **Single deploy path and CI** - no CI exists, deploys are manual across four sub-Makefiles, and the registry-service image cannot be rebuilt from the repo as-is (gitignored mTLS material, private base image, host prerequisites) ([#40](https://github.com/Secure-RADS/st-dp/issues/40)).
+- **Single deploy path** - deploys are manual across four sub-Makefiles, and the registry-service image cannot be rebuilt from the repo as-is (gitignored mTLS material, private base image, host prerequisites) ([#40](https://github.com/Secure-RADS/st-dp/issues/40)).
 
 ## Enclave interface
 

@@ -57,7 +57,7 @@ Partition key `AlgorithmId`, sort key `Sk = <runId>#<timestamp>#<eventId>`. ISO-
 
 ## Deploy
 
-```
+```sh
 bun install
 bunx serverless deploy --param="domainName=cost.r.secure-rads.org" --param="certificateArn=..."
 ```

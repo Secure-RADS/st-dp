@@ -8,6 +8,6 @@ mean weekly active minutes, engagement tiers by mean weekly minutes (low < 30, m
 
 Build:
 
-```
+```sh
 docker build --platform linux/arm64 -t audience-segments-rust secure/samples/audience-segments-rust
 ```

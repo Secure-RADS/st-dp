@@ -60,7 +60,7 @@ Bun is used as the local dev/bundle tool only (`bun install`) - the Lambda itsel
 
 The mTLS domain needs a truststore version at creation, so the deploy is two-phase. The first deploy creates the stack and the versioned truststore bucket with the domain skipped:
 
-```
+```sh
 bun install
 bunx serverless deploy \
   --param="domainName=log.sr.secure-rads.org" --param="certificateArn=$LOG_CERT_ARN" \
@@ -69,7 +69,7 @@ bunx serverless deploy \
 
 Upload the truststore from the SSM client certs and capture the version:
 
-```
+```sh
 export TRUSTSTORE_BUCKET=$(aws cloudformation describe-stacks --stack-name secure-rads-log-service-dev \
   --query "Stacks[0].Outputs[?OutputKey=='TruststoreBucketName'].OutputValue" --output text)
 scripts/upload-log-truststore.sh

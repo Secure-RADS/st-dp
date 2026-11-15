@@ -2,7 +2,7 @@
 
 Consent Specification and Algorithm Verification. Runs as an EC2 instance.
 
-Diagrams: https://www.figma.com/design/6l8ibdvznuSH79Aq0HsTOL/GDPR-Research?node-id=0-1&t=d3eVEK5dE1mpFEKO-1
+Diagrams: [Figma design](https://www.figma.com/design/6l8ibdvznuSH79Aq0HsTOL/GDPR-Research?node-id=0-1&t=d3eVEK5dE1mpFEKO-1)
 
 ## What it does
 

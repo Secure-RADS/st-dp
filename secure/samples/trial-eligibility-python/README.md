@@ -11,7 +11,7 @@ exactly one JSON object.
 
 Build and run (same `{"algorithmId", "records"}` file sce-unit writes):
 
-```
+```sh
 docker build --platform linux/arm64 -t trial-eligibility-python .
 docker run --rm -v /tmp/sce-run:/data \
                  -e RECORDS_PATH=/data/records.json \

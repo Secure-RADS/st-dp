@@ -34,7 +34,7 @@ and `AWS_DEFAULT_REGION` as `ap-southeast-2`, and uses the ignored local AWS fil
 ```sh
 devbox shell
 make up             # start the CSAV EC2 host and wait for registry-service
-make status         # show the CSAV and execution-service stacks
+make status         # show the CSAV, SCE, and rads stacks
 make secure-rads    # build, seed, and run all five samples
 make down           # stop the CSAV EC2 host when finished
 ```
@@ -50,7 +50,7 @@ make secure-rads-ready                     # start and verify the CSAV host
 make secure-rads-build-all                 # build and register all samples
 make secure-rads-seed                      # generate and seed all datasets
 make secure-rads-run-all                   # run all samples
-make benchmark                             # Exp2 size sweep (override REPS= SIZES= …)
+make benchmark                             # Exp1/Exp2 size sweep (override REPS= TREES= …)
 make benchmark-report                      # export sweep CSV + figures
 make logs                                  # tail the CSAV host and all Lambda logs
 make registry-logs                         # tail the CSAV registry service

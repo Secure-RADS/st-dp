@@ -12,7 +12,7 @@ lines go to stderr so the result holds exactly one JSON object.
 
 Build and run (writing the same `{"algorithmId", "records"}` file the runner produces):
 
-```
+```sh
 docker build -t spend-analysis-go .
 docker run --rm -v /tmp/rads-run:/data \
                  -e RECORDS_PATH=/data/records.json \
