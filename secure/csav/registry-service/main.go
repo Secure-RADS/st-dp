@@ -71,7 +71,6 @@ func main() {
 		}
 
 		uploadDir := "/tmp/registry-service-uploads"
-		// 0o755: standard dir perms - MkdirAll requires a mode, no bare option.
 		if err := os.MkdirAll(uploadDir, 0o755); err != nil {
 			c.String(http.StatusInternalServerError, "could not create upload dir: %v", err)
 			return

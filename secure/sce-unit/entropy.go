@@ -14,8 +14,8 @@ import (
 // A freshly booted Nitro Enclave has an unseeded kernel RNG - there is no /dev/random hardware source until the
 // nsm-hwrng registers, so crypto/rand's getrandom(2) intermittently blocks or fails on the first TLS handshakes
 // (attest, then the pdm fetch). seedEntropy pulls real entropy from the NSM and credits it to the kernel pool up
-// front, making crypto deterministic. sce-unit is the enclave's PID 1 (CAP_SYS_ADMIN), so RNDADDENTROPY is
-// permitted; outside an enclave (no /dev/nsm) this is a no-op.
+// front, so those handshakes do not stall. sce-unit is the enclave's PID 1 (CAP_SYS_ADMIN), so RNDADDENTROPY is
+// permitted; outside an enclave (no /dev/nsm) OpenDefaultSession fails and the run aborts.
 func seedEntropy() error {
 	sess, err := nsm.OpenDefaultSession()
 	if err != nil {

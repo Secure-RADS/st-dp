@@ -59,8 +59,6 @@ function pii(age: number) {
   };
 }
 
-// Each generator returns one record's `data` object.
-
 function healthData() {
   const age = faker.number.int({ min: 18, max: 90 });
   const sex = faker.helpers.arrayElement(["male", "female"] as const);

@@ -7,7 +7,7 @@ WORKDIR /src
 COPY Cargo.lock /src/Cargo.lock
 RUN cargo build --release --locked -p eif_build
 
-# Version pinned to match the enclave host (sce/execution-service/ec2.go's UserData) -
+# Version pinned to match the enclave host (sce/execution-service/userdata.sh.tmpl) -
 # a mismatch fails the boot handshake with AWS's E36/E39 "ready signal" errors.
 FROM amazonlinux:2023 AS blobs
 # Bootstrap ramdisk must be a bootable cpio (/init, /nsm.ko, /dev), not the raw init ELF.

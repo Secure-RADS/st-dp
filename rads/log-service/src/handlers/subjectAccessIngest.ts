@@ -8,7 +8,7 @@ import { parseSubjectAccessBody, toItem } from "../lib/subjectAccess.js";
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const table = requiredEnv("SUBJECT_ACCESS_TABLE");
 
-// DynamoDB BatchWriteWriteItem accepts at most 25 items per request, so oversized batches are chunked.
+// DynamoDB BatchWriteItem accepts at most 25 items per request, so oversized batches are chunked.
 const CHUNK = 25;
 const MAX_TRY = 4;
 

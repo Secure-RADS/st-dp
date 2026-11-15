@@ -18,7 +18,7 @@ const (
 	verifierPinnedPubKeyEnv = "VERIFIER_PUBKEY_SHA256"
 )
 
-// verifierHost/verifierHostPubKeySHA256 pin the plain-TLS public domain (/attest, /refresh, /validate) baked
+// verifierHost/verifierHostPubKeySHA256 pin the plain-TLS public domain (/challenge, /attest, /refresh) baked
 // into the EIF's run config - a different domain, and a different cert, from verifierURL below (mTLS, /algorithms).
 var (
 	verifierURL              = os.Getenv("VERIFIER_URL")

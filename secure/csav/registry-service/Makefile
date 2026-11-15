@@ -29,7 +29,7 @@ CSAV_ROLE_ARN = $(shell aws cloudformation describe-stacks --stack-name $(STACK_
 KMS_SERVICE_ROLE_ARN = $(shell aws cloudformation describe-stacks --stack-name secure-rads-kms-service-dev --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='KmsServiceRoleArn'].OutputValue" --output text)
 # mTLS domain (registerPCRs -> /algorithms) and its pin.
-# Plain-TLS public domain (/attest, /refresh, /validate) baked into the EIF's run config - a different
+# Plain-TLS public domain (/challenge, /attest, /refresh) baked into the EIF's run config - a different
 # domain and cert from the mTLS one above, so it gets its own pin.
 VERIFIER_HOST = $(VERIFIER_ATTEST_HOST)
 # pdm-service's plain-TLS domain (/records) also baked into the run config, pinned the same way.
@@ -69,7 +69,7 @@ gen-client-cert:
 		-keyout tls/client.key -out tls/client.crt \
 		-subj "/CN=registry-service"
 
-# Build the docker image locally (arm64, matches the t4g.nano host).
+# Build the docker image locally (arm64, matches the t4g.small host).
 image: sce-unit-base eif-build-base
 	docker build --platform linux/arm64 -f Dockerfile -t $(IMAGE) ../../..
 
