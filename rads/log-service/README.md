@@ -12,7 +12,7 @@ Producers (registry-service, execution-service Lambda, EC2 executor, result-cons
 - `POST /events` - posts one event `{algorithmId, runId, event, timestamp, detail?}` onto the queue and returns `202` without waiting for DynamoDB. `runId` may be null for build-phase events. The `timestamp` is client-provided - when the event happened, not when the server received it - and is stored alongside a server `receivedAt` stamped at ingest.
 - `GET /logs/{algorithmId}` - exports one algorithm's timeline. `?runId=` narrows to a single run. Pages through all results, never truncated.
 - `GET /logs` - exports the whole table across all algorithms.
-- `POST /subject-access` - pdm-service posts one batch of `{algorithmId, runId, dataSubjectIds, timestamp}` each time it serves records to the executor. The batch is validated, deduplicated, and written one item per data subject into the DS-keyed `rads-subject-access` table. This is the GDPR trail: which algorithm/run read which data subjects, and when.
+- `POST /subject-access` - the rads host posts one batch of `{algorithmId, runId, dataSubjectIds, timestamp}` after the DC app completes successfully, using the data subject ids PDM returned for this run. The batch is validated, deduplicated, and written one item per data subject into the DS-keyed `rads-subject-access` table. This is the GDPR trail: which algorithm/run read which data subjects, and when.
 - `GET /subject-access/{dataSubjectId}` - one data subject's chronological access entries as a key query.
 - `GET /subject-access` - scans and returns every access event, for the authority dashboard.
 

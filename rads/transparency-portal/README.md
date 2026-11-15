@@ -16,7 +16,7 @@ browser -> GET https://pdm.r.secure-rads.org/subject/{dataSubjectId}
 
 The authority view reads `log.r.secure-rads.org` directly (`/logs`, `/subject-access`). Both APIs send permissive CORS headers (`httpApi.cors: true` in each `serverless.yml`).
 
-`pdm-service` records a subject-access entry (algorithm, run, timestamp, data subject) every time it serves records to the executor, so the trail is produced by the data access itself, not by the UI.
+The rads host records a subject-access entry (algorithm, run, timestamp, data subject) after a successful DC app run, using the data subject ids PDM returned for that run, so the trail reflects runs that actually reached the application.
 
 ## Configuration
 

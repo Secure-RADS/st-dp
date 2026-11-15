@@ -2,7 +2,6 @@ import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { CostPhase, costEvent, recordRequest } from "@srads/common/cost";
 import { requiredEnv } from "@srads/common/env";
-import { logSubjectAccess } from "@srads/common/log";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -60,14 +59,12 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     result.ConsumedCapacity?.CapacityUnits ?? 0,
   );
 
-  const dataSubjectIds = (result.Items ?? [])
-    .map((item) => item.DataSubjectId)
-    .filter((id): id is string => typeof id === "string" && id.length > 0);
-  // DSAR trail: which data subjects this page actually read. Awaited so the request is not lost to a Lambda
-  // freeze (bounded by the function timeout); failures are swallowed inside logSubjectAccess.
-  await logSubjectAccess(algorithmId, runId || "unknown", dataSubjectIds);
-
-  const records = (result.Items ?? []).map((item) => ({ recordId: item.RecordId, data: item.Data }));
+  // The host assembles the DSAR trail from these ids and posts it after a successful DC app run.
+  const records = (result.Items ?? []).map((item) => ({
+    recordId: item.RecordId,
+    dataSubjectId: item.DataSubjectId,
+    data: item.Data,
+  }));
   const nextCursor = result.LastEvaluatedKey
     ? Buffer.from(JSON.stringify(result.LastEvaluatedKey)).toString("base64url")
     : null;

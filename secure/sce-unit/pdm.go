@@ -13,6 +13,13 @@ import (
 const pdmRequestTimeout = 60 * time.Second
 
 type pdmRecord struct {
+	RecordId      string          `json:"recordId"`
+	DataSubjectId string          `json:"dataSubjectId"`
+	Data          json.RawMessage `json:"data"`
+}
+
+// recordsFileRecord is the DC app's view: the data subject id never reaches records.json.
+type recordsFileRecord struct {
 	RecordId string          `json:"recordId"`
 	Data     json.RawMessage `json:"data"`
 }

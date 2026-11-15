@@ -61,7 +61,8 @@ func main() {
 	timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventUnitReady, nil)
 
 	// Attest, fetch, decrypt, and write records.json before nsjail starts - same file contract as rads.
-	if err := prepareRecordsFile(cfg, timelineLog, runID, info.Size); err != nil {
+	subjectIDs, err := prepareRecordsFile(cfg, timelineLog, runID, info.Size)
+	if err != nil {
 		failRun(timelineLog, cfg.AlgorithmId, runID, err)
 	}
 
@@ -87,6 +88,9 @@ func main() {
 		})
 	} else {
 		timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventDCAppCompleted, map[string]any{"outputBytes": len(output)})
+		// DSAR trail: record the data subjects the app used only after it ran successfully, so a run that
+		// never reached the DC app does not show up as an access.
+		timelineLog.EmitSubjectAccess(cfg.AlgorithmId, runID, subjectIDs)
 	}
 	if readErr != nil || len(output) == 0 {
 		// The enclave console is lost when the host terminates, so deliver the failure and the jailed app's own output.
@@ -130,11 +134,12 @@ func failRun(timelineLog *sharedlog.Client, algorithmID, runID string, err error
 }
 
 // prepareRecordsFile attests, fetches ciphertext from pdm-service, decrypts, and writes the rads-shaped
-// records.json the DC app loads via RECORDS_PATH.
-func prepareRecordsFile(cfg runConfig, timelineLog *sharedlog.Client, runID string, limit int) error {
+// records.json the DC app loads via RECORDS_PATH. It also returns the data subjects whose records were
+// handed to the DC app, for the post-completion subject-access trail.
+func prepareRecordsFile(cfg runConfig, timelineLog *sharedlog.Client, runID string, limit int) ([]string, error) {
 	tp, err := attest(cfg, runID)
 	if err != nil {
-		return fmt.Errorf("attestation failed: %w", err)
+		return nil, fmt.Errorf("attestation failed: %w", err)
 	}
 	log.Printf("sce-unit: attested successfully, access token expires %s", tp.AccessTokenExpiresAt.Format(time.RFC3339))
 	setTokens(tp)
@@ -144,7 +149,7 @@ func prepareRecordsFile(cfg runConfig, timelineLog *sharedlog.Client, runID stri
 
 	records, err := fetchAllRecords(cfg, limit)
 	if err != nil {
-		return fmt.Errorf("fetch records: %w", err)
+		return nil, fmt.Errorf("fetch records: %w", err)
 	}
 	log.Printf("sce-unit: fetched %d records from pdm-service", len(records))
 	timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventRecordsFetched, map[string]any{"count": len(records)})
@@ -153,39 +158,47 @@ func prepareRecordsFile(cfg runConfig, timelineLog *sharedlog.Client, runID stri
 	// attestation. Only the measured image can do this - see the per-algorithm key policy.
 	dek, err := decryptDataKey(cfg)
 	if err != nil {
-		return fmt.Errorf("decrypt data key: %w", err)
+		return nil, fmt.Errorf("decrypt data key: %w", err)
 	}
 	log.Printf("sce-unit: unwrapped data key via kms-service (%d bytes)", len(dek))
 
-	plainRecords := make([]pdmRecord, 0, len(records))
+	plainRecords := make([]recordsFileRecord, 0, len(records))
+	subjectIDs := make([]string, 0, len(records))
+	seenSubject := make(map[string]struct{}, len(records))
 	for _, rec := range records {
 		plain, derr := decryptRecord(dek, rec.Data)
 		if derr != nil {
-			return fmt.Errorf("decrypt record: %w", derr)
+			return nil, fmt.Errorf("decrypt record: %w", derr)
 		}
-		plainRecords = append(plainRecords, pdmRecord{RecordId: rec.RecordId, Data: plain})
+		plainRecords = append(plainRecords, recordsFileRecord{RecordId: rec.RecordId, Data: plain})
+		if rec.DataSubjectId != "" {
+			if _, seen := seenSubject[rec.DataSubjectId]; !seen {
+				seenSubject[rec.DataSubjectId] = struct{}{}
+				subjectIDs = append(subjectIDs, rec.DataSubjectId)
+			}
+		}
 	}
 	log.Printf("sce-unit: decrypted %d records", len(plainRecords))
 	timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventRecordsDecrypted, map[string]any{"count": len(plainRecords)})
 
 	body, err := json.Marshal(struct {
-		AlgorithmId string      `json:"algorithmId"`
-		Records     []pdmRecord `json:"records"`
+		AlgorithmId string              `json:"algorithmId"`
+		Records     []recordsFileRecord `json:"records"`
 	}{AlgorithmId: cfg.AlgorithmId, Records: plainRecords})
 	if err != nil {
-		return fmt.Errorf("marshal records file: %w", err)
+		return nil, fmt.Errorf("marshal records file: %w", err)
 	}
 	if err := os.MkdirAll(dataDirHost, 0o755); err != nil {
-		return fmt.Errorf("create %s: %w", dataDirHost, err)
+		return nil, fmt.Errorf("create %s: %w", dataDirHost, err)
 	}
 	// Drop a leftover result from a prior attempt in this rootfs (fresh EIFs are clean; defensive).
 	_ = os.Remove(resultFileHost)
 	if err := os.WriteFile(recordsFileHost, body, 0o644); err != nil {
-		return fmt.Errorf("write %s: %w", recordsFileHost, err)
+		return nil, fmt.Errorf("write %s: %w", recordsFileHost, err)
 	}
 	log.Printf("sce-unit: wrote %d bytes to %s", len(body), recordsFileHost)
 	timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventRecordsStoredLocally, nil)
-	return nil
+	return subjectIDs, nil
 }
 
 // sendOutput streams the DC app's response to the parent instance over vsock - the enclave's only channel out.

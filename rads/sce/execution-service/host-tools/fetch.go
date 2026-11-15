@@ -15,16 +15,28 @@ import (
 // One shared client keeps a single TLS session across PDM pages; fresh dials dominated large fetches.
 var pdmHTTP = &http.Client{Timeout: 60 * time.Second}
 
+type pdmRecord struct {
+	RecordId      string          `json:"recordId"`
+	DataSubjectId string          `json:"dataSubjectId"`
+	Data          json.RawMessage `json:"data"`
+}
+
+// recordsFileRecord is the DC app's view: the data subject id never reaches records.json.
+type recordsFileRecord struct {
+	RecordId string          `json:"recordId"`
+	Data     json.RawMessage `json:"data"`
+}
+
 type pdmPage struct {
-	Records    []json.RawMessage `json:"records"`
-	NextCursor string            `json:"nextCursor"`
+	Records    []pdmRecord `json:"records"`
+	NextCursor string      `json:"nextCursor"`
 }
 
 func fetchRecords(args []string) error {
-	if len(args) != 6 {
-		return fmt.Errorf("usage: fetch-records <pdmUrl> <algorithmId> <dest> <runId> <size> <logEventsUrl>")
+	if len(args) != 7 {
+		return fmt.Errorf("usage: fetch-records <pdmUrl> <algorithmId> <dest> <runId> <size> <logEventsUrl> <subjectsPath>")
 	}
-	base, algorithmID, dest, runID, sizeArg := args[0], args[1], args[2], args[3], args[4]
+	base, algorithmID, dest, runID, sizeArg, subjectsPath := args[0], args[1], args[2], args[3], args[4], args[6]
 
 	var maxRecords int
 	if sizeArg != "" {
@@ -43,11 +55,20 @@ func fetchRecords(args []string) error {
 		fmt.Fprintf(os.Stderr, "pdm: %v\n", err)
 	}
 
+	subjectIDs := uniqueDataSubjectIDs(records)
+	if err := writeSubjectIDs(subjectsPath, subjectIDs); err != nil {
+		return err
+	}
+
+	stripped := make([]recordsFileRecord, 0, len(records))
+	for _, rec := range records {
+		stripped = append(stripped, recordsFileRecord{RecordId: rec.RecordId, Data: rec.Data})
+	}
 	body, err := json.Marshal(struct {
-		AlgorithmId string            `json:"algorithmId"`
-		Pages       int               `json:"pages"`
-		Records     []json.RawMessage `json:"records"`
-	}{AlgorithmId: algorithmID, Pages: pages, Records: records})
+		AlgorithmId string              `json:"algorithmId"`
+		Pages       int                 `json:"pages"`
+		Records     []recordsFileRecord `json:"records"`
+	}{AlgorithmId: algorithmID, Pages: pages, Records: stripped})
 	if err != nil {
 		return err
 	}
@@ -58,13 +79,40 @@ func fetchRecords(args []string) error {
 	return nil
 }
 
-func downloadRecords(base, algorithmID, runID string, maxRecords int) ([]json.RawMessage, int, error) {
+func uniqueDataSubjectIDs(records []pdmRecord) []string {
+	seen := make(map[string]struct{}, len(records))
+	ids := make([]string, 0, len(records))
+	for _, rec := range records {
+		if rec.DataSubjectId == "" {
+			continue
+		}
+		if _, ok := seen[rec.DataSubjectId]; ok {
+			continue
+		}
+		seen[rec.DataSubjectId] = struct{}{}
+		ids = append(ids, rec.DataSubjectId)
+	}
+	return ids
+}
+
+func writeSubjectIDs(path string, ids []string) error {
+	body, err := json.Marshal(ids)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(path, body, 0o600); err != nil {
+		return fmt.Errorf("write %s: %w", path, err)
+	}
+	return nil
+}
+
+func downloadRecords(base, algorithmID, runID string, maxRecords int) ([]pdmRecord, int, error) {
 	parsed, err := url.Parse(base)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	var records []json.RawMessage
+	var records []pdmRecord
 	var cursor string
 	pages := 0
 	for {

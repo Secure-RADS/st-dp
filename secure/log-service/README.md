@@ -9,11 +9,11 @@ Two custom domains carry the routes.
 The mTLS domain accepts internal producers only:
 
 - `POST /events` - registry-service, execution-service, and result-consumer post `{algorithmId, runId, event, timestamp, detail?}`. The client certificate is the authentication; the event is stored with `auth: mtls` and `origin: service`.
-- `POST /subject-access` - pdm-service posts one batch of `{algorithmId, runId, dataSubjectIds, timestamp}` each time it serves records to an enclave. It authenticates with its client certificate and forwards the enclave's bearer token, which is verified too.
 
 The public domain, pinned by callers, carries the enclave and read paths:
 
 - `POST /events` - sce-unit posts `{algorithmId, runId, event, timestamp, detail?, origin?}`. Events emitted after attestation carry the verifier-issued token and are stored with `auth: attested`. `enclave-started`, `unit-ready`, and host events have no token, are accepted with `auth: none`, and keep `origin: enclave` or `origin: host`.
+- `POST /subject-access` - sce-unit posts one batch of `{algorithmId, runId, dataSubjectIds, timestamp}` after a successful DC app run, using the ids PDM returned for that run. The bearer token is verified, so only an attested enclave can write its own algorithm's trail.
 - `GET /logs/{algorithmId}` - exports one algorithm's timeline. `?runId=` narrows to a single run. Pages through all results, never truncated.
 - `GET /logs` - exports the whole table across all algorithms.
 - `GET /subject-access` - the data-subject/authority read path. `?dataSubjectId=` returns one data subject's chronological access entries as a key query; omitting it scans and returns every access event for the authority dashboard.
@@ -22,9 +22,9 @@ Validation happens at ingest; valid events are enqueued and the handler returns 
 
 ## Ingest authentication
 
-The mTLS domain is enforced by API Gateway. Clients present a self-signed certificate whose public cert is in the truststore. Registry-service, execution-service, result-consumer, and pdm-service each have their own cert and SSM parameters; the truststore is rebuilt from those certs at deploy time.
+The mTLS domain is enforced by API Gateway. Clients present a self-signed certificate whose public cert is in the truststore. Registry-service, execution-service, and result-consumer each have their own cert and SSM parameters; the truststore is rebuilt from those certs at deploy time.
 
-On the public domain, when `VERIFIER_JWKS_URL` is set, post-attestation `POST /events` calls verify the ML-DSA-87 access token that verifier-service mints only after a successful Nitro attestation (`src/lib/jwt.ts` on the shared `@srads/common/jwt` verifier, with SPKI-pinned TLS on the JWKS fetch and `aud=log-service`). The token's `sub` must match the request's `algorithmId`, and the request's `runId`, when present, must match the token's `run_id`.
+On the public domain, when `VERIFIER_JWKS_URL` is set, post-attestation `POST /events` calls verify the ML-DSA-87 access token that verifier-service mints only after a successful Nitro attestation (`src/lib/jwt.ts` on the shared `@srads/common/jwt` verifier, with SPKI-pinned TLS on the JWKS fetch and `aud=log-service`). The token's `sub` must match the request's `algorithmId`, and the request's `runId`, when present, must match the token's `run_id`. `POST /subject-access` uses the same check, so the trail cannot be written for another algorithm or run.
 
 Events emitted before attestation (`enclave-started`, `unit-ready`) and host events (`executor-ready`, `artifact-retrieved`, `enclave-launched`, `executor-finished`) are accepted without a token and stored with `auth: none`. The host posts them directly; it holds no log-service credential.
 
@@ -54,7 +54,7 @@ Bun is used as the local dev/bundle tool only (`bun install`) - the Lambda itsel
 ## Prerequisites (manual, one-time, outside this repo's IaC)
 
 - Two hostnames with issued ACM certificates: `log.sr.secure-rads.org` (public) and `log-mtls.sr.secure-rads.org` (mTLS). Pass the certificate ARNs as params; the stack does not create them.
-- Client certs for registry-service, execution-service, result-consumer, and pdm-service in SSM under `/secure-rads/log-service/mtls/clients/<client>/cert|key`. Generate and upload them with `scripts/gen-log-mtls-certs.sh`.
+- Client certs for registry-service, execution-service, and result-consumer in SSM under `/secure-rads/log-service/mtls/clients/<client>/cert|key`. Generate and upload them with `scripts/gen-log-mtls-certs.sh`.
 
 ## Deploy
 
