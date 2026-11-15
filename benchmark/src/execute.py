@@ -204,15 +204,15 @@ async def amain() -> int:
     # Persist after every completed run so a reboot or killed session loses at most one run.
     RAW_DIR.mkdir(parents=True, exist_ok=True)
     out = RAW_DIR / f"sweep-{int(time.time())}.json"
-    # Run one tree's full size x rep matrix at a time; every run in the tree launches together.
+    # One size at a time; every selected tree races on that size, then the next size.
     reps = range(args.start_rep, args.reps + 1)
-    max_jobs = len(sizes) * len(reps)
     timeout = httpx.Timeout(http.HTTP_TIMEOUT_SECONDS)
-    limits = httpx.Limits(max_connections=max(1, max_jobs))
+    limits = httpx.Limits(max_connections=max(1, len(harnesses)))
     async with httpx.AsyncClient(timeout=timeout, limits=limits) as client:
-        for harness in harnesses:
-            jobs = [(harness, size, rep) for rep in reps for size in sizes]
-            await _sweep(jobs, client, dataset, results, out)
+        for size in sizes:
+            for rep in reps:
+                jobs = [(harness, size, rep) for harness in harnesses]
+                await _sweep(jobs, client, dataset, results, out)
 
     logger.info("wrote {} ({} rows)", out, len(results))
     return 0

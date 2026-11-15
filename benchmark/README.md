@@ -2,7 +2,7 @@
 
 End-to-end Exp1/Exp2 size sweep: `rads` (baseline) vs `secure-rads` (Nitro enclave) on the trial-eligibility algorithm over a shared e-health dataset.
 
-One algorithm id is reused across sizes. `make seed` generates the dataset, uploads both algorithm images, and BatchWrites the same JSON into both trees. `make run` then executes each size with a fetch `size` limit. Sizes come from `TRIAL_SIZES` in `src/lib/config.py` (10k..150k step 10k; not a CLI override). Trees run one after the other; every `(size, rep)` run for the current tree launches at once (separate stacks).
+One algorithm id is reused across sizes. `make seed` generates the dataset, uploads both algorithm images, and BatchWrites the same JSON into both trees. `make run` then executes each size with a fetch `size` limit. Sizes come from `TRIAL_SIZES` in `src/lib/config.py` (10k..150k step 10k; not a CLI override). Sizes run in ascending order; for each size both trees launch together, then the next size starts.
 
 Use [Devbox](https://www.jetify.com/docs/devbox/) from the repo root so AWS hits the local `.aws/` credentials and `ap-southeast-2` (`devbox shell` / `devbox run …`).
 
@@ -55,18 +55,17 @@ Executors run on `c6g.large` on both trees. Secure-rads allocates a 1 vCPU / 204
 
 ### Runtime cost
 
-Each `(size, rep, tree)` launches a **fresh EC2 executor**, boots (~70–90s), runs, then terminates. A tree's whole size × rep matrix launches together, then the next tree starts, so wall clock is roughly two executor lifetimes plus whatever time the account needs to admit each burst:
+Each `(size, rep, tree)` launches a **fresh EC2 executor**, boots (~70–90s), runs, then terminates. Sizes run one after another with both trees in parallel per size, so wall clock is roughly one executor lifetime per size times reps:
 
-`len(TRIAL_SIZES) × reps` instances at once per tree
+`trees` instances at once (one per tree)
 
 | Matrix | Instances at once | Rough wall clock |
 | --- | --- | --- |
-| 15 sizes, 1 tree, 1 rep | 15 | ~2–4 min per tree |
-| 15 sizes, 1 tree, 3 reps | 45 | ~3–5 min per tree |
-| 15 sizes, 1 tree, 5 reps | 75 | ~3–5 min per tree |
-| 15 sizes, 1 tree, 10 reps | 150 | ~5–10 min per tree |
+| 15 sizes, 2 trees, 1 rep | 2 | ~30–45 min |
+| 15 sizes, 2 trees, 3 reps | 2 | ~1.5–2 h |
+| 15 sizes, 2 trees, 5 reps | 2 | ~2.5–4 h |
 
-The account's on-demand vCPU quota caps how many launch successfully; a throttled launch surfaces as an `error` row in the raw JSON. `c6g.large` is in the EC2 Standard family (2 vCPU each), so one tree at 10 reps needs 300 vCPU of Standard quota; both trees never run at the same time.
+Only one instance per tree runs at a time, so the vCPU quota is not the constraint. PDM reads still share one DynamoDB partition, and the PDM handler retries throttled pages with backoff.
 
 ## Shared seed data
 
@@ -95,7 +94,7 @@ uv run python -m plot
 | `--skip-generate` | Reuse `seeding/datasets/` |
 | `--skip-seed` | Reuse PDM rows already BatchWritten |
 
-Setup resolves the service catalog once (API Gateway URLs; CSAV registry via live EC2 public IP), then generate → parallel uploads → parallel seeds. `make run` finishes one tree's whole size × rep matrix before starting the next, and rewrites the raw JSON after each completion. Logging is loguru via richuru; execute/export use tqdm.
+Setup resolves the service catalog once (API Gateway URLs; CSAV registry via live EC2 public IP), then generate → parallel uploads → parallel seeds. `make run` walks sizes in order, running both trees together for each size, and rewrites the raw JSON after each completion. Logging is loguru via richuru; execute/export use tqdm.
 
 Each sweep writes `results/raw/sweep-<unix>.json`. Stop with Ctrl-C and terminate leftover `*-execution-service-run` EC2 instances if needed.
 
