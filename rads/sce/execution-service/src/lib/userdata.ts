@@ -23,8 +23,10 @@ export function userData(values: UserDataValues): string {
   const replacements: Record<string, string> = {
     AlgorithmId: values.algorithmId,
     CostHost: values.costHost,
+    CPUCount: "1",
     LaunchEpoch: values.launchEpoch.toString(),
     LogHost: values.logHost,
+    MemoryMiB: "2048",
     PdmUrl: values.pdmUrl,
     Region: values.region,
     RunId: values.runId,

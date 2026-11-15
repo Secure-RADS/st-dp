@@ -7,7 +7,9 @@
 - An AWS account with permissions to create EC2, Lambda, API Gateway, DynamoDB, S3, KMS, SQS, IAM
   roles, and CloudFormation stacks.
 - `ap-southeast-2` (Sydney), pinned by Devbox. The default AZ for the enclave host is
-  `ap-southeast-2b`, and the CSAV instance is `t4g.small`; the per-run enclave host is `c6g.large`.
+  `ap-southeast-2b`, and the CSAV instance is `t4g.small`; the per-run executor host is `c6g.large`
+  on both trees. Secure-rads runs a 1 vCPU / 2048 MiB enclave, and rads caps its container at the
+  same `--cpus 1 --memory 2048m`, leaving the rest of the host for the runtime.
   All are overridable through the stack parameters.
 - AWS credentials in the ignored `.aws/credentials` file, as described in
   [`getting-started.md`](getting-started.md).
