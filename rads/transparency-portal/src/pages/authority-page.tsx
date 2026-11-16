@@ -16,7 +16,7 @@ export function AuthorityPage() {
     queryKey: ["authority"],
     queryFn: async () => {
       const [events, accessResponse] = await Promise.all([getRunEvents(), getAllSubjectAccess()]);
-      return { events, access: accessResponse.accesses };
+      return { events, access: accessResponse.accesses, truncated: accessResponse.truncated ?? false };
     },
   });
 
@@ -64,7 +64,7 @@ export function AuthorityPage() {
             <RunsTab events={data.events} />
           </TabsContent>
           <TabsContent value="access" className="pt-2">
-            <AccessTab access={data.access} />
+            <AccessTab access={data.access} truncated={data.truncated} />
           </TabsContent>
           <TabsContent value="subject" className="pt-2">
             <SubjectLookup />

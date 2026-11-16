@@ -23,6 +23,7 @@ export interface SubjectAccess {
 export interface SubjectAccessResponse {
   dataSubjectId: string | null;
   accesses: SubjectAccess[];
+  truncated?: boolean;
 }
 
 async function getJson<T>(url: string): Promise<T> {

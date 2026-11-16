@@ -45,7 +45,7 @@ const columns: ColumnDef<DataTableFeatures, SubjectAccess>[] = [
   },
 ];
 
-export function AccessTab({ access }: { access: SubjectAccess[] }) {
+export function AccessTab({ access, truncated }: { access: SubjectAccess[]; truncated?: boolean }) {
   const [query, setQuery] = useState("");
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 50 });
 
@@ -82,7 +82,11 @@ export function AccessTab({ access }: { access: SubjectAccess[] }) {
     <Card>
       <CardHeader>
         <CardTitle>Subject access events</CardTitle>
-        <CardDescription>Every record access the PDM has served, newest first.</CardDescription>
+        <CardDescription>
+          {truncated
+            ? `Showing the first ${access.length.toLocaleString()} access events from a larger table.`
+            : "Every record access the PDM has served, newest first."}
+        </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <div className="relative max-w-sm">

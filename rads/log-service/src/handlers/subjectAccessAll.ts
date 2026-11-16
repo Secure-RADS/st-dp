@@ -2,17 +2,22 @@ import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { requiredEnv } from "@srads/common/env";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
-import { scanAllAccesses } from "../lib/subjectAccessRows.js";
+import { scanAccesses } from "../lib/subjectAccessRows.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const table = requiredEnv("SUBJECT_ACCESS_TABLE");
+const DEFAULT_LIMIT = 5_000;
+const MAX_LIMIT = 20_000;
 
 function jsonResponse(statusCode: number, body: unknown) {
   return { statusCode, headers: { "content-type": "application/json" }, body: JSON.stringify(body) };
 }
 
-// Service-authority view: stream every subject-access event, not scoped to one data subject.
-export const handler: APIGatewayProxyHandlerV2 = async () => {
-  const accesses = await scanAllAccesses(ddb, table);
-  return jsonResponse(200, { dataSubjectId: null, accesses });
+// Service-authority view: a bounded window over every subject-access event, with a flag when it was cut.
+export const handler: APIGatewayProxyHandlerV2 = async (event) => {
+  const parsed = Number(event.queryStringParameters?.limit ?? DEFAULT_LIMIT);
+  const limit = Number.isInteger(parsed) && parsed > 0 ? Math.min(parsed, MAX_LIMIT) : DEFAULT_LIMIT;
+
+  const { rows, truncated } = await scanAccesses(ddb, table, limit);
+  return jsonResponse(200, { dataSubjectId: null, accesses: rows, truncated });
 };

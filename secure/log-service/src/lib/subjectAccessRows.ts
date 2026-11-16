@@ -24,13 +24,23 @@ export async function queryAccesses(
   return rows;
 }
 
-export async function scanAllAccesses(ddb: DynamoDBDocumentClient, table: string): Promise<SubjectAccessRow[]> {
+export interface AccessScan {
+  rows: SubjectAccessRow[];
+  truncated: boolean;
+}
+
+// The access table is not bounded: benchmark sweeps leave millions of rows, so a full scan cannot finish
+// inside a Lambda timeout. Return a bounded newest-ish window instead and tell the caller it was truncated.
+export async function scanAccesses(ddb: DynamoDBDocumentClient, table: string, limit: number): Promise<AccessScan> {
   const rows: SubjectAccessRow[] = [];
   let exclusiveStartKey: Record<string, unknown> | undefined;
   do {
-    const result = await ddb.send(new ScanCommand({ TableName: table, ExclusiveStartKey: exclusiveStartKey }));
+    const pageSize = Math.min(1000, limit - rows.length);
+    const result = await ddb.send(
+      new ScanCommand({ TableName: table, ExclusiveStartKey: exclusiveStartKey, Limit: pageSize }),
+    );
     for (const item of result.Items ?? []) rows.push(toRow(item));
     exclusiveStartKey = result.LastEvaluatedKey;
-  } while (exclusiveStartKey);
-  return rows;
+  } while (exclusiveStartKey && rows.length < limit);
+  return { rows, truncated: Boolean(exclusiveStartKey) };
 }
