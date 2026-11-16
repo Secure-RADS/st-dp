@@ -28,6 +28,7 @@ provider:
 functions:
   subjectAccessIngest:
     handler: src/handlers/subjectAccessIngest.handler
+    timeout: 29
     events:
       - httpApi:
           method: POST
@@ -40,6 +41,7 @@ functions:
           path: /subject-access/{dataSubjectId}
   subjectAccessAll:
     handler: src/handlers/subjectAccessAll.handler
+    timeout: 29
     events:
       - httpApi:
           method: GET

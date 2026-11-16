@@ -40,7 +40,7 @@ logs:
 	pids=""; \
 	for target in registry-logs; do make $$target & pids="$$pids $$!"; done; \
 	for group in $$(aws logs describe-log-groups --region "$(REGION)" --log-group-name-prefix /aws/lambda/ --query 'logGroups[].logGroupName' --output text); do \
-		case "$$group" in /aws/lambda/secure-rads-execution-service-dev-*|/aws/lambda/secure-rads-verifier-service-dev-*|/aws/lambda/secure-rads-pdm-service-dev-*|/aws/lambda/secure-rads-kms-service-dev-*|/aws/lambda/secure-rads-log-service-dev-*|/aws/lambda/secure-rads-cost-service-dev-*|/aws/lambda/secure-rads-result-consumer-dev-*|/aws/lambda/rads-registry-service-dev-*|/aws/lambda/rads-pdm-service-dev-*|/aws/lambda/rads-log-service-dev-*|/aws/lambda/rads-cost-service-dev-*|/aws/lambda/rads-result-consumer-dev-*|/aws/lambda/rads-execution-service-dev-*) aws logs tail "$$group" --region "$(REGION)" --follow & pids="$$pids $$!";; esac; \
+		case "$$group" in /aws/lambda/secure-rads-execution-service-dev-*|/aws/lambda/secure-rads-verifier-service-dev-*|/aws/lambda/secure-rads-pdm-service-dev-*|/aws/lambda/secure-rads-kms-service-dev-*|/aws/lambda/secure-rads-log-service-dev-*|/aws/lambda/secure-rads-telemetry-service-dev-*|/aws/lambda/secure-rads-cost-service-dev-*|/aws/lambda/secure-rads-result-consumer-dev-*|/aws/lambda/rads-registry-service-dev-*|/aws/lambda/rads-pdm-service-dev-*|/aws/lambda/rads-log-service-dev-*|/aws/lambda/rads-telemetry-service-dev-*|/aws/lambda/rads-cost-service-dev-*|/aws/lambda/rads-result-consumer-dev-*|/aws/lambda/rads-execution-service-dev-*) aws logs tail "$$group" --region "$(REGION)" --follow & pids="$$pids $$!";; esac; \
 	done; \
 	trap 'kill $$pids 2>/dev/null || true' EXIT INT TERM; \
 	for pid in $$pids; do wait "$$pid" || true; done
@@ -327,7 +327,7 @@ rads-all:
 
 # Show the rads serverless stack outputs (API URLs and resource names).
 rads-status:
-	@for stack in rads-registry-service-dev rads-pdm-service-dev rads-log-service-dev rads-cost-service-dev rads-result-consumer-dev rads-execution-service-dev; do \
+	@for stack in rads-registry-service-dev rads-pdm-service-dev rads-log-service-dev rads-telemetry-service-dev rads-cost-service-dev rads-result-consumer-dev rads-execution-service-dev; do \
 		aws cloudformation describe-stacks --stack-name $$stack --region $(REGION) --query 'Stacks[0].Outputs' --output table; \
 	done
 

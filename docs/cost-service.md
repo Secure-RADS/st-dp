@@ -100,7 +100,7 @@ per-run against Cost Explorer.
   currently attributed, though the kms-service Lambda and API Gateway requests around them are.
 - verifier-service `/.well-known/jwks.json` and `pdm-service`'s `/subject` DSAR lookup - neither carries an
   `algorithmId` to attribute to.
-- log-service and cost-service self-cost (ingest API Gateway/Lambda/queue/DynamoDB).
+- log-service, telemetry-service, and cost-service self-cost (ingest API Gateway/Lambda/queue/DynamoDB).
 - Ongoing storage (S3 EIF/artifact objects, DynamoDB table storage), CloudWatch Logs ingestion/storage, CloudWatch
   alarms, the persistent CSAV host, and data transfer (internet egress, cross-AZ).
 - SQS queue-cost of result delivery is metered as `sqs:send`, `sqs:receive`, and `sqs:delete`. Receive requests

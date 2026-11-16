@@ -34,10 +34,12 @@ functions:
   # verifier-issued attested token. The routes are declared under the public API resources below.
   subjectAccessIngest:
     handler: src/handlers/subjectAccessIngest.handler
+    timeout: 29
   subjectAccessBySubject:
     handler: src/handlers/subjectAccessBySubject.handler
   subjectAccessAll:
     handler: src/handlers/subjectAccessAll.handler
+    timeout: 29
 
 resources:
   Resources:
