@@ -20,7 +20,7 @@ provider:
           Resource: !GetAtt RunResultsTable.Arn
   environment:
     RUN_RESULTS_TABLE: !Ref RunResultsTable
-    LOG_HOST: ${env:LOG_HOST_RADS}
+    TELEMETRY_HOST: ${env:TELEMETRY_HOST_RADS}
     COST_HOST: ${env:COST_HOST_RADS}
 
 functions:

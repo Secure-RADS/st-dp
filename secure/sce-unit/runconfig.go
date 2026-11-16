@@ -12,15 +12,17 @@ const runConfigPath = "/etc/sce/run-config.json"
 // runConfig is baked into the EIF at build time - the enclave has no other way to learn which algorithm it's
 // running or how to reach verifier-service, since Nitro Enclaves take no user-data.
 type runConfig struct {
-	AlgorithmId          string `json:"algorithmId"`
-	VerifierHost         string `json:"verifierHost"`
-	VerifierPubKeySHA256 string `json:"verifierPubKeySHA256"`
-	PdmHost              string `json:"pdmHost"`
-	PdmPubKeySHA256      string `json:"pdmPubKeySHA256"`
-	LogHost              string `json:"logHost"`
-	LogPubKeySHA256      string `json:"logPubKeySHA256"`
-	KmsHost              string `json:"kmsHost"`
-	KmsPubKeySHA256      string `json:"kmsPubKeySHA256"`
+	AlgorithmId           string `json:"algorithmId"`
+	VerifierHost          string `json:"verifierHost"`
+	VerifierPubKeySHA256  string `json:"verifierPubKeySHA256"`
+	PdmHost               string `json:"pdmHost"`
+	PdmPubKeySHA256       string `json:"pdmPubKeySHA256"`
+	LogHost               string `json:"logHost"`
+	LogPubKeySHA256       string `json:"logPubKeySHA256"`
+	TelemetryHost         string `json:"telemetryHost"`
+	TelemetryPubKeySHA256 string `json:"telemetryPubKeySHA256"`
+	KmsHost               string `json:"kmsHost"`
+	KmsPubKeySHA256       string `json:"kmsPubKeySHA256"`
 }
 
 func loadRunConfig() (runConfig, error) {

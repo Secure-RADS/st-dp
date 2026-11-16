@@ -19,10 +19,6 @@
     "./jwt": {
       "types": "./src/jwt.ts",
       "import": "./src/jwt.ts"
-    },
-    "./log-mtls": {
-      "types": "./src/log-mtls.ts",
-      "import": "./src/log-mtls.ts"
     }
   },
   "scripts": {

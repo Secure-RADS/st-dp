@@ -10,6 +10,7 @@ export interface UserDataValues {
   costHost: string;
   launchEpoch: number;
   logHost: string;
+  telemetryHost: string;
   pdmUrl: string;
   region: string;
   runId: string;
@@ -26,6 +27,7 @@ export function userData(values: UserDataValues): string {
     CPUCount: "1",
     LaunchEpoch: values.launchEpoch.toString(),
     LogHost: values.logHost,
+    TelemetryHost: values.telemetryHost,
     MemoryMiB: "2048",
     PdmUrl: values.pdmUrl,
     Region: values.region,

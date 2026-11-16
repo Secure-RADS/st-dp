@@ -52,4 +52,5 @@ env-check:
 	@$(call env_require,PDM_HOST)
 	@$(call env_require,KMS_HOST)
 	@$(call env_require,LOG_HOST_SECURE_RADS)
+	@$(call env_require,TELEMETRY_HOST_SECURE_RADS)
 	@$(call env_require,COST_HOST_SECURE_RADS)

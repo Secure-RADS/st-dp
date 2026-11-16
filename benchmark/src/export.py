@@ -135,7 +135,7 @@ def main() -> int:
     except Exception as err:  # noqa: BLE001 - surface resolve failures as CLI errors
         logger.error("failed to resolve service catalog: {}", err)
         return 1
-    urls = {tree: {"log": resolved[tree]["log"], "cost": resolved[tree]["cost"]} for tree in Tree}
+    urls = {tree: {"telemetry": resolved[tree]["telemetry"], "cost": resolved[tree]["cost"]} for tree in Tree}
 
     header = [
         "dataset_size",
@@ -154,7 +154,7 @@ def main() -> int:
         writer.writerow(header)
         for row in tqdm(runs, desc="export", unit="run"):
             tree = Tree(row["tree"])
-            by_event = fetch_events(urls[tree]["log"], row["algorithm_id"], row["run_id"])
+            by_event = fetch_events(urls[tree]["telemetry"], row["algorithm_id"], row["run_id"])
             costs = fetch_costs(urls[tree]["cost"], row["algorithm_id"], row["run_id"])
             phases = [window_seconds(by_event, PHASES[row["tree"]][column]) for column in COLUMNS]
             stamps = [by_event.get(event, "") for event in TIMESTAMP_EVENTS]

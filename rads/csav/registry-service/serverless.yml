@@ -33,7 +33,7 @@ provider:
   environment:
     ARTIFACT_BUCKET: !Ref ImagesBucket
     DYNAMO_TABLE: !Ref AlgorithmsTable
-    LOG_HOST: ${env:LOG_HOST_RADS}
+    TELEMETRY_HOST: ${env:TELEMETRY_HOST_RADS}
     COST_HOST: ${env:COST_HOST_RADS}
 
 functions:

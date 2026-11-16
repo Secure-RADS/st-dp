@@ -18,6 +18,7 @@ REGION="{{.Region}}"
 PDM_URL="{{.PdmUrl}}"
 RUN_RESULTS_QUEUE="{{.RunResultsQueueUrl}}"
 LOG_HOST="{{.LogHost}}"
+TELEMETRY_HOST="{{.TelemetryHost}}"
 # Record count for this run; empty means the whole dataset.
 SIZE="{{.Size}}"
 # Fixed key in the images bucket; make ship uploads the linux/arm64 helper binary here.
@@ -34,7 +35,7 @@ DOCKER_LOAD_LOG="$RUN_DIR/docker-load.log"
 # Emit one run-timeline checkpoint via log-service HTTP (same path as secure-rads). Best-effort.
 emit_event() {
   "$TOOLS_BIN" checkpoint "$ALGORITHM_ID" "$RUN_ID" "$1" > /tmp/checkpoint.json
-  curl -sS -X POST "https://$LOG_HOST/events" -H 'content-type: application/json' \
+  curl -sS -X POST "https://$TELEMETRY_HOST/events" -H 'content-type: application/json' \
     -d @/tmp/checkpoint.json >/dev/null || true
 }
 
@@ -47,7 +48,7 @@ finish() {
   "$TOOLS_BIN" run-result "$STATUS" "$INSTANCE_ID" "$RESULT_FILE" "$OUTPUT_FILE" "$DOCKER_LOAD_LOG" "$RUN_ID" "$ALGORITHM_ID" > /tmp/result.json
   aws sqs send-message --queue-url "$RUN_RESULTS_QUEUE" --message-body file:///tmp/result.json --region "$REGION" || true
   "$TOOLS_BIN" executor-finished "$STATUS" "$INSTANCE_ID" "$ALGORITHM_ID" "$RUN_ID" > /tmp/log-event.json
-  curl -sS -X POST "https://$LOG_HOST/events" -H 'content-type: application/json' \
+  curl -sS -X POST "https://$TELEMETRY_HOST/events" -H 'content-type: application/json' \
     -d @/tmp/log-event.json >/dev/null || true
   emit_cost sqs send "$(wc -c < /tmp/result.json)"
   # The runtime estimate is captured before this cost POST and the terminate request.
@@ -80,7 +81,7 @@ fi
 emit_event artifact-retrieved
 
 # Download the algorithm's full record set before the app starts, so the DC app reads a local file.
-SUBJECT_IDS=$("$TOOLS_BIN" fetch-records "$PDM_URL" "$ALGORITHM_ID" "$RECORDS_FILE" "$RUN_ID" "$SIZE" "https://$LOG_HOST/events") || exit $?
+SUBJECT_IDS=$("$TOOLS_BIN" fetch-records "$PDM_URL" "$ALGORITHM_ID" "$RECORDS_FILE" "$RUN_ID" "$SIZE" "https://$TELEMETRY_HOST/events") || exit $?
 emit_event records-stored-locally
 
 # The app reads /data/records.json and writes /data/result.json; stdout is the diagnostic fallback.

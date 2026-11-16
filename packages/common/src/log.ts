@@ -1,9 +1,9 @@
-const logHost = process.env.LOG_HOST;
-const eventsUrl = logHost ? `https://${logHost}/events` : undefined;
+const telemetryHost = process.env.TELEMETRY_HOST;
+const eventsUrl = telemetryHost ? `https://${telemetryHost}/events` : undefined;
 
 const LOG_EVENT_TIMEOUT_MS = 5_000;
 
-// Await best-effort logging so Lambda freeze does not drop timeline events.
+// Await best-effort logging so Lambda freeze does not drop telemetry events.
 export async function emitEvent(
   algorithmId: string,
   runId: string | null,

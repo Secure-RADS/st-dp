@@ -48,6 +48,7 @@ provider:
     RUN_RESULTS_TABLE: ${param:runResultsTable}
     RUN_RESULTS_QUEUE_URL: ${param:runResultsQueueUrl}
     LOG_HOST: ${env:LOG_HOST_RADS}
+    TELEMETRY_HOST: ${env:TELEMETRY_HOST_RADS}
     COST_HOST: ${env:COST_HOST_RADS}
     PDM_URL: ${param:pdmUrl}
     PDM_TABLE: ${param:pdmTable}

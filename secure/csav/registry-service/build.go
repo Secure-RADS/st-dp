@@ -77,6 +77,9 @@ func buildAndPush(ctx context.Context, algorithmId, tarPath, existingKmsKeyArn s
 	if logHost == "" || logHostPubKeySHA256 == "" {
 		return "", fmt.Errorf("LOG_HOST / LOG_HOST_PUBKEY_SHA256 not configured")
 	}
+	if telemetryHost == "" || telemetryHostPubKeySHA256 == "" {
+		return "", fmt.Errorf("TELEMETRY_HOST / TELEMETRY_HOST_PUBKEY_SHA256 not configured")
+	}
 	if kmsHost == "" || kmsHostPubKeySHA256 == "" {
 		return "", fmt.Errorf("KMS_HOST / KMS_HOST_PUBKEY_SHA256 not configured")
 	}
@@ -87,6 +90,7 @@ func buildAndPush(ctx context.Context, algorithmId, tarPath, existingKmsKeyArn s
 		VerifierHost: verifierHost, VerifierPubKeySHA256: verifierHostPubKeySHA256,
 		PdmHost: pdmHost, PdmPubKeySHA256: pdmHostPubKeySHA256,
 		LogHost: logHost, LogPubKeySHA256: logHostPubKeySHA256,
+		TelemetryHost: telemetryHost, TelemetryPubKeySHA256: telemetryHostPubKeySHA256,
 		KmsHost: kmsHost, KmsPubKeySHA256: kmsHostPubKeySHA256,
 	}
 	if err := composeFinalRootfs(bundleDir, execPath, pathEnv, args, rc); err != nil {

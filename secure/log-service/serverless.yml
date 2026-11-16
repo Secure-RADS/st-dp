@@ -1,7 +1,5 @@
 service: secure-rads-log-service
 
-# Bundled as CJS, not ESM, same as pdm-service - esbuild's ESM output can't interop with plain
-# top-level require() in some deps, and nothing here actually needs ESM at runtime.
 build:
   esbuild:
     format: cjs
@@ -13,69 +11,27 @@ provider:
   runtime: nodejs24.x
   region: ${env:AWS_REGION}
   httpApi:
-    # The default API is the mTLS API. The execute-api endpoint bypasses mutual TLS, so it is disabled and
-    # only the custom domain below is reachable.
-    disableDefaultEndpoint: true
     cors: true
   iam:
     role:
       statements:
         - Effect: Allow
           Action:
-            - dynamodb:PutItem
             - dynamodb:BatchWriteItem
             - dynamodb:Query
             - dynamodb:Scan
           Resource:
-            - !GetAtt RunLogTable.Arn
             - !GetAtt SubjectAccessTable.Arn
-        - Effect: Allow
-          Action:
-            - sqs:SendMessage
-            - sqs:ReceiveMessage
-            - sqs:DeleteMessage
-            - sqs:GetQueueAttributes
-            - sqs:ChangeMessageVisibility
-          Resource:
-            - !GetAtt EventQueue.Arn
-            - !GetAtt EventDeadLetterQueue.Arn
   environment:
-    RUN_LOG_TABLE: !Ref RunLogTable
     SUBJECT_ACCESS_TABLE: !Ref SubjectAccessTable
-    EVENT_QUEUE_URL: !Ref EventQueue
-    # Enables attestation-token verification for enclave-originated ingest. Left unset in the baseline,
-    # which has no verifier.
+    # Enables attestation-token verification for subject-access ingest. Left unset in the baseline, which
+    # has no verifier.
     VERIFIER_JWKS_URL: ${env:VERIFIER_JWKS_URL}
     VERIFIER_JWKS_PUBKEY_SHA256: ${env:VERIFIER_JWKS_PUBKEY_SHA256}
 
 functions:
-  # Internal producers: registry-service, execution-service, result-consumer. Auth is the client cert
-  # enforced by the mTLS custom domain.
-  eventsInternal:
-    handler: src/handlers/eventsInternal.handler
-    events:
-      - httpApi:
-          method: POST
-          path: /events
-
-  # The functions below are wired to PublicHttpApi by hand in resources, not to the default mTLS API.
-  events:
-    handler: src/handlers/events.handler
-  worker:
-    handler: src/handlers/worker.handler
-    timeout: 30
-    reservedConcurrency: 5
-    events:
-      - sqs:
-          arn: !GetAtt EventQueue.Arn
-          batchSize: 10
-          functionResponseType: ReportBatchItemFailures
-  byAlgorithm:
-    handler: src/handlers/byAlgorithm.handler
-  all:
-    handler: src/handlers/all.handler
-  # sce-unit writes the subject-access trail over the public domain after a successful DC app run, using
-  # the verifier-issued attested token. The route is declared under the public API resources below.
+  # sce-unit writes the subject-access trail over the public domain after a successful DC app run, using the
+  # verifier-issued attested token. The routes are declared under the public API resources below.
   subjectAccessIngest:
     handler: src/handlers/subjectAccessIngest.handler
   subjectAccessBySubject:
@@ -84,43 +40,8 @@ functions:
     handler: src/handlers/subjectAccessAll.handler
 
 resources:
-  Conditions:
-    HasTruststoreVersion:
-      Fn::Not:
-        - Fn::Equals:
-            - "${param:truststoreVersionId, ''}"
-            - ""
   Resources:
-    RunLogTable:
-      Type: AWS::DynamoDB::Table
-      Properties:
-        BillingMode: PAY_PER_REQUEST
-        AttributeDefinitions:
-          - AttributeName: AlgorithmId
-            AttributeType: S
-          - AttributeName: Sk
-            AttributeType: S
-        KeySchema:
-          - AttributeName: AlgorithmId
-            KeyType: HASH
-          - AttributeName: Sk
-            KeyType: RANGE
-
-    # Visibility must exceed the worker timeout so in-flight batches are not redelivered mid-PutItem.
-    EventQueue:
-      Type: AWS::SQS::Queue
-      Properties:
-        VisibilityTimeout: 60
-        RedrivePolicy:
-          deadLetterTargetArn: !GetAtt EventDeadLetterQueue.Arn
-          maxReceiveCount: 5
-
-    EventDeadLetterQueue:
-      Type: AWS::SQS::Queue
-      Properties:
-        MessageRetentionPeriod: 1209600
-
-    # Separate from the run log: partition key is the data subject so a DSAR lookup is a key query, not a scan.
+    # The data-subject trail: partition key is the data subject so a DSAR lookup is a key query, not a scan.
     SubjectAccessTable:
       Type: AWS::DynamoDB::Table
       Properties:
@@ -136,35 +57,6 @@ resources:
           - AttributeName: Sk
             KeyType: RANGE
 
-    TruststoreBucket:
-      Type: AWS::S3::Bucket
-      Properties:
-        VersioningConfiguration:
-          Status: Enabled
-
-    # mTLS domain for internal producers. The default API (with the internal /events route) is mapped here.
-    # Both the domain and its mapping are skipped until a truststore version is supplied, so the first deploy
-    # can create the bucket, the truststore can be uploaded, and a second deploy can create the domain.
-    ApiCustomDomain:
-      Type: AWS::ApiGatewayV2::DomainName
-      Condition: HasTruststoreVersion
-      Properties:
-        DomainName: ${param:mtlsDomainName}
-        DomainNameConfigurations:
-          - CertificateArn: ${param:mtlsCertificateArn}
-        MutualTlsAuthentication:
-          TruststoreUri: !Sub "s3://${TruststoreBucket}/truststore.pem"
-          TruststoreVersion: ${param:truststoreVersionId, ''}
-
-    ApiDomainMapping:
-      Type: AWS::ApiGatewayV2::ApiMapping
-      Condition: HasTruststoreVersion
-      Properties:
-        DomainName: !Ref ApiCustomDomain
-        ApiId: !Ref HttpApi
-        Stage: !Ref HttpApiStage
-
-    # Public domain, pinned by callers. Carries the enclave token routes and the read endpoints.
     PublicHttpApi:
       Type: AWS::ApiGatewayV2::Api
       Properties:
@@ -201,69 +93,6 @@ resources:
         DomainName: !Ref PublicApiCustomDomain
         ApiId: !Ref PublicHttpApi
         Stage: !Ref PublicHttpApiStage
-
-    EventsIntegration:
-      Type: AWS::ApiGatewayV2::Integration
-      Properties:
-        ApiId: !Ref PublicHttpApi
-        IntegrationType: AWS_PROXY
-        IntegrationUri: !GetAtt EventsLambdaFunction.Arn
-        PayloadFormatVersion: "2.0"
-    EventsRoute:
-      Type: AWS::ApiGatewayV2::Route
-      Properties:
-        ApiId: !Ref PublicHttpApi
-        RouteKey: POST /events
-        Target: !Sub "integrations/${EventsIntegration}"
-    EventsInvokePermission:
-      Type: AWS::Lambda::Permission
-      Properties:
-        FunctionName: !Ref EventsLambdaFunction
-        Action: lambda:InvokeFunction
-        Principal: apigateway.amazonaws.com
-        SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicHttpApi}/*/POST/events"
-
-    ByAlgorithmIntegration:
-      Type: AWS::ApiGatewayV2::Integration
-      Properties:
-        ApiId: !Ref PublicHttpApi
-        IntegrationType: AWS_PROXY
-        IntegrationUri: !GetAtt ByAlgorithmLambdaFunction.Arn
-        PayloadFormatVersion: "2.0"
-    ByAlgorithmRoute:
-      Type: AWS::ApiGatewayV2::Route
-      Properties:
-        ApiId: !Ref PublicHttpApi
-        RouteKey: GET /logs/{algorithmId}
-        Target: !Sub "integrations/${ByAlgorithmIntegration}"
-    ByAlgorithmInvokePermission:
-      Type: AWS::Lambda::Permission
-      Properties:
-        FunctionName: !Ref ByAlgorithmLambdaFunction
-        Action: lambda:InvokeFunction
-        Principal: apigateway.amazonaws.com
-        SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicHttpApi}/*/GET/logs/*"
-
-    AllIntegration:
-      Type: AWS::ApiGatewayV2::Integration
-      Properties:
-        ApiId: !Ref PublicHttpApi
-        IntegrationType: AWS_PROXY
-        IntegrationUri: !GetAtt AllLambdaFunction.Arn
-        PayloadFormatVersion: "2.0"
-    AllRoute:
-      Type: AWS::ApiGatewayV2::Route
-      Properties:
-        ApiId: !Ref PublicHttpApi
-        RouteKey: GET /logs
-        Target: !Sub "integrations/${AllIntegration}"
-    AllInvokePermission:
-      Type: AWS::Lambda::Permission
-      Properties:
-        FunctionName: !Ref AllLambdaFunction
-        Action: lambda:InvokeFunction
-        Principal: apigateway.amazonaws.com
-        SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicHttpApi}/*/GET/logs"
 
     SubjectAccessIngestIntegration:
       Type: AWS::ApiGatewayV2::Integration
@@ -329,18 +158,7 @@ resources:
         SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicHttpApi}/*/GET/subject-access"
 
   Outputs:
-    RunLogTableName:
-      Value: !Ref RunLogTable
-    EventQueueUrl:
-      Value: !Ref EventQueue
-    EventDeadLetterQueueUrl:
-      Value: !Ref EventDeadLetterQueue
     SubjectAccessTableName:
       Value: !Ref SubjectAccessTable
-    ApiRegionalDomainName:
-      Condition: HasTruststoreVersion
-      Value: !GetAtt ApiCustomDomain.RegionalDomainName
     PublicApiRegionalDomainName:
       Value: !GetAtt PublicApiCustomDomain.RegionalDomainName
-    TruststoreBucketName:
-      Value: !Ref TruststoreBucket

@@ -4,7 +4,7 @@ import { EC2Client, RunInstancesCommand, type RunInstancesCommandInput } from "@
 import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
 import { CostPhase, costEvent, recordRequest } from "@srads/common/cost";
 import { requiredEnv } from "@srads/common/env";
-import { emitSecureEvent as emitEvent } from "@srads/common/log-mtls";
+import { emitEvent } from "@srads/common/log";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { countAlgorithmRecords, isThrottlingError } from "../lib/pdmCount.js";
 import { userData } from "../lib/userdata.js";
@@ -24,6 +24,7 @@ const pdmHost = requiredEnv("PDM_HOST");
 const kmsServiceHost = requiredEnv("KMS_SERVICE_HOST");
 const pdmTable = requiredEnv("PDM_TABLE");
 const logHost = requiredEnv("LOG_HOST");
+const telemetryHost = requiredEnv("TELEMETRY_HOST");
 const costHost = requiredEnv("COST_HOST");
 const region = requiredEnv("AWS_REGION");
 
@@ -151,6 +152,7 @@ export const create: APIGatewayProxyHandlerV2 = async (event) => {
             kmsHost: kmsServiceHost,
             launchEpoch: Math.floor(Date.now() / 1000),
             logHost,
+            telemetryHost,
             pdmHost,
             region,
             queueUrl: runResultsQueueUrl,

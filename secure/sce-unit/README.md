@@ -12,4 +12,4 @@ only channel out.
 PDM returns a standalone `dataSubjectIds` list aligned with the records. sce-unit
 keeps those ids in memory, writes `records.json` without them, and after a
 successful DC app run posts the list to log-service `POST /subject-access` with
-its attested token. The DC app never sees subject ids.
+its attested token. Run-timeline events go to telemetry-service instead, without a token. The DC app never sees subject ids.

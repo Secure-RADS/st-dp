@@ -78,9 +78,9 @@ Values the deployment needs, all read from that file:
 | `RADS_EXECUTOR_AMI_ID`, `SCE_ENCLAVE_AMI_ID` | Arm64 Amazon Linux 2023 AMIs used by the two execution paths. |
 | `CERT_ARN_RADS`, `CERT_ARN_SECURE_RADS` | us-east-1 ACM certificates for the two transparency portals. |
 | `TRANSPARENCY_DOMAIN_RADS`, `TRANSPARENCY_DOMAIN_SECURE_RADS` | Portal hostnames on those certificates. |
-| `LOG_HOST_RADS`, `LOG_HOST_SECURE_RADS`, `LOG_MTLS_HOST_SECURE_RADS`, `COST_HOST_RADS`, `COST_HOST_SECURE_RADS` | Service hostnames each stack reports to. The mTLS hostname carries internal log events. |
+| `LOG_HOST_RADS`, `LOG_HOST_SECURE_RADS`, `TELEMETRY_HOST_RADS`, `TELEMETRY_HOST_SECURE_RADS`, `COST_HOST_RADS`, `COST_HOST_SECURE_RADS` | Service hostnames each stack reports to. Log hosts carry the subject-access trail; telemetry hosts carry the diagnostic timeline. |
 | `PDM_HOST`, `KMS_HOST`, `VERIFIER_HOST`, `VERIFIER_ATTEST_HOST`, `VERIFIER_URL` | PDM, KMS proxy, and verifier endpoints, including the registry-service mTLS URL. |
-| `VERIFIER_PUBKEY_SHA256`, `VERIFIER_HOST_PUBKEY_SHA256`, `PDM_HOST_PUBKEY_SHA256`, `KMS_HOST_PUBKEY_SHA256`, `LOG_HOST_PUBKEY_SHA256`, `LOG_MTLS_PUBKEY_SHA256` | TLS public-key pins for the enclave and internal log producers. |
+| `VERIFIER_PUBKEY_SHA256`, `VERIFIER_HOST_PUBKEY_SHA256`, `PDM_HOST_PUBKEY_SHA256`, `KMS_HOST_PUBKEY_SHA256`, `LOG_HOST_PUBKEY_SHA256`, `TELEMETRY_HOST_PUBKEY_SHA256` | TLS public-key pins for the enclave and internal log producers. |
 | `VERIFIER_JWKS_URL`, `VERIFIER_JWKS_PUBKEY_SHA256` | Verifier key location and pin used by the PDM, KMS, and log services. |
 | `CLOUDFLARE_ZONE`, `CLOUDFLARE_EMAIL`, `CLOUDFLARE_API_TOKEN` | Cloudflare zone and credentials for the DNS helper. |
 
@@ -105,7 +105,6 @@ Before deployment, prepare the selected region with:
   - `pdm.sr.secure-rads.org`
   - `kms.sr.secure-rads.org`
   - `log.sr.secure-rads.org`
-  - `log-mtls.sr.secure-rads.org`
   - `cost.r.secure-rads.org`
   - `cost.sr.secure-rads.org`
 - DNS-only CNAME records in Cloudflare pointing each name to its API Gateway regional domain output after its service is created. The verifier uses mTLS, and secure-rads pins the verifier, PDM, KMS, and log API Gateway certificates; cost-service uses plain TLS and is not pinned.
@@ -139,7 +138,7 @@ export VERIFIER_ATTEST_CERT_ARN=<verifier-attest-acm-certificate-arn>
 export PDM_CERT_ARN=<pdm-acm-certificate-arn>
 export KMS_CERT_ARN=<kms-acm-certificate-arn>
 export LOG_CERT_ARN=<log.sr-acm-certificate-arn>
-export LOG_MTLS_CERT_ARN=<log-mtls.sr-acm-certificate-arn>
+export TELEMETRY_CERT_ARN=<telemetry.sr-acm-certificate-arn>
 export SECURE_COST_CERT_ARN=<cost.sr-acm-certificate-arn>
 export RADS_COST_CERT_ARN=<cost.r-acm-certificate-arn>
 ```
@@ -205,21 +204,27 @@ VERIFIER_JWKS_PUBKEY_SHA256="$VERIFIER_ATTEST_PIN" \
   --param="region=$REGION" \
   --param="domainName=pdm.sr.secure-rads.org" \
   --param="certificateArn=$PDM_CERT_ARN")
-# log-service mTLS is two-phase: deploy without truststoreVersionId, upload the truststore,
-# then deploy again with the printed version. See secure/log-service/README.md.
 (cd secure/log-service && bun install && bunx serverless deploy \
   --param="region=$REGION" \
-  --param="domainName=log.sr.secure-rads.org" --param="certificateArn=$LOG_CERT_ARN" \
-  --param="mtlsDomainName=log-mtls.sr.secure-rads.org" --param="mtlsCertificateArn=$LOG_MTLS_CERT_ARN")
+  --param="domainName=log.sr.secure-rads.org" --param="certificateArn=$LOG_CERT_ARN")
+(cd secure/telemetry-service && bun install && bunx serverless deploy \
+  --param="region=$REGION" \
+  --param="domainName=telemetry.sr.secure-rads.org" --param="certificateArn=$TELEMETRY_CERT_ARN")
 (cd secure/cost-service && bun install && bunx serverless deploy \
   --param="region=$REGION" \
   --param="domainName=cost.sr.secure-rads.org" \
   --param="certificateArn=$SECURE_COST_CERT_ARN")
 ```
 
-For the baseline tree, deploy its cost-service separately with the `cost.r.secure-rads.org` certificate:
+For the baseline tree, deploy its log, telemetry, and cost services with the `*.r.secure-rads.org` certificates:
 
 ```sh
+(cd rads/log-service && bun install && bunx serverless deploy \
+  --param="region=$REGION" \
+  --param="domainName=log.r.secure-rads.org" --param="certificateArn=$LOG_CERT_ARN")
+(cd rads/telemetry-service && bun install && bunx serverless deploy \
+  --param="region=$REGION" \
+  --param="domainName=telemetry.r.secure-rads.org" --param="certificateArn=$TELEMETRY_CERT_ARN")
 (cd rads/cost-service && bun install && bunx serverless deploy \
   --param="region=$REGION" \
   --param="domainName=cost.r.secure-rads.org" \
@@ -231,6 +236,7 @@ After both DNS records resolve:
 ```sh
 PDM_PIN=$(spki_pin pdm.sr.secure-rads.org)
 LOG_PIN=$(spki_pin log.sr.secure-rads.org)
+TELEMETRY_PIN=$(spki_pin telemetry.sr.secure-rads.org)
 ```
 
 Deploy shared storage (kms-service needs the algorithm table), then kms-service, then create its DNS-only CNAME and collect its pin:

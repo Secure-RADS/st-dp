@@ -27,7 +27,8 @@ attestation, and blue is data-key release.
 - **Algorithm Registry (AR)** holds algorithms that were vetted and validated against a consent, and registers their measurements with the Verifier. In this PoC, registry-service performs the registration; algorithm vetting and consent approval are out of scope.
 - **Verifier** stores the expected measurements per algorithm and issues a signed, time-constrained token to an SCE that attests correctly.
 - **Key Management Service (KMS)** releases the data-encryption key only to an SCE holding a valid verifier token.
-- **Log Service** holds the processing records that support DS and Supervisory Authority queries.
+- **Log Service** holds the data-subject access trail that supports DS and Supervisory Authority queries.
+- **Telemetry Service** holds the best-effort build and run timeline used for performance, debugging, and benchmark exports.
 - **Secure Computing Environment (SCE)** fetches encrypted records, decrypts them, runs the DC's algorithm inside the enclave, and records the run with the Log Service.
 
 This repo implements the SCE and the supporting services needed to run and inspect it. Consent capture,
@@ -37,7 +38,7 @@ service.
 
 ## rads (baseline)
 
-[`rads/`](rads/) is the fully-trusted baseline sibling: no KMS, no Nitro enclave, no verifier. A data controller's docker image tarball is uploaded to the registry-service (`rads/csav/registry-service`), stored raw in S3, and recorded as `algorithmId -> S3 path` in DynamoDB. At run time the execution-service (`rads/sce/execution-service`) launches a plain EC2 executor that docker-loads the image, fetches records from PDM into `records.json`, and runs the app with `RECORDS_PATH` / `RESULT_PATH`. The result file is delivered asynchronously to result-consumer; stdout is the diagnostic fallback. The same log-service records the run timeline.
+[`rads/`](rads/) is the fully-trusted baseline sibling: no KMS, no Nitro enclave, no verifier. A data controller's docker image tarball is uploaded to the registry-service (`rads/csav/registry-service`), stored raw in S3, and recorded as `algorithmId -> S3 path` in DynamoDB. At run time the execution-service (`rads/sce/execution-service`) launches a plain EC2 executor that docker-loads the image, fetches records from PDM into `records.json`, and runs the app with `RECORDS_PATH` / `RESULT_PATH`. The result file is delivered asynchronously to result-consumer; stdout is the diagnostic fallback. The same telemetry-service records the run timeline.
 
 Every rads AWS resource is prefixed `rads-`; every secure-rads resource is prefixed `secure-rads-`, so both systems deploy and run side by side in one account/region.
 
@@ -47,7 +48,7 @@ Every rads AWS resource is prefixed `rads-`; every secure-rads resource is prefi
 
 **Execution phase (SCE).** A caller POSTs an `algorithmId` to the API Gateway and Lambda execution-service control plane, which launches a per-run Nitro Enclave parent EC2 instance. Inside, the SCE Unit seeds enclave entropy from the NSM, attests to the Verifier Service, and - once attestation passes - fetches that algorithm's records from the PDM Service, gets the data key unwrapped by the KMS Service, decrypts them, and writes `records.json` for the jailed Data Controller app (`RECORDS_PATH` / `RESULT_PATH`, same file contract as rads). Results come back asynchronously: `/run` returns a `runId` immediately, the enclave host publishes the result to SQS, a consumer Lambda persists it, and the caller polls `GET /run/{runId}`.
 
-Throughout both phases every component posts timestamped events to the log-service, so a run's full timeline - build to execution - can be exported for benchmarking. Components also report selected, attributable AWS operations to the cost-service, keyed by the same `(AlgorithmId, runId)`, so their estimated costs can be summed per AWS service ([`docs/cost-service.md`](docs/cost-service.md)). Event-by-event plaintext flows: [`docs/e2e-rads.txt`](docs/e2e-rads.txt), [`docs/e2e-secure-rads.txt`](docs/e2e-secure-rads.txt).
+Throughout both phases every component posts timestamped events to the telemetry-service, so a run's full timeline - build to execution - can be exported for benchmarking. The log-service records only the subject-access trail. Components also report selected, attributable AWS operations to the cost-service, keyed by the same `(AlgorithmId, runId)`, so their estimated costs can be summed per AWS service ([`docs/cost-service.md`](docs/cost-service.md)). Event-by-event plaintext flows: [`docs/e2e-rads.txt`](docs/e2e-rads.txt), [`docs/e2e-secure-rads.txt`](docs/e2e-secure-rads.txt).
 
 ## Quick start
 

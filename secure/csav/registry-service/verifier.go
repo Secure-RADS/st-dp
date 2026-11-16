@@ -21,17 +21,19 @@ const (
 // verifierHost/verifierHostPubKeySHA256 pin the plain-TLS public domain (/challenge, /attest, /refresh) baked
 // into the EIF's run config - a different domain, and a different cert, from verifierURL below (mTLS, /algorithms).
 var (
-	verifierURL              = os.Getenv("VERIFIER_URL")
-	verifierHost             = os.Getenv("VERIFIER_HOST")
-	verifierHostPubKeySHA256 = os.Getenv("VERIFIER_HOST_PUBKEY_SHA256")
-	pdmHost                  = os.Getenv("PDM_HOST")
-	pdmHostPubKeySHA256      = os.Getenv("PDM_HOST_PUBKEY_SHA256")
-	logHost                  = os.Getenv("LOG_HOST")
-	logHostPubKeySHA256      = os.Getenv("LOG_HOST_PUBKEY_SHA256")
-	kmsHost                  = os.Getenv("KMS_HOST")
-	kmsHostPubKeySHA256      = os.Getenv("KMS_HOST_PUBKEY_SHA256")
-	costHost                 = os.Getenv("COST_HOST")
-	csavRoleArn              = os.Getenv("CSAV_ROLE_ARN")
+	verifierURL               = os.Getenv("VERIFIER_URL")
+	verifierHost              = os.Getenv("VERIFIER_HOST")
+	verifierHostPubKeySHA256  = os.Getenv("VERIFIER_HOST_PUBKEY_SHA256")
+	pdmHost                   = os.Getenv("PDM_HOST")
+	pdmHostPubKeySHA256       = os.Getenv("PDM_HOST_PUBKEY_SHA256")
+	logHost                   = os.Getenv("LOG_HOST")
+	logHostPubKeySHA256       = os.Getenv("LOG_HOST_PUBKEY_SHA256")
+	telemetryHost             = os.Getenv("TELEMETRY_HOST")
+	telemetryHostPubKeySHA256 = os.Getenv("TELEMETRY_HOST_PUBKEY_SHA256")
+	kmsHost                   = os.Getenv("KMS_HOST")
+	kmsHostPubKeySHA256       = os.Getenv("KMS_HOST_PUBKEY_SHA256")
+	costHost                  = os.Getenv("COST_HOST")
+	csavRoleArn               = os.Getenv("CSAV_ROLE_ARN")
 )
 
 type registerPCRsRequest struct {
