@@ -23,7 +23,7 @@ export interface SubjectAccess {
 export interface SubjectAccessResponse {
   dataSubjectId: string | null;
   accesses: SubjectAccess[];
-  truncated?: boolean;
+  nextCursor: string | null;
 }
 
 async function getJson<T>(url: string): Promise<T> {
@@ -36,7 +36,10 @@ async function getJson<T>(url: string): Promise<T> {
 
 export const getRunEvents = () => getJson<RunEvent[]>(`${TELEMETRY_SERVICE_URL}/logs`);
 
-export const getAllSubjectAccess = () => getJson<SubjectAccessResponse>(`${LOG_SERVICE_URL}/subject-access`);
+export const getAllSubjectAccess = (cursor?: string) =>
+  getJson<SubjectAccessResponse>(
+    `${LOG_SERVICE_URL}/subject-access?limit=500${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
+  );
 
 export const getSubjectAccess = (dataSubjectId: string) =>
   getJson<SubjectAccessResponse>(`${PDM_URL}/subject/${encodeURIComponent(dataSubjectId)}`);

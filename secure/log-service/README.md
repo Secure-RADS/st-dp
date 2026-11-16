@@ -10,7 +10,7 @@ The public domain carries the subject-access write and read paths:
 
 - `POST /subject-access` - sce-unit posts one batch of `{algorithmId, runId, dataSubjectIds, timestamp}` after a successful DC app run, using the ids PDM returned for that run. The bearer token is verified, so only an attested enclave can write its own algorithm's trail.
 - `GET /subject-access/{dataSubjectId}` - one data subject's chronological access entries as a key query.
-- `GET /subject-access` - a bounded window over all access events for the authority dashboard. `?limit=` caps at 20000 (default 5000); the response sets `truncated` when the scan stopped early. The table can hold tens of millions of rows, so a full scan is deliberately avoided.
+- `GET /subject-access` - a cursor-paginated view over all access events for the authority dashboard. `?limit=` caps at 1000 (default 500); pass the returned `nextCursor` as `?cursor=` until it is `null`. Scan order is not chronological.
 
 ## Authentication
 

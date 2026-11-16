@@ -24,23 +24,40 @@ export async function queryAccesses(
   return rows;
 }
 
-export interface AccessScan {
+export interface AccessPage {
   rows: SubjectAccessRow[];
-  truncated: boolean;
+  nextCursor: string | null;
 }
 
-// The access table is not bounded: benchmark sweeps leave millions of rows, so a full scan cannot finish
-// inside a Lambda timeout. Return a bounded newest-ish window instead and tell the caller it was truncated.
-export async function scanAccesses(ddb: DynamoDBDocumentClient, table: string, limit: number): Promise<AccessScan> {
-  const rows: SubjectAccessRow[] = [];
-  let exclusiveStartKey: Record<string, unknown> | undefined;
-  do {
-    const pageSize = Math.min(1000, limit - rows.length);
-    const result = await ddb.send(
-      new ScanCommand({ TableName: table, ExclusiveStartKey: exclusiveStartKey, Limit: pageSize }),
-    );
-    for (const item of result.Items ?? []) rows.push(toRow(item));
-    exclusiveStartKey = result.LastEvaluatedKey;
-  } while (exclusiveStartKey && rows.length < limit);
-  return { rows, truncated: Boolean(exclusiveStartKey) };
+function encodeCursor(key: Record<string, unknown>): string {
+  return Buffer.from(JSON.stringify(key)).toString("base64url");
+}
+
+function decodeCursor(cursor: string): Record<string, unknown> {
+  const parsed: unknown = JSON.parse(Buffer.from(cursor, "base64url").toString());
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new Error("cursor must encode an object");
+  }
+  return parsed as Record<string, unknown>;
+}
+
+// The access table can hold tens of millions of rows, so a single Lambda cannot scan it. Return one page
+// and an opaque cursor for the next; the caller pages until nextCursor is null.
+export async function scanAccesses(
+  ddb: DynamoDBDocumentClient,
+  table: string,
+  limit: number,
+  cursor?: string,
+): Promise<AccessPage> {
+  const result = await ddb.send(
+    new ScanCommand({
+      TableName: table,
+      Limit: limit,
+      ExclusiveStartKey: cursor ? decodeCursor(cursor) : undefined,
+    }),
+  );
+  return {
+    rows: (result.Items ?? []).map(toRow),
+    nextCursor: result.LastEvaluatedKey ? encodeCursor(result.LastEvaluatedKey) : null,
+  };
 }

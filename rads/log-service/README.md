@@ -8,7 +8,7 @@ Run and debug events live in [`../telemetry-service`](../telemetry-service).
 
 - `POST /subject-access` - the executor posts one batch of `{algorithmId, runId, dataSubjectIds, timestamp}` after the DC app produced a result.
 - `GET /subject-access/{dataSubjectId}` - one data subject's chronological access entries as a key query.
-- `GET /subject-access` - a bounded window over all access events for the authority dashboard. `?limit=` caps at 20000 (default 5000); the response sets `truncated` when the scan stopped early.
+- `GET /subject-access` - a cursor-paginated view over all access events for the authority dashboard. `?limit=` caps at 1000 (default 500); pass the returned `nextCursor` as `?cursor=` until it is `null`. Scan order is not chronological.
 
 ## Key model
 
