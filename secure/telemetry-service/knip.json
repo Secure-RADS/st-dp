@@ -6,7 +6,5 @@
   "project": [
     "src/**/*.ts"
   ],
-  "ignoreDependencies": [
-    "jose"
-  ]
+  "ignoreDependencies": []
 }

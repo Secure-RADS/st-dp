@@ -26,7 +26,6 @@
     "@srads/common": "file:../../packages/common",
     "csv-stringify": "^6.8.3",
     "ts-retry": "^7.0.3",
-    "zod": "^4.6.5",
-    "jose": "^6.2.10"
+    "zod": "^4.6.5"
   }
 }

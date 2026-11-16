@@ -1,6 +1,5 @@
 import { isHostEvent, isRunEvent, RUN_EVENTS } from "./events.js";
 
-type EventAuth = "attested" | "mtls" | "none";
 type EventOrigin = "enclave" | "host" | "service";
 
 export interface ParsedEvent {
@@ -13,9 +12,7 @@ export interface ParsedEvent {
   origin: EventOrigin;
 }
 
-export interface IngestedEvent extends ParsedEvent {
-  auth: EventAuth;
-}
+export type IngestedEvent = ParsedEvent;
 
 export function parseIngestBody(body: unknown): ParsedEvent | { error: string } {
   if (typeof body !== "object" || body === null) {

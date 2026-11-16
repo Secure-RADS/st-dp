@@ -17,7 +17,7 @@ export const ENCLAVE_EVENTS = [
 // and origin=host instead of being presented as enclave claims.
 export const HOST_EVENTS = ["executor-ready", "artifact-retrieved", "enclave-launched", "executor-finished"] as const;
 
-// Producers on the mTLS domain: registry-service, execution-service, and result-consumer.
+// Control-plane producers: registry-service, execution-service, and result-consumer.
 export const INTERNAL_EVENTS = [
   "build-started",
   "build-completed",

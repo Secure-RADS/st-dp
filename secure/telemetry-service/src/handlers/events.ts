@@ -19,6 +19,6 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const parsed = parseIngestBody(body);
   if ("error" in parsed) return jsonResponse(400, { error: parsed.error });
 
-  await enqueueEvent({ ...parsed, auth: "none" });
+  await enqueueEvent(parsed);
   return jsonResponse(202, { ok: true });
 };
