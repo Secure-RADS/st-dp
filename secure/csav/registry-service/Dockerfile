@@ -13,7 +13,7 @@ COPY secure/csav/registry-service/*.go secure/csav/registry-service/nsjail.cfg.t
 RUN CGO_ENABLED=0 go build -o /registry-service .
 
 FROM alpine:3.20
-RUN apk add --no-cache ca-certificates skopeo umoci cpio
+RUN apk add --no-cache skopeo umoci cpio
 COPY --from=nsjail / /opt/assets/nsjail-runtime/
 COPY --from=sceunit /sce-unit /opt/assets/sce-unit
 COPY --from=sceunit /etc/ssl/certs/ca-certificates.crt /opt/assets/ca-certificates.crt
