@@ -6,7 +6,7 @@ function jsonResponse(statusCode: number, body: unknown) {
   return { statusCode, headers: { "content-type": "application/json" }, body: JSON.stringify(body) };
 }
 
-// Diagnostic telemetry: performance, test, and debug events. Auth is deliberately relaxed, so any producer
+// Diagnostic telemetry: performance, test, and debug events. There is no authentication, so any producer
 // that can reach the endpoint may append to the timeline.
 export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   let body: unknown;

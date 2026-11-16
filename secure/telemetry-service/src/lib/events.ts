@@ -1,8 +1,8 @@
 // Keep producer event enums in sync with this ingest allowlist.
-// Emitted before attestation, so no token exists yet. Accepted unauthenticated and tagged auth=none.
+// Emitted before attestation. Telemetry accepts them without a token.
 export const PRE_ATTESTATION_EVENTS = ["enclave-started", "unit-ready"] as const;
 
-// Emitted after attestation. The access token is required and the event is tagged auth=attested.
+// Emitted after attestation. Telemetry does not verify the enclave token; it stores the timeline only.
 export const ENCLAVE_EVENTS = [
   "attested",
   "records-fetched",
@@ -13,8 +13,8 @@ export const ENCLAVE_EVENTS = [
   "run-failed",
 ] as const;
 
-// Host-reported events. The EC2 host posts them directly without a token, so they are tagged auth=none
-// and origin=host instead of being presented as enclave claims.
+// Host-reported events. The EC2 host posts them directly without a token, so they carry origin=host
+// instead of being presented as enclave claims.
 export const HOST_EVENTS = ["executor-ready", "artifact-retrieved", "enclave-launched", "executor-finished"] as const;
 
 // Control-plane producers: registry-service, execution-service, and result-consumer.

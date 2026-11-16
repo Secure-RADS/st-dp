@@ -15,7 +15,6 @@ function toRow(item: Record<string, unknown>): EventRow {
     timestamp: item.Timestamp as string,
     receivedAt: item.ReceivedAt as string,
     detail: item.Detail ?? null,
-    auth: (item.Auth as string | undefined) ?? "none",
     origin: (item.Origin as string | undefined) ?? "service",
   };
 }
