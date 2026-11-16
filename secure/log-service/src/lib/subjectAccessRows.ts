@@ -1,5 +1,5 @@
 import type { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
-import { QueryCommand, ScanCommand } from "@aws-sdk/lib-dynamodb";
+import { paginateQuery, ScanCommand } from "@aws-sdk/lib-dynamodb";
 import { type SubjectAccessRow, toRow } from "./subjectAccess.js";
 
 export async function queryAccesses(
@@ -8,19 +8,17 @@ export async function queryAccesses(
   dataSubjectId: string,
 ): Promise<SubjectAccessRow[]> {
   const rows: SubjectAccessRow[] = [];
-  let exclusiveStartKey: Record<string, unknown> | undefined;
-  do {
-    const result = await ddb.send(
-      new QueryCommand({
-        TableName: table,
-        KeyConditionExpression: "DataSubjectId = :s",
-        ExpressionAttributeValues: { ":s": dataSubjectId },
-        ExclusiveStartKey: exclusiveStartKey,
-      }),
-    );
-    for (const item of result.Items ?? []) rows.push(toRow(item));
-    exclusiveStartKey = result.LastEvaluatedKey;
-  } while (exclusiveStartKey);
+  const pages = paginateQuery(
+    { client: ddb },
+    {
+      TableName: table,
+      KeyConditionExpression: "DataSubjectId = :s",
+      ExpressionAttributeValues: { ":s": dataSubjectId },
+    },
+  );
+  for await (const page of pages) {
+    for (const item of page.Items ?? []) rows.push(toRow(item));
+  }
   return rows;
 }
 
