@@ -54,11 +54,13 @@ Input:
 14 emit records-stored-locally
 15 DOCKER-RUN(image, bind ← /data/records.json)
 16 emit compute-completed
-17 publish result to SQS
-18 cost sqs:send                        // message bytes
-19 emit executor-finished
-20 cost ec2:instance                    // captured before the cost POST and terminate request
-21 terminate instance
+17 SUBJECT-ACCESS-COMPLETED            // DSAR POSTs to log-service
+18 emit subject-access-completed
+19 publish result to SQS
+20 cost sqs:send                        // message bytes
+21 emit executor-finished
+22 cost ec2:instance                    // captured before the cost POST and terminate request
+23 terminate instance
 
 
 RADS-RESULT-CONSUMER(result)

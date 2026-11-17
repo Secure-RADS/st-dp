@@ -9,13 +9,20 @@ export const ENCLAVE_EVENTS = [
   "records-decrypted",
   "records-stored-locally",
   "dc-app-completed",
+  "subject-access-completed",
   "output-sent",
   "run-failed",
 ] as const;
 
 // Host-reported events. The EC2 host posts them directly without a token, so they carry origin=host
 // instead of being presented as enclave claims.
-export const HOST_EVENTS = ["executor-ready", "artifact-retrieved", "enclave-launched", "executor-finished"] as const;
+export const HOST_EVENTS = [
+  "executor-ready",
+  "artifact-retrieved",
+  "enclave-launched",
+  "output-received",
+  "executor-finished",
+] as const;
 
 // Control-plane producers: registry-service, execution-service, and result-consumer.
 export const INTERNAL_EVENTS = [

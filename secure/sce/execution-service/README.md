@@ -6,7 +6,7 @@ Part of the SCE. API Gateway invokes the TypeScript Lambda control plane. Given 
 
 `GET /run/{runId}?algorithmId={algorithmId}` polls for the result: `{runId, status: "pending"}` until it lands, then the stored result once the consumer has written it. `algorithmId` is required so every poll can be attributed to its run.
 
-The control plane logs `run-requested` and `executor-launched` (or `launch-failed`). The parent posts `executor-ready`, `artifact-retrieved`, `enclave-launched`, and `executor-finished` directly to telemetry-service with `origin: host`. The host holds no credential; telemetry ingest is unauthenticated. The enclave emits `run-failed` before it exits. result-consumer only emits `result-persisted`. SCE-unit and result-consumer emit the remaining events in [the execution flow](../../../docs/e2e-secure-rads.txt).
+The control plane logs `run-requested` and `executor-launched` (or `launch-failed`). The parent posts `executor-ready`, `artifact-retrieved`, `enclave-launched`, `output-received`, and `executor-finished` directly to telemetry-service with `origin: host`. `output-received` marks the end of the vsock output stream; the host publishes the result and terminates without polling `nitro-cli describe-enclaves`, since instance termination tears the enclave down. The host holds no credential; telemetry ingest is unauthenticated. The enclave emits `run-failed` before it exits. result-consumer only emits `result-persisted`. SCE-unit and result-consumer emit the remaining events in [the execution flow](../../../docs/e2e-secure-rads.txt).
 
 See [../README.md](../README.md) for the full SCE context.
 

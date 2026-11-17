@@ -124,13 +124,10 @@ done
 
 if [ "$launched" = true ]; then
   emit_event enclave-launched
-  # Wait for output first so a transient describe-enclaves miss cannot publish an empty result.
+  # The listener exits on vsock EOF once the enclave has sent its output. Everything the enclave still does
+  # after that (teardown) is not part of result delivery, so stop waiting here.
   wait "$OUTPUT_LISTENER_PID" || exit $?
-  while true; do
-    ENCLAVE_COUNT=$(nitro-cli describe-enclaves | python3 -c 'import json, sys; print(sum(e.get("EnclaveCID") == 16 for e in json.load(sys.stdin)))') || exit 1
-    [ "$ENCLAVE_COUNT" -eq 0 ] && break
-    sleep 1
-  done
+  emit_event output-received
 else
   kill "$OUTPUT_LISTENER_PID" 2>/dev/null || true
   wait "$OUTPUT_LISTENER_PID" 2>/dev/null || true

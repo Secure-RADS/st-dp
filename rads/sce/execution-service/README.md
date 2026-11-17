@@ -23,9 +23,11 @@ the stored result.
 Lifecycle events are posted to log-service `POST /events` (the ingest contract
 `{algorithmId, runId, event, timestamp, detail?}`): the control plane logs `run-requested` and
 `executor-launched` / `launch-failed`, and the executor posts `executor-ready`, `artifact-retrieved`,
-`records-fetched`, `records-stored-locally`, `compute-completed`, and `executor-finished` over HTTPS.
+`records-fetched`, `records-stored-locally`, `compute-completed`, `subject-access-completed`, and `executor-finished` over HTTPS.
 The fetch helper emits `records-fetched` before serializing/writing the records file; userdata emits
-`records-stored-locally` only after that write succeeds. `executor-finished` is timestamped after result publication.
+`records-stored-locally` only after that write succeeds. `compute-completed` is emitted as soon as the DC app
+exits, before the subject-access POST, so benchmark phases line up with secure-rads. `executor-finished` is
+timestamped after result publication.
 
 PDM returns a standalone `dataSubjectIds` list aligned with the records. The fetch helper prints those ids
 on stdout, userdata holds them in a shell variable, and `records.json` stays `{recordId, data}`. After a

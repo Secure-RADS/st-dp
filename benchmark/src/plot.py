@@ -28,16 +28,31 @@ PHASES = {
     "attestation_s": "attestation",
     "data_retrieval_s": "data retrieval",
     "algorithm_processing_s": "algorithm processing",
+    "subject_access_s": "subject access",
+    "output_handoff_s": "output handoff",
     "result_delivery_s": "result delivery",
 }
-PHASE_COLORS = ["#1F4E79", "#4C9BE8", "#C0392B", "#6FBF73", "#F2C14E", "#E8873C", "#8E44AD", "#7F8C8D"]
+PHASE_COLORS = [
+    "#1F4E79",
+    "#4C9BE8",
+    "#C0392B",
+    "#6FBF73",
+    "#F2C14E",
+    "#E8873C",
+    "#8E44AD",
+    "#56B4E9",
+    "#D55E00",
+    "#7F8C8D",
+]
 COST_SERVICES = ["ec2", "dynamodb", "s3", "sqs", "lambda", "apigateway"]
 COST_COLS = [f"{service}_cost_usd" for service in COST_SERVICES]
 COST_COLORS = ["#1F4E79", "#4C9BE8", "#C0392B", "#6FBF73", "#F2C14E", "#8E44AD"]
 NOTE = (
     "host provisioning = per-run instance boot + tooling install (size-independent); "
     "data retrieval is fetch through records.json write (secure-rads includes decrypt).\n"
-    "rads has no enclave, so enclave boot / sce unit / attestation are blank for it."
+    "Both trees end algorithm processing at app completion and measure subject access separately; "
+    "output handoff is the secure-rads enclave-to-host stream. rads has no enclave, so enclave "
+    "boot / sce unit / attestation / output handoff are blank for it."
 )
 
 
@@ -47,7 +62,8 @@ def load() -> pd.DataFrame:
         raise SystemExit(1)
     df = pd.read_csv(PHASE_TIMINGS_CSV)
     cols = [*PHASES, "total_s"]
-    df[cols] = df[cols].apply(pd.to_numeric, errors="coerce")
+    for col in cols:
+        df[col] = pd.to_numeric(df[col], errors="coerce") if col in df.columns else float("nan")
     cost_cols = [c for c in [*COST_COLS, "total_cost_usd"] if c in df.columns]
     if cost_cols:
         df[cost_cols] = df[cost_cols].apply(pd.to_numeric, errors="coerce")

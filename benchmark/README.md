@@ -123,14 +123,18 @@ The event contract follows [RADS](../docs/e2e-rads.txt) and [Secure-RADS](../doc
 | Attestation | — | `unit-ready` → `attested` |
 | Data retrieval | `artifact-retrieved` → `records-stored-locally` | `attested` → `records-stored-locally` |
 | Algorithm processing | `records-stored-locally` → `compute-completed` | `records-stored-locally` → `dc-app-completed` |
-| Result delivery | `compute-completed` → `result-persisted` | `output-sent` → `result-persisted` |
+| Subject access | `compute-completed` → `subject-access-completed` | `dc-app-completed` → `subject-access-completed` |
+| Output handoff | — | `subject-access-completed` → `output-received` |
+| Result delivery | `subject-access-completed` → `result-persisted` | `output-received` → `result-persisted` |
 | Total | `run-requested` → `result-persisted` | `run-requested` → `result-persisted` |
+
+Both trees end algorithm processing when the DC app finishes, then measure subject access as its own phase. `output-received` is a host event emitted when the vsock output stream closes, so secure-rads result delivery starts after the enclave has handed off its output and does not include enclave teardown. rads publishes to SQS after subject access, so its result delivery starts at `subject-access-completed`.
 
 `records-fetched` precedes file serialization/writing in both trees. Secure-rads emits `records-decrypted` after decryption and `records-stored-locally` after writing the plaintext file. Its data-retrieval phase includes fetching AWS credentials, fetching records, KMS key unwrapping, record decryption, and writing the file. The CSV includes the individual event timestamps as well as the aggregate phase durations.
 
 `executor-launched` records EC2 launch; secure-rads' `enclave-launched` records a successful `nitro-cli run-enclave`. Host and enclave run concurrently, so `enclave-started` can arrive before the host emits `enclave-launched`; enclave boot therefore ends at `enclave-started`.
 
-Existing committed results use the earlier event contract (`data-decrypted` after the file write, and `enclave-launched` for EC2 launch). They remain historical measurements. Re-exporting those runs with the new exporter leaves phases blank where the new events are absent; deploy the aligned services, rebuild the EIFs, ship the rads host tools, and run a fresh sweep for the new contract.
+Existing committed results use the earlier event contract (`data-decrypted` after the file write, and `enclave-launched` for EC2 launch) and predate `subject-access-completed` and `output-received`. They remain historical measurements. Re-exporting those runs with the new exporter leaves the subject-access, output-handoff, and secure-rads result-delivery phases blank where the new events are absent; deploy the aligned services, rebuild the EIFs, ship the rads host tools, and run a fresh sweep for the new contract.
 
 ## Layout
 

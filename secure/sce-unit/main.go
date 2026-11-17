@@ -94,6 +94,7 @@ func main() {
 		// DSAR trail: record the data subjects the app used only after it ran successfully, so a run that
 		// never reached the DC app does not show up as an access.
 		accessLog.EmitSubjectAccess(cfg.AlgorithmId, runID, subjectIDs)
+		timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventSubjectAccessCompleted, nil)
 	}
 	if readErr != nil || len(output) == 0 {
 		// The enclave console is lost when the host terminates, so deliver the failure and the jailed app's own output.

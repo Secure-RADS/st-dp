@@ -14,6 +14,7 @@ export const RUN_EVENTS = [
   "records-fetched",
   "records-stored-locally",
   "compute-completed",
+  "subject-access-completed",
   "executor-finished",
   // Result delivery (result-consumer).
   "result-persisted",

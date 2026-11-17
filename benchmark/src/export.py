@@ -27,7 +27,9 @@ PHASES: dict[str, dict[str, Window]] = {
         "attestation": ("unit-ready", "attested"),
         "data_retrieval": ("attested", "records-stored-locally"),
         "algorithm_processing": ("records-stored-locally", "dc-app-completed"),
-        "result_delivery": ("output-sent", "result-persisted"),
+        "subject_access": ("dc-app-completed", "subject-access-completed"),
+        "output_handoff": ("subject-access-completed", "output-received"),
+        "result_delivery": ("output-received", "result-persisted"),
         "total": ("run-requested", "result-persisted"),
     },
     "rads": {
@@ -38,7 +40,9 @@ PHASES: dict[str, dict[str, Window]] = {
         "attestation": (None, None),
         "data_retrieval": ("artifact-retrieved", "records-stored-locally"),
         "algorithm_processing": ("records-stored-locally", "compute-completed"),
-        "result_delivery": ("compute-completed", "result-persisted"),
+        "subject_access": ("compute-completed", "subject-access-completed"),
+        "output_handoff": (None, None),
+        "result_delivery": ("subject-access-completed", "result-persisted"),
         "total": ("run-requested", "result-persisted"),
     },
 }
@@ -61,7 +65,9 @@ TIMESTAMP_EVENTS = [
     "records-stored-locally",
     "dc-app-completed",
     "compute-completed",
+    "subject-access-completed",
     "output-sent",
+    "output-received",
     "result-persisted",
     "executor-finished",
 ]

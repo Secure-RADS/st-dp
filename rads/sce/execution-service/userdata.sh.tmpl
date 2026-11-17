@@ -87,8 +87,9 @@ emit_event records-stored-locally
 # The app reads /data/records.json and writes /data/result.json; stdout is the diagnostic fallback.
 # Capped to the secure-rads enclave allocation (1 vCPU / 2048 MiB) so both trees get the same compute.
 docker run --rm --cpus {{.CPUCount}} --memory {{.MemoryMiB}}m -v "$RUN_DIR:/data" -e RECORDS_PATH=/data/records.json -e RESULT_PATH=/data/result.json "$IMAGE" > "$OUTPUT_FILE"
+emit_event compute-completed
 # DSAR trail: log the data subjects only after the DC app produced a result. Best-effort.
 if [ -s "$RESULT_FILE" ]; then
   printf '%s' "$SUBJECT_IDS" | "$TOOLS_BIN" subject-access "https://$LOG_HOST/subject-access" "$ALGORITHM_ID" "$RUN_ID" || true
+  emit_event subject-access-completed
 fi
-emit_event compute-completed
