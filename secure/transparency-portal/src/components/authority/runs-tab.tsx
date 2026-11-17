@@ -25,7 +25,7 @@ const columns: ColumnDef<DataTableFeatures, RunEvent>[] = [
     accessorKey: "runId",
     header: "Run",
     cell: ({ row }) => (
-      <span className="font-mono text-xs" title={row.original.runId}>
+      <span className="font-mono text-xs" title={row.original.runId ?? undefined}>
         {shortId(row.original.runId)}
       </span>
     ),
@@ -68,7 +68,7 @@ export function RunsTab({ events }: { events: RunEvent[] }) {
           if (!needle) return true;
           return (
             event.event.toLowerCase().includes(needle) ||
-            event.runId.toLowerCase().includes(needle) ||
+            (event.runId ?? "").toLowerCase().includes(needle) ||
             event.algorithmId.toLowerCase().includes(needle)
           );
         })

@@ -63,7 +63,7 @@ export function OverviewTab({ events, access }: OverviewTabProps) {
                 {failures.slice(0, 10).map((failure, index) => (
                   <TableRow key={`${failure.runId}-${failure.timestamp}-${index}`}>
                     <TableCell className="font-mono text-xs" title={failure.algorithmId}>{shortId(failure.algorithmId)}</TableCell>
-                    <TableCell className="font-mono text-xs" title={failure.runId}>{shortId(failure.runId)}</TableCell>
+                    <TableCell className="font-mono text-xs" title={failure.runId ?? undefined}>{shortId(failure.runId)}</TableCell>
                     <TableCell>
                       <Badge variant="destructive">{failure.event}</Badge>
                     </TableCell>
