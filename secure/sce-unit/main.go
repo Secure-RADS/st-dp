@@ -38,10 +38,13 @@ func main() {
 		log.Fatalf("sce-unit: load run config: %v", err)
 	}
 	var timelineLog *sharedlog.Client
+	if cfg.TelemetryHost != "" {
+		timelineLog = &sharedlog.Client{Host: cfg.TelemetryHost, HTTPClient: cfg.telemetry().client()}
+	}
+	var accessLog *sharedlog.Client
 	if cfg.LogHost != "" {
-		timelineLog = &sharedlog.Client{Host: cfg.LogHost, HTTPClient: cfg.logSvc().client()}
-		// Before attestation the token is empty, so those events are sent unauthenticated and tagged none.
-		timelineLog.Token = func() string {
+		accessLog = &sharedlog.Client{Host: cfg.LogHost, HTTPClient: cfg.logSvc().client()}
+		accessLog.Token = func() string {
 			token, _ := CurrentAccessToken()
 			return token
 		}
@@ -90,7 +93,7 @@ func main() {
 		timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventDCAppCompleted, map[string]any{"outputBytes": len(output)})
 		// DSAR trail: record the data subjects the app used only after it ran successfully, so a run that
 		// never reached the DC app does not show up as an access.
-		timelineLog.EmitSubjectAccess(cfg.AlgorithmId, runID, subjectIDs)
+		accessLog.EmitSubjectAccess(cfg.AlgorithmId, runID, subjectIDs)
 	}
 	if readErr != nil || len(output) == 0 {
 		// The enclave console is lost when the host terminates, so deliver the failure and the jailed app's own output.

@@ -81,9 +81,10 @@ set_key PDM_HOST_PUBKEY_SHA256 "$(pin_for "$pdm_host")"
 set_key KMS_HOST_PUBKEY_SHA256 "$(pin_for "$kms_host")"
 # One certificate covers both log-service domains, and the public domain can be probed without a client
 # cert, so its leaf key is also the mTLS domain's pin.
-log_pin=$(pin_for "$log_host")
-set_key LOG_HOST_PUBKEY_SHA256 "$log_pin"
-set_key LOG_MTLS_PUBKEY_SHA256 "$log_pin"
+set_key LOG_HOST_PUBKEY_SHA256 "$(pin_for "$log_host")"
+
+telemetry_host=$(sed -n 's/^TELEMETRY_HOST_SECURE_RADS=//p' "$env_file" | tail -1)
+set_key TELEMETRY_HOST_PUBKEY_SHA256 "$(pin_for "$telemetry_host")"
 
 pdm_function=$(aws lambda list-functions --region "$region" \
     --query "Functions[?starts_with(FunctionName, 'secure-rads-pdm-service')].FunctionName" \

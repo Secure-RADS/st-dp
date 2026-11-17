@@ -5,7 +5,7 @@ exec > >(tee /var/log/execution-service-run.log) 2>&1
 # The host has no attested token, so these events are posted directly and log-service records them as
 # auth=none, origin=host. The enclave owns the post-attestation and terminal events.
 emit_event() {
-  curl -sS --max-time 5 -X POST "https://{{.LogHost}}/events" -H 'content-type: application/json' \
+  curl -sS --max-time 5 -X POST "https://{{.TelemetryHost}}/events" -H 'content-type: application/json' \
     -d "{\"algorithmId\":\"{{.AlgorithmId}}\",\"runId\":\"{{.RunId}}\",\"event\":\"$1\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)\",\"origin\":\"host\"}" >/dev/null || true
 }
 
@@ -102,12 +102,14 @@ allowlist:
   - {address: "{{.VerifierHost}}", port: 443}
   - {address: "{{.PdmHost}}", port: 443}
   - {address: "{{.LogHost}}", port: 443}
+  - {address: "{{.TelemetryHost}}", port: 443}
   - {address: "{{.KmsHost}}", port: 443}
 EOF
 vsock-proxy 8000 "{{.KmsHost}}" 443 --config /etc/nitro_enclaves/vsock-proxy.yaml &
 vsock-proxy 8001 "{{.VerifierHost}}" 443 --config /etc/nitro_enclaves/vsock-proxy.yaml &
 vsock-proxy 8002 "{{.PdmHost}}" 443 --config /etc/nitro_enclaves/vsock-proxy.yaml &
 vsock-proxy 8003 "{{.LogHost}}" 443 --config /etc/nitro_enclaves/vsock-proxy.yaml &
+vsock-proxy 8004 "{{.TelemetryHost}}" 443 --config /etc/nitro_enclaves/vsock-proxy.yaml &
 
 # run-enclave can transiently fail right after the allocator starts (hugepages not yet reserved) - retry.
 launched=false

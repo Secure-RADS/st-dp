@@ -40,7 +40,7 @@ logs:
 	pids=""; \
 	for target in registry-logs; do make $$target & pids="$$pids $$!"; done; \
 	for group in $$(aws logs describe-log-groups --region "$(REGION)" --log-group-name-prefix /aws/lambda/ --query 'logGroups[].logGroupName' --output text); do \
-		case "$$group" in /aws/lambda/secure-rads-execution-service-dev-*|/aws/lambda/secure-rads-verifier-service-dev-*|/aws/lambda/secure-rads-pdm-service-dev-*|/aws/lambda/secure-rads-kms-service-dev-*|/aws/lambda/secure-rads-log-service-dev-*|/aws/lambda/secure-rads-cost-service-dev-*|/aws/lambda/secure-rads-result-consumer-dev-*|/aws/lambda/rads-registry-service-dev-*|/aws/lambda/rads-pdm-service-dev-*|/aws/lambda/rads-log-service-dev-*|/aws/lambda/rads-cost-service-dev-*|/aws/lambda/rads-result-consumer-dev-*|/aws/lambda/rads-execution-service-dev-*) aws logs tail "$$group" --region "$(REGION)" --follow & pids="$$pids $$!";; esac; \
+		case "$$group" in /aws/lambda/secure-rads-execution-service-dev-*|/aws/lambda/secure-rads-verifier-service-dev-*|/aws/lambda/secure-rads-pdm-service-dev-*|/aws/lambda/secure-rads-kms-service-dev-*|/aws/lambda/secure-rads-log-service-dev-*|/aws/lambda/secure-rads-telemetry-service-dev-*|/aws/lambda/secure-rads-cost-service-dev-*|/aws/lambda/secure-rads-result-consumer-dev-*|/aws/lambda/rads-registry-service-dev-*|/aws/lambda/rads-pdm-service-dev-*|/aws/lambda/rads-log-service-dev-*|/aws/lambda/rads-telemetry-service-dev-*|/aws/lambda/rads-cost-service-dev-*|/aws/lambda/rads-result-consumer-dev-*|/aws/lambda/rads-execution-service-dev-*) aws logs tail "$$group" --region "$(REGION)" --follow & pids="$$pids $$!";; esac; \
 	done; \
 	trap 'kill $$pids 2>/dev/null || true' EXIT INT TERM; \
 	for pid in $$pids; do wait "$$pid" || true; done
@@ -85,6 +85,7 @@ REGION := $(AWS_REGION)
 $(call env_require,AWS_REGION)
 KEY_PATH := $(CURDIR)/.ssh/csav-key.pem
 LOG_HOST = $(LOG_HOST_SECURE_RADS)
+TELEMETRY_HOST = $(TELEMETRY_HOST_SECURE_RADS)
 COST_HOST = $(COST_HOST_SECURE_RADS)
 instance_ip = $(shell aws ec2 describe-instances --region $(REGION) --instance-ids $(shell aws cloudformation describe-stacks \
 	--stack-name $(1) --region $(REGION) --query "Stacks[0].Outputs[?OutputKey=='$(2)'].OutputValue" --output text) \
@@ -326,7 +327,7 @@ rads-all:
 
 # Show the rads serverless stack outputs (API URLs and resource names).
 rads-status:
-	@for stack in rads-registry-service-dev rads-pdm-service-dev rads-log-service-dev rads-cost-service-dev rads-result-consumer-dev rads-execution-service-dev; do \
+	@for stack in rads-registry-service-dev rads-pdm-service-dev rads-log-service-dev rads-telemetry-service-dev rads-cost-service-dev rads-result-consumer-dev rads-execution-service-dev; do \
 		aws cloudformation describe-stacks --stack-name $$stack --region $(REGION) --query 'Stacks[0].Outputs' --output table; \
 	done
 
@@ -334,18 +335,18 @@ rads-status:
 logs-csv:
 	@test -n "$(ALGORITHM_ID)" || { echo "ALGORITHM_ID is required"; exit 1; }
 	@test -n "$(RUN_ID)" || { echo "RUN_ID is required"; exit 1; }
-	curl -sS "https://$(LOG_HOST)/logs/$(ALGORITHM_ID)?runId=$(RUN_ID)&format=csv" -o run-$(RUN_ID).csv
+	curl -sS "https://$(TELEMETRY_HOST)/logs/$(ALGORITHM_ID)?runId=$(RUN_ID)&format=csv" -o run-$(RUN_ID).csv
 	@echo "wrote run-$(RUN_ID).csv"
 
 # Export one algorithm's whole timeline to algo-<ALGORITHM_ID>.csv.
 logs-csv-algo:
 	@test -n "$(ALGORITHM_ID)" || { echo "ALGORITHM_ID is required"; exit 1; }
-	curl -sS "https://$(LOG_HOST)/logs/$(ALGORITHM_ID)?format=csv" -o algo-$(ALGORITHM_ID).csv
+	curl -sS "https://$(TELEMETRY_HOST)/logs/$(ALGORITHM_ID)?format=csv" -o algo-$(ALGORITHM_ID).csv
 	@echo "wrote algo-$(ALGORITHM_ID).csv"
 
 # Export the entire log table across all algorithms to logs-all.csv.
 logs-csv-all:
-	curl -sS "https://$(LOG_HOST)/logs?format=csv" -o logs-all.csv
+	curl -sS "https://$(TELEMETRY_HOST)/logs?format=csv" -o logs-all.csv
 	@echo "wrote logs-all.csv"
 
 # Follow x-next-cursor to pull every page of a paginated cost CSV export into OUT.

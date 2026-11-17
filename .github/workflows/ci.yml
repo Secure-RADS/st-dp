@@ -41,6 +41,10 @@ jobs:
               - 'rads/log-service/**'
               - 'packages/common/**'
               - '.github/workflows/ci.yml'
+            'rads/telemetry-service':
+              - 'rads/telemetry-service/**'
+              - 'packages/common/**'
+              - '.github/workflows/ci.yml'
             'rads/pdm-service':
               - 'rads/pdm-service/**'
               - 'packages/common/**'
@@ -62,6 +66,10 @@ jobs:
               - '.github/workflows/ci.yml'
             'secure/log-service':
               - 'secure/log-service/**'
+              - 'packages/common/**'
+              - '.github/workflows/ci.yml'
+            'secure/telemetry-service':
+              - 'secure/telemetry-service/**'
               - 'packages/common/**'
               - '.github/workflows/ci.yml'
             'secure/pdm-service':
@@ -105,6 +113,10 @@ jobs:
               - 'rads/log-service/**'
               - 'packages/common/**'
               - '.github/workflows/ci.yml'
+            'rads/telemetry-service':
+              - 'rads/telemetry-service/**'
+              - 'packages/common/**'
+              - '.github/workflows/ci.yml'
             'rads/pdm-service':
               - 'rads/pdm-service/**'
               - 'packages/common/**'
@@ -123,6 +135,10 @@ jobs:
               - '.github/workflows/ci.yml'
             'secure/log-service':
               - 'secure/log-service/**'
+              - 'packages/common/**'
+              - '.github/workflows/ci.yml'
+            'secure/telemetry-service':
+              - 'secure/telemetry-service/**'
               - 'packages/common/**'
               - '.github/workflows/ci.yml'
             'secure/pdm-service':

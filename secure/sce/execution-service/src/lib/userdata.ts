@@ -9,6 +9,7 @@ export interface UserDataValues {
   kmsHost: string;
   launchEpoch: number;
   logHost: string;
+  telemetryHost: string;
   pdmHost: string;
   region: string;
   runId: string;
@@ -27,6 +28,7 @@ export function userData(values: UserDataValues): string {
     KmsHost: values.kmsHost,
     LaunchEpoch: values.launchEpoch.toString(),
     LogHost: values.logHost,
+    TelemetryHost: values.telemetryHost,
     MemoryMiB: "2048",
     PdmHost: values.pdmHost,
     QueueUrl: values.queueUrl,

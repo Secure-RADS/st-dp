@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { RefreshCwIcon, TriangleAlertIcon } from "lucide-react";
 import { AccessTab } from "@/components/authority/access-tab";
 import { ExportTab } from "@/components/authority/export-tab";
@@ -9,16 +10,40 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getAllSubjectAccess, getRunEvents } from "@/lib/api";
+import { getAllSubjectAccess, getRunEvents, type SubjectAccess } from "@/lib/api";
 
 export function AuthorityPage() {
   const { data, error, isPending, isFetching, refetch } = useQuery({
     queryKey: ["authority"],
     queryFn: async () => {
       const [events, accessResponse] = await Promise.all([getRunEvents(), getAllSubjectAccess()]);
-      return { events, access: accessResponse.accesses };
+      return { events, access: accessResponse.accesses, nextCursor: accessResponse.nextCursor };
     },
   });
+
+  const [extraAccess, setExtraAccess] = useState<SubjectAccess[]>([]);
+  const [cursor, setCursor] = useState<string | null | undefined>(undefined);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  useEffect(() => {
+    setExtraAccess([]);
+    setCursor(undefined);
+  }, [data]);
+
+  const access = data ? [...data.access, ...extraAccess] : [];
+  const nextCursor = cursor === undefined ? (data?.nextCursor ?? null) : cursor;
+
+  async function loadMore() {
+    if (!nextCursor) return;
+    setLoadingMore(true);
+    try {
+      const page = await getAllSubjectAccess(nextCursor);
+      setExtraAccess((current) => [...current, ...page.accesses]);
+      setCursor(page.nextCursor);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -58,13 +83,18 @@ export function AuthorityPage() {
             <TabsTrigger className="!h-auto" value="export">Export</TabsTrigger>
           </TabsList>
           <TabsContent value="overview" className="pt-2">
-            <OverviewTab events={data.events} access={data.access} />
+            <OverviewTab events={data.events} access={access} />
           </TabsContent>
           <TabsContent value="runs" className="pt-2">
             <RunsTab events={data.events} />
           </TabsContent>
           <TabsContent value="access" className="pt-2">
-            <AccessTab access={data.access} />
+            <AccessTab
+              access={access}
+              nextCursor={nextCursor}
+              onLoadMore={loadMore}
+              loadingMore={loadingMore}
+            />
           </TabsContent>
           <TabsContent value="subject" className="pt-2">
             <SubjectLookup />

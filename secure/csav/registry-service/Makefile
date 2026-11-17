@@ -33,9 +33,10 @@ KMS_SERVICE_ROLE_ARN = $(shell aws cloudformation describe-stacks --stack-name s
 # domain and cert from the mTLS one above, so it gets its own pin.
 VERIFIER_HOST = $(VERIFIER_ATTEST_HOST)
 # pdm-service's plain-TLS domain (/records) also baked into the run config, pinned the same way.
-# log-service's plain-TLS domain (/events), baked in and pinned so the enclave can log its run timeline.
+# log-service's plain-TLS domain (/subject-access), baked in and pinned so the enclave can write its trail.
 LOG_HOST = $(LOG_HOST_SECURE_RADS)
-LOG_MTLS_HOST = $(LOG_MTLS_HOST_SECURE_RADS)
+# telemetry-service's plain-TLS domain (/events), baked in and pinned for the diagnostic run timeline.
+TELEMETRY_HOST = $(TELEMETRY_HOST_SECURE_RADS)
 # cost-service's plain-TLS domain (/cost). Called by registry-service and the run host, never the enclave, so no pin.
 COST_HOST = $(COST_HOST_SECURE_RADS)
 
@@ -84,7 +85,7 @@ ship: image
 	@$(call env_require,LOG_HOST_PUBKEY_SHA256)
 	@$(call env_require,KMS_HOST)
 	@$(call env_require,KMS_HOST_PUBKEY_SHA256)
-	@$(call env_require,LOG_MTLS_PUBKEY_SHA256)
+	@$(call env_require,TELEMETRY_HOST_PUBKEY_SHA256)
 	docker save $(IMAGE) -o /tmp/registry-service.tar
 	echo "ARTIFACT_BUCKET=$(ARTIFACT_BUCKET)" > /tmp/registry-service.env
 	echo "AWS_REGION=$(REGION)" >> /tmp/registry-service.env
@@ -97,12 +98,10 @@ ship: image
 	echo "PDM_HOST_PUBKEY_SHA256=$(PDM_HOST_PUBKEY_SHA256)" >> /tmp/registry-service.env
 	echo "LOG_HOST=$(LOG_HOST)" >> /tmp/registry-service.env
 	echo "LOG_HOST_PUBKEY_SHA256=$(LOG_HOST_PUBKEY_SHA256)" >> /tmp/registry-service.env
+	echo "TELEMETRY_HOST=$(TELEMETRY_HOST)" >> /tmp/registry-service.env
+	echo "TELEMETRY_HOST_PUBKEY_SHA256=$(TELEMETRY_HOST_PUBKEY_SHA256)" >> /tmp/registry-service.env
 	echo "KMS_HOST=$(KMS_HOST)" >> /tmp/registry-service.env
 	echo "KMS_HOST_PUBKEY_SHA256=$(KMS_HOST_PUBKEY_SHA256)" >> /tmp/registry-service.env
-	echo "LOG_MTLS_HOST=$(LOG_MTLS_HOST)" >> /tmp/registry-service.env
-	echo "LOG_MTLS_PUBKEY_SHA256=$(LOG_MTLS_PUBKEY_SHA256)" >> /tmp/registry-service.env
-	echo "LOG_MTLS_CERT_PARAM=/secure-rads/log-service/mtls/clients/registry-service/cert" >> /tmp/registry-service.env
-	echo "LOG_MTLS_KEY_PARAM=/secure-rads/log-service/mtls/clients/registry-service/key" >> /tmp/registry-service.env
 	echo "COST_HOST=$(COST_HOST)" >> /tmp/registry-service.env
 	echo "KMS_SERVICE_ROLE_ARN=$(KMS_SERVICE_ROLE_ARN)" >> /tmp/registry-service.env
 	echo "CSAV_ROLE_ARN=$(CSAV_ROLE_ARN)" >> /tmp/registry-service.env

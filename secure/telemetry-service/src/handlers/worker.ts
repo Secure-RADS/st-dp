@@ -20,7 +20,6 @@ async function persist(item: IngestedEvent): Promise<void> {
         Timestamp: item.timestamp,
         ReceivedAt: item.receivedAt,
         Detail: item.detail,
-        Auth: item.auth ?? "none",
         Origin: item.origin ?? "service",
       },
     }),

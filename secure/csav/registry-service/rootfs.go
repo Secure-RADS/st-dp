@@ -22,15 +22,17 @@ const (
 // runConfig is baked into /etc/sce/run-config.json (see sce-unit/runconfig.go) and is part of the measured
 // PCRs, so changing verifierHost or the pinned pubkey means rebuilding and re-registering the EIF.
 type runConfig struct {
-	AlgorithmId          string `json:"algorithmId"`
-	VerifierHost         string `json:"verifierHost"`
-	VerifierPubKeySHA256 string `json:"verifierPubKeySHA256"`
-	PdmHost              string `json:"pdmHost"`
-	PdmPubKeySHA256      string `json:"pdmPubKeySHA256"`
-	LogHost              string `json:"logHost"`
-	LogPubKeySHA256      string `json:"logPubKeySHA256"`
-	KmsHost              string `json:"kmsHost"`
-	KmsPubKeySHA256      string `json:"kmsPubKeySHA256"`
+	AlgorithmId           string `json:"algorithmId"`
+	VerifierHost          string `json:"verifierHost"`
+	VerifierPubKeySHA256  string `json:"verifierPubKeySHA256"`
+	PdmHost               string `json:"pdmHost"`
+	PdmPubKeySHA256       string `json:"pdmPubKeySHA256"`
+	LogHost               string `json:"logHost"`
+	LogPubKeySHA256       string `json:"logPubKeySHA256"`
+	TelemetryHost         string `json:"telemetryHost"`
+	TelemetryPubKeySHA256 string `json:"telemetryPubKeySHA256"`
+	KmsHost               string `json:"kmsHost"`
+	KmsPubKeySHA256       string `json:"kmsPubKeySHA256"`
 }
 
 // composeFinalRootfs replaces the bundle's rootfs with nsjail's runtime as the base, the DC's own rootfs nested under opt/dc-app/rootfs, the SCE Unit binary, and a generated nsjail.cfg.

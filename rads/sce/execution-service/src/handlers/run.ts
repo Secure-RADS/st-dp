@@ -17,6 +17,7 @@ const runResultsQueueUrl = requiredEnv("RUN_RESULTS_QUEUE_URL");
 const pdmUrl = requiredEnv("PDM_URL");
 const pdmTable = requiredEnv("PDM_TABLE");
 const logHost = requiredEnv("LOG_HOST");
+const telemetryHost = requiredEnv("TELEMETRY_HOST");
 const costHost = requiredEnv("COST_HOST");
 const executorAmiId = requiredEnv("EXECUTOR_AMI_ID");
 const executorInstanceType = requiredEnv("EXECUTOR_INSTANCE_TYPE") as RunInstancesCommandInput["InstanceType"];
@@ -147,6 +148,7 @@ export const create: APIGatewayProxyHandlerV2 = async (event) => {
             costHost,
             launchEpoch: Math.floor(Date.now() / 1000),
             logHost,
+            telemetryHost,
             pdmUrl,
             region,
             runId,

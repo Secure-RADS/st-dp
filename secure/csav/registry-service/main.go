@@ -31,7 +31,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	if err := configureLogClient(context.Background()); err != nil {
+	if err := configureTelemetryClient(); err != nil {
 		panic(err)
 	}
 	s3Client = s3.NewFromConfig(cfg)

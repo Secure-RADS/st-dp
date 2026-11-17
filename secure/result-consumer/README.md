@@ -10,7 +10,7 @@ Serverless Framework v4, TypeScript. The consumer half of the async run-result f
 
 The `consume` Lambda parses each message `{ runId, instanceId?, algorithmId?, status?, output?, diag? }` and `PutItem`s it (idempotent on `RunId`). A message with no valid `runId` is skipped, not thrown, so it can't block the rest of the batch; it ages out to the DLQ. DynamoDB errors throw so the batch retries.
 
-When `algorithmId` is present it also writes `result-persisted` to log-service over its mTLS domain, using a client cert from SSM. It does not emit host or terminal events; the enclave owns those.
+When `algorithmId` is present it also writes `result-persisted` to telemetry-service over plain HTTPS. It does not emit host or terminal events; the enclave owns those.
 
 The stack Outputs (`RunResultsQueueUrl`, `RunResultsQueueArn`, `RunResultsTableName`, `RunResultsTableArn`) are consumed by execution-service.
 

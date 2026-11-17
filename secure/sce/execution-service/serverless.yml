@@ -43,11 +43,6 @@ provider:
         - Effect: Allow
           Action: iam:PassRole
           Resource: !GetAtt EnclaveHostInstanceRole.Arn
-        - Effect: Allow
-          Action: ssm:GetParameter
-          Resource:
-            - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/secure-rads/log-service/mtls/clients/execution-service/cert"
-            - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/secure-rads/log-service/mtls/clients/execution-service/key"
   environment:
     ALGORITHM_TABLE: ${param:algorithmTable}
     RUN_RESULTS_TABLE: ${param:runResultsTable}
@@ -64,10 +59,7 @@ provider:
     KMS_SERVICE_HOST: ${env:KMS_HOST}
     PDM_TABLE: ${param:pdmTable}
     LOG_HOST: ${env:LOG_HOST_SECURE_RADS}
-    LOG_MTLS_HOST: ${env:LOG_MTLS_HOST_SECURE_RADS}
-    LOG_MTLS_PUBKEY_SHA256: ${env:LOG_MTLS_PUBKEY_SHA256}
-    LOG_MTLS_CERT_PARAM: /secure-rads/log-service/mtls/clients/execution-service/cert
-    LOG_MTLS_KEY_PARAM: /secure-rads/log-service/mtls/clients/execution-service/key
+    TELEMETRY_HOST: ${env:TELEMETRY_HOST_SECURE_RADS}
     COST_HOST: ${env:COST_HOST_SECURE_RADS}
 
 functions:

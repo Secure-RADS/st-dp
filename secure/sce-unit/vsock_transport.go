@@ -15,10 +15,11 @@ import (
 
 // The host runs one vsock-proxy per outside host, each on a fixed port (see userdata.sh.tmpl).
 const (
-	kmsProxyPort      = 8000
-	verifierProxyPort = 8001
-	pdmProxyPort      = 8002
-	logProxyPort      = 8003
+	kmsProxyPort       = 8000
+	verifierProxyPort  = 8001
+	pdmProxyPort       = 8002
+	logProxyPort       = 8003
+	telemetryProxyPort = 8004
 )
 
 const (
@@ -49,6 +50,10 @@ func (c runConfig) pdm() pinnedEndpoint {
 
 func (c runConfig) logSvc() pinnedEndpoint {
 	return pinnedEndpoint{c.LogHost, c.LogPubKeySHA256, logProxyPort}
+}
+
+func (c runConfig) telemetry() pinnedEndpoint {
+	return pinnedEndpoint{c.TelemetryHost, c.TelemetryPubKeySHA256, telemetryProxyPort}
 }
 
 func (c runConfig) kmsSvc() pinnedEndpoint {

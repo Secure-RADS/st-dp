@@ -101,7 +101,7 @@ Each sweep writes `results/raw/sweep-<unix>.json`. Stop with Ctrl-C and terminat
 ## Export and figures
 
 ```sh
-make export    # every results/raw/sweep-*.json + log-service + cost-service -> phase-timings.csv
+make export    # every results/raw/sweep-*.json + telemetry-service + cost-service -> phase-timings.csv
 make plot      # -> results/figures/sweep-phases.png, sweep-scaling.png, sweep-cost.png, sweep-cost-services.png
 make report    # both
 ```
@@ -138,7 +138,7 @@ Existing committed results use the earlier event contract (`data-decrypted` afte
 | --- | --- |
 | `Makefile` | `seed` / `run` / `export` / `plot` / `report` / `all` |
 | `src/execute.py` | Setup and size sweep (`--setup-only`, `--skip-*`) |
-| `src/export.py` | Raw JSON + log-service → `phase-timings.csv` |
+| `src/export.py` | Raw JSON + telemetry-service → `phase-timings.csv` |
 | `src/plot.py` | CSV → phase / scaling figures |
 | `src/lib/catalog.py` | `ApiGatewayService` / `Ec2HttpService` catalog |
 | `src/lib/config.py` | Trial constants + `resolve()` |

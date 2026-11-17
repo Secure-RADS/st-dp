@@ -11,10 +11,10 @@ The data-subject view deliberately goes through the PDM, not straight to the log
 
 ```text
 browser -> GET https://pdm.sr.secure-rads.org/subject/{dataSubjectId}
-        -> GET https://log.sr.secure-rads.org/subject-access?dataSubjectId=...
+        -> GET https://log.sr.secure-rads.org/subject-access/{dataSubjectId}
 ```
 
-The authority view reads `log.sr.secure-rads.org` directly (`/logs`, `/subject-access`). Both APIs send permissive CORS headers (`httpApi.cors: true` in each `serverless.yml`).
+The authority view reads `telemetry.sr.secure-rads.org` for run timelines (`/logs`) and `log.sr.secure-rads.org` for the subject-access trail (`/subject-access`). Both APIs send permissive CORS headers (`httpApi.cors: true` in each `serverless.yml`).
 
 `sce-unit` records a subject-access entry (algorithm, run, timestamp, data subject) after a successful DC app run, using the data subject ids PDM returned for that run, so the trail reflects runs that actually reached the application.
 
@@ -25,6 +25,7 @@ Build-time Vite variables, defaulting to the deployed domains if unset:
 | Variable | Default |
 | --- | --- |
 | `VITE_LOG_SERVICE_URL` | `https://log.sr.secure-rads.org` |
+| `VITE_TELEMETRY_SERVICE_URL` | `https://telemetry.sr.secure-rads.org` |
 | `VITE_PDM_URL` | `https://pdm.sr.secure-rads.org` |
 
 ## Develop

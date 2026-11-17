@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { type ColumnDef, type PaginationState, useTable } from "@tanstack/react-table";
 import { SearchIcon } from "lucide-react";
 import { DataTablePagination } from "@/components/data-pagination";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -45,7 +46,14 @@ const columns: ColumnDef<DataTableFeatures, SubjectAccess>[] = [
   },
 ];
 
-export function AccessTab({ access }: { access: SubjectAccess[] }) {
+interface AccessTabProps {
+  access: SubjectAccess[];
+  nextCursor: string | null;
+  onLoadMore: () => Promise<void>;
+  loadingMore: boolean;
+}
+
+export function AccessTab({ access, nextCursor, onLoadMore, loadingMore }: AccessTabProps) {
   const [query, setQuery] = useState("");
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 50 });
 
@@ -82,7 +90,10 @@ export function AccessTab({ access }: { access: SubjectAccess[] }) {
     <Card>
       <CardHeader>
         <CardTitle>Subject access events</CardTitle>
-        <CardDescription>Every record access the PDM has served, newest first.</CardDescription>
+        <CardDescription>
+          Record accesses the PDM has served. Pages are scanned in table order; the loaded rows are sorted
+          newest first.
+        </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <div className="relative max-w-sm">
@@ -133,6 +144,12 @@ export function AccessTab({ access }: { access: SubjectAccess[] }) {
         </Table>
 
         <DataTablePagination table={table} label="Subject access events" />
+
+        {nextCursor ? (
+          <Button variant="outline" onClick={() => void onLoadMore()} disabled={loadingMore}>
+            {loadingMore ? "Loading..." : "Load more"}
+          </Button>
+        ) : null}
       </CardContent>
     </Card>
   );

@@ -1,5 +1,5 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, ScanCommand } from "@aws-sdk/lib-dynamodb";
 import { requiredEnv } from "@srads/common/env";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { type EventRow, toCsv } from "../lib/csv.js";
@@ -15,36 +15,19 @@ function toRow(item: Record<string, unknown>): EventRow {
     timestamp: item.Timestamp as string,
     receivedAt: item.ReceivedAt as string,
     detail: item.Detail ?? null,
-    auth: (item.Auth as string | undefined) ?? "none",
     origin: (item.Origin as string | undefined) ?? "service",
   };
 }
 
-// Exports one algorithm's timeline, optionally narrowed to a single run. Pages through every result so an
-// export is never silently truncated; the SK gives a chronological (runId, timestamp) sort for free.
+// Exports the whole table across all algorithms. Pages through every scan page so a benchmarking export is
+// never silently truncated.
 export const handler: APIGatewayProxyHandlerV2 = async (event) => {
-  const algorithmId = event.pathParameters?.algorithmId;
-  if (!algorithmId) {
-    return {
-      statusCode: 400,
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ error: "missing algorithmId" }),
-    };
-  }
-  const runId = event.queryStringParameters?.runId;
   const format = event.queryStringParameters?.format;
 
   const rows: EventRow[] = [];
   let exclusiveStartKey: Record<string, unknown> | undefined;
   do {
-    const result = await ddb.send(
-      new QueryCommand({
-        TableName: table,
-        KeyConditionExpression: runId ? "AlgorithmId = :a AND begins_with(Sk, :s)" : "AlgorithmId = :a",
-        ExpressionAttributeValues: runId ? { ":a": algorithmId, ":s": `${runId}#` } : { ":a": algorithmId },
-        ExclusiveStartKey: exclusiveStartKey,
-      }),
-    );
+    const result = await ddb.send(new ScanCommand({ TableName: table, ExclusiveStartKey: exclusiveStartKey }));
     for (const item of result.Items ?? []) {
       rows.push(toRow(item));
     }
