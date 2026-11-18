@@ -5,7 +5,7 @@ const PDM_URL = import.meta.env.VITE_PDM_URL ?? "https://pdm.sr.secure-rads.org"
 
 export interface RunEvent {
   algorithmId: string;
-  runId: string;
+  runId: string | null;
   event: string;
   timestamp: string;
   receivedAt: string;
