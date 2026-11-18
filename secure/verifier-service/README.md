@@ -5,8 +5,9 @@ Serverless Framework v4, TypeScript. Receives `AlgorithmId` + PCR values from re
 ## Endpoints (two separate custom domains, see below)
 
 - `POST /algorithms` (mTLS domain) - registry-service registers `AlgorithmId` -> PCR0/1/2 at build time.
-- `POST /challenge` (public domain) - sce-unit asks for a single-use nonce before attesting. The row is stored hashed in `AttestationChallengeTable` with a 60 s TTL and is bound to the `algorithmId` and `runId` in the request.
-- `POST /attest` (public domain) - sce-unit submits a real Nitro attestation document (base64 COSE_Sign1 bytes) + `algorithmId` + `runId` + the `challenge` it was issued. The document's `nonce` must equal the challenge, and the challenge is consumed atomically before the PCR check, so a captured document cannot be replayed. Verified against the pinned AWS Nitro root cert chain and the registered PCRs; on success, issues a signed access JWT + opaque refresh token (persisted in `AttestationSessionTable`, including `RunId`).
+- `POST /runs` (mTLS domain) - execution-service registers `runId` + a per-run `runSecret` before launching the host. The table stores only SHA-256(`runSecret`) with a 1 h TTL. This is what makes the `runId` a capability instead of a claim the untrusted host can retarget.
+- `POST /challenge` (public domain) - sce-unit asks for a single-use nonce before attesting, presenting `algorithmId`, `runId`, and `runSecret`. The request is rejected unless the `(runId, runSecret)` pair matches the registered binding. The challenge row is stored hashed in `AttestationChallengeTable` with a 60 s TTL, bound to `algorithmId`/`runId`, and carries the binding's secret hash forward.
+- `POST /attest` (public domain) - sce-unit submits a real Nitro attestation document (base64 COSE_Sign1 bytes) + `algorithmId` + `runId` + the `challenge` it was issued. The document's `nonce` must equal the challenge, and the challenge is consumed atomically before the PCR check, so a captured document cannot be replayed. The document's `user_data` must equal the challenge row's secret hash (sce-unit sets it to SHA-256(`runSecret`)), binding the attested session to the run it was actually launched for. Verified against the pinned AWS Nitro root cert chain and the registered PCRs; on success, issues a signed access JWT + opaque refresh token (persisted in `AttestationSessionTable`, including `RunId`).
 - `POST /refresh` (public domain) - exchanges a still-valid refresh token plus its `runId` for a new access JWT, without requiring a fresh attestation document. The `runId` must match the one stored on the session.
 - `GET /.well-known/jwks.json` (public domain) - the ML-DSA-87 public key downstream services use to verify access JWTs locally. Public by definition, no auth.
 
@@ -35,7 +36,7 @@ Bun is used as the local dev/bundle tool only (`bun install`) - the Lambda itsel
 ## Prerequisites (manual, one-time, outside this repo's IaC)
 
 - Two domain names + ACM certificates already provisioned, one per custom domain - `serverless.yml` takes these as `domainName`/`certificateArn` (mTLS) and `publicDomainName`/`publicCertificateArn` (plain TLS) params, it does not create them.
-- The truststore PEM in `TruststoreBucket` bundles every mTLS client cert: registry-service's (`secure/csav/registry-service/tls/client.crt`, from `make gen-client-cert` there) and pdm-service's (see `secure/pdm-service/README.md`). `TruststoreBucket` is versioned per AWS's guidance for safe truststore rollovers.
+- The truststore PEM in `TruststoreBucket` bundles every mTLS client cert: registry-service's (`secure/csav/registry-service/tls/client.crt`, from `make gen-client-cert` there), execution-service's (`secure/sce/execution-service/tls/client.crt`, from `make -C secure/sce gen-client-cert`), and pdm-service's (see `secure/pdm-service/README.md`). Concatenate all client certs into `truststore.pem` before upload. `TruststoreBucket` is versioned per AWS's guidance for safe truststore rollovers.
 - Once deployed, each custom domain's TLS leaf cert pubkey SHA-256 needs to be read back and pinned on the other side: the mTLS domain's into registry-service's `VERIFIER_PUBKEY_SHA256` (`secure/csav/registry-service/verifier.go`), the public domain's into registry-service's `VERIFIER_HOST`/pubkey used to bake `sce-unit`'s run config (`secure/csav/registry-service/rootfs.go`), into execution-service's `VERIFIER_HOST` (`secure/sce/execution-service/Makefile`), and into pdm-service's `verifierJwksPubkeySha256` (pinned on JWKS fetches). Manual bootstrap step since both sides pin each other.
 - An ML-DSA-87 (FIPS 204) JWT signing key, stored as an SSM SecureString at `/verifier-service/jwt-signing-key`:
 
@@ -54,8 +55,9 @@ First deploy the functions, tables, and truststore bucket without `truststoreVer
 bun install
 bunx serverless deploy --param="domainName=..." --param="certificateArn=..." --param="publicDomainName=..." --param="publicCertificateArn=..."
 
+cat ../csav/registry-service/tls/client.crt ../sce/execution-service/tls/client.crt > /tmp/truststore.pem
 aws s3api put-object --bucket <truststore-bucket> --key truststore.pem \
-  --body ../csav/registry-service/tls/client.crt --query VersionId --output text
+  --body /tmp/truststore.pem --query VersionId --output text
 
 bunx serverless deploy --param="domainName=..." --param="certificateArn=..." \
   --param="publicDomainName=..." --param="publicCertificateArn=..." \

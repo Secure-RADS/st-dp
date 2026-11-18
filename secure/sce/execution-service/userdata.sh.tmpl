@@ -81,15 +81,16 @@ with open("/tmp/output.txt", "wb") as f:
 PYEOF
 OUTPUT_LISTENER_PID=$!
 
-# Serve this run's id and record limit to the enclave on port 5001 - the enclave takes no user-data, so it
-# has no other way to learn the per-run id or how many records to read (the EIF carries per-algorithm config).
+# Serve this run's id, secret, and record limit to the enclave on port 5001 - the enclave takes no user-data,
+# so it has no other way to learn them (the EIF carries per-algorithm config). The enclave treats these as
+# untrusted claims and proves the secret to verifier-service before it is issued a token.
 python3 - <<'PYEOF' &
 import json, socket
 s = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
 s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 s.bind((socket.VMADDR_CID_ANY, 5001))
 s.listen(5)
-body = json.dumps({"runId": "{{.RunId}}", "size": {{.Size}}}).encode()
+body = json.dumps({"runId": "{{.RunId}}", "runSecret": "{{.RunSecret}}", "size": {{.Size}}}).encode()
 while True:
     conn, _ = s.accept()
     conn.sendall(body)

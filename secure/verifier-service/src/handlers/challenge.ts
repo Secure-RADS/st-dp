@@ -4,6 +4,7 @@ import { CostPhase, costEvent, recordRequest } from "@srads/common/cost";
 import { requiredEnv } from "@srads/common/env";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { issueChallenge } from "../lib/challenge.js";
+import { verifyRunBinding } from "../lib/runBinding.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const algorithmPcrTable = requiredEnv("ALGORITHM_PCR_TABLE");
@@ -11,12 +12,13 @@ const algorithmPcrTable = requiredEnv("ALGORITHM_PCR_TABLE");
 interface ChallengeBody {
   algorithmId: string;
   runId: string;
+  runSecret: string;
 }
 
 function isChallengeBody(body: unknown): body is ChallengeBody {
   if (typeof body !== "object" || body === null) return false;
   const b = body as Record<string, unknown>;
-  return typeof b.algorithmId === "string" && typeof b.runId === "string";
+  return [b.algorithmId, b.runId, b.runSecret].every((value) => typeof value === "string" && value.length > 0);
 }
 
 export const handler: APIGatewayProxyHandlerV2 = async (event) => {
@@ -33,7 +35,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   }
 
   if (!isChallengeBody(body)) {
-    return { statusCode: 400, body: "expected algorithmId and runId as strings" };
+    return { statusCode: 400, body: "expected algorithmId, runId, and runSecret as non-empty strings" };
   }
 
   try {
@@ -57,7 +59,12 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       return { statusCode: 404, body: "algorithmId not registered" };
     }
 
-    const challenge = await issueChallenge(body.algorithmId, body.runId);
+    const secretHash = await verifyRunBinding(body.algorithmId, body.runId, body.runSecret);
+    if (!secretHash) {
+      return { statusCode: 403, body: "run binding invalid or expired" };
+    }
+
+    const challenge = await issueChallenge(body.algorithmId, body.runId, secretHash);
     return { statusCode: 200, body: JSON.stringify(challenge) };
   } finally {
     await recordRequest(body.algorithmId, body.runId, CostPhase.Execution, startedAt);

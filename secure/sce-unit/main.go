@@ -64,7 +64,7 @@ func main() {
 	timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventUnitReady, nil)
 
 	// Attest, fetch, decrypt, and write records.json before nsjail starts - same file contract as rads.
-	subjectIDs, err := prepareRecordsFile(cfg, timelineLog, runID, info.Size)
+	subjectIDs, err := prepareRecordsFile(cfg, timelineLog, runID, info.RunSecret, info.Size)
 	if err != nil {
 		failRun(timelineLog, cfg.AlgorithmId, runID, err)
 	}
@@ -139,8 +139,14 @@ func failRun(timelineLog *sharedlog.Client, algorithmID, runID string, err error
 // prepareRecordsFile attests, fetches ciphertext from pdm-service, decrypts, and writes the rads-shaped
 // records.json the DC app loads via RECORDS_PATH. It also returns the data subjects whose records were
 // handed to the DC app, for the post-completion subject-access trail.
-func prepareRecordsFile(cfg runConfig, timelineLog *sharedlog.Client, runID string, limit int) ([]string, error) {
-	tp, err := attest(cfg, runID)
+func prepareRecordsFile(
+	cfg runConfig,
+	timelineLog *sharedlog.Client,
+	runID string,
+	runSecret string,
+	limit int,
+) ([]string, error) {
+	tp, err := attest(cfg, runID, runSecret)
 	if err != nil {
 		return nil, fmt.Errorf("attestation failed: %w", err)
 	}

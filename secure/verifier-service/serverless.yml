@@ -38,12 +38,18 @@ provider:
             - dynamodb:UpdateItem
           Resource: !GetAtt AttestationChallengeTable.Arn
         - Effect: Allow
+          Action:
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+          Resource: !GetAtt RunBindingTable.Arn
+        - Effect: Allow
           Action: ssm:GetParameter
           Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/secure-rads/verifier-service/jwt-signing-key"
   environment:
     ALGORITHM_PCR_TABLE: !Ref AlgorithmPCRTable
     ATTESTATION_SESSION_TABLE: !Ref AttestationSessionTable
     ATTESTATION_CHALLENGE_TABLE: !Ref AttestationChallengeTable
+    RUN_BINDING_TABLE: !Ref RunBindingTable
     JWT_SIGNING_KEY_PARAM: /secure-rads/verifier-service/jwt-signing-key
     COST_HOST: ${env:COST_HOST_SECURE_RADS}
 
@@ -54,6 +60,16 @@ functions:
       - httpApi:
           method: POST
           path: /algorithms
+
+  # execution-service registers a per-run secret over the same mTLS domain before launching the host. The host
+  # relays the secret to the enclave, which presents it to /challenge: without it the host cannot bind an
+  # attested session to another run's id.
+  registerRun:
+    handler: src/handlers/registerRun.handler
+    events:
+      - httpApi:
+          method: POST
+          path: /runs
 
   # attest/challenge/refresh are plain TLS: wired by hand to PublicHttpApi in resources below, not the mTLS httpApi.
   challenge:
@@ -128,8 +144,25 @@ resources:
           AttributeName: ExpiresAt
           Enabled: true
 
-    # PEM bundle containing registry-service's client cert public cert
-    # (csav/registry-service/tls/client.crt) - upload it here before deploy.
+    # One row per launched run: the hash of the secret execution-service now binds to this RunId. The row is
+    # what lets /challenge reject a host that tries to run the enclave under another run's id, and what /attest
+    # compares the document's user_data against.
+    RunBindingTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: RunId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: RunId
+            KeyType: HASH
+        TimeToLiveSpecification:
+          AttributeName: ExpiresAt
+          Enabled: true
+
+    # PEM bundle of every mTLS client cert: registry-service's and execution-service's
+    # (csav/registry-service/tls/client.crt, sce/execution-service/tls/client.crt) - upload it before deploy.
     TruststoreBucket:
       Type: AWS::S3::Bucket
       Properties:

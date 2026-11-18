@@ -153,6 +153,7 @@ Generate the mTLS client certificate, then deploy verifier-service once to creat
 
 ```sh
 make -C secure/csav/registry-service gen-client-cert
+make -C secure/sce gen-client-cert
 (cd secure/verifier-service && bun install && bunx serverless deploy \
   --param="region=$REGION" \
   --param="domainName=verifier.sr.secure-rads.org" \
@@ -167,8 +168,9 @@ Upload the truststore, then deploy verifier-service again with its immutable S3 
 TRUSTSTORE_BUCKET=$(aws cloudformation describe-stacks --region "$REGION" \
   --stack-name verifier-service-dev \
   --query "Stacks[0].Outputs[?OutputKey=='TruststoreBucketName'].OutputValue" --output text)
+cat secure/csav/registry-service/tls/client.crt secure/sce/execution-service/tls/client.crt > /tmp/truststore.pem
 TRUSTSTORE_VERSION=$(aws s3api put-object --bucket "$TRUSTSTORE_BUCKET" \
-  --key truststore.pem --body secure/csav/registry-service/tls/client.crt \
+  --key truststore.pem --body /tmp/truststore.pem \
   --query VersionId --output text)
 (cd secure/verifier-service && bunx serverless deploy \
   --param="region=$REGION" \

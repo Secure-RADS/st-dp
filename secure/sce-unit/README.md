@@ -1,8 +1,9 @@
 # sce-unit
 
-The composed image's real entrypoint. Runs as root, requests a single-use verifier
-challenge, attests to the Verifier Service with that challenge as the NSM nonce,
-fetches and decrypts
+The composed image's real entrypoint. Runs as root, reads this run's id, secret,
+and record limit from the host over vsock (`:5001`), requests a single-use verifier
+challenge with that id and secret, attests to the Verifier Service with the
+challenge as the NSM nonce and SHA-256(secret) as `user_data`, fetches and decrypts
 PDM records, writes `records.json` under the DC rootfs `/data` (JSON shape
 `algorithmId` + `records`, same load path as rads), starts nsjail with
 `RECORDS_PATH` / `RESULT_PATH` set, reads the DC app's `result.json`, then streams

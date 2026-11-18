@@ -6,6 +6,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -19,7 +20,7 @@ import (
 
 const attestRequestTimeout = 30 * time.Second
 
-func attest(cfg runConfig, runID string) (tokenPair, error) {
+func attest(cfg runConfig, runID, runSecret string) (tokenPair, error) {
 	priv, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
 	if err != nil {
 		return tokenPair{}, fmt.Errorf("generate ephemeral key: %w", err)
@@ -27,7 +28,7 @@ func attest(cfg runConfig, runID string) (tokenPair, error) {
 	pubKey := elliptic.Marshal(elliptic.P384(), priv.PublicKey.X, priv.PublicKey.Y)
 
 	// The verifier issues the nonce, so the document it receives is bound to this specific /attest request.
-	challenge, err := fetchChallenge(cfg, runID)
+	challenge, err := fetchChallenge(cfg, runID, runSecret)
 	if err != nil {
 		return tokenPair{}, fmt.Errorf("request challenge: %w", err)
 	}
@@ -42,7 +43,10 @@ func attest(cfg runConfig, runID string) (tokenPair, error) {
 	}
 	defer sess.Close()
 
-	res, err := sess.Send(&request.Attestation{Nonce: nonce, PublicKey: pubKey})
+	// user_data binds the attested session to the run execution-service registered this secret for; /challenge
+	// already rejected a host that does not hold it.
+	userData := sha256.Sum256([]byte(runSecret))
+	res, err := sess.Send(&request.Attestation{Nonce: nonce, PublicKey: pubKey, UserData: userData[:]})
 	if err != nil {
 		return tokenPair{}, fmt.Errorf("request attestation document: %w", err)
 	}
@@ -73,11 +77,12 @@ func attest(cfg runConfig, runID string) (tokenPair, error) {
 
 // fetchChallenge gets a single-use nonce from verifier-service before the NSM attestation request, so the
 // document it signs is valid for one /attest call only.
-func fetchChallenge(cfg runConfig, runID string) (string, error) {
+func fetchChallenge(cfg runConfig, runID, runSecret string) (string, error) {
 	body, err := json.Marshal(struct {
 		AlgorithmId string `json:"algorithmId"`
 		RunId       string `json:"runId"`
-	}{AlgorithmId: cfg.AlgorithmId, RunId: runID})
+		RunSecret   string `json:"runSecret"`
+	}{AlgorithmId: cfg.AlgorithmId, RunId: runID, RunSecret: runSecret})
 	if err != nil {
 		return "", err
 	}
