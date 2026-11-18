@@ -13,6 +13,7 @@ export interface UserDataValues {
   pdmHost: string;
   region: string;
   runId: string;
+  runSecret: string;
   s3Bucket: string;
   s3Key: string;
   verifierHost: string;
@@ -34,6 +35,7 @@ export function userData(values: UserDataValues): string {
     QueueUrl: values.queueUrl,
     Region: values.region,
     RunId: values.runId,
+    RunSecret: values.runSecret,
     S3Bucket: values.s3Bucket,
     S3Key: values.s3Key,
     Size: (values.size ?? 0).toString(),

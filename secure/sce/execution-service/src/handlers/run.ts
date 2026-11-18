@@ -7,6 +7,7 @@ import { requiredEnv } from "@srads/common/env";
 import { emitEvent } from "@srads/common/log";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { countAlgorithmRecords, isThrottlingError } from "../lib/pdmCount.js";
+import { newRunSecret, registerRunBinding } from "../lib/runBinding.js";
 import { userData } from "../lib/userdata.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -134,6 +135,10 @@ export const create: APIGatewayProxyHandlerV2 = async (event) => {
       }
     }
 
+    // Registers the binding before launch so a failed register never leaves an instance running unbindable.
+    const runSecret = newRunSecret();
+    await registerRunBinding(request.algorithmId, runId, runSecret);
+
     await emitEvent(request.algorithmId, runId, "run-requested");
     const launched = await ec2.send(
       new RunInstancesCommand({
@@ -157,6 +162,7 @@ export const create: APIGatewayProxyHandlerV2 = async (event) => {
             region,
             queueUrl: runResultsQueueUrl,
             runId,
+            runSecret,
             s3Bucket: record.S3Bucket,
             s3Key: record.S3Key,
             size: request.size,

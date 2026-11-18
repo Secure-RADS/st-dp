@@ -14,11 +14,13 @@ import (
 // no other way to learn the per-run id it was launched for (the EIF only carries the per-algorithm config).
 const hostRunIDPort = 5001
 
-// runInfo is the per-run data the host serves on hostRunIDPort: the run id and how many records to read
-// (0 = the whole dataset). The enclave takes no user-data, so this is its only source for both.
+// runInfo is the per-run data the host serves on hostRunIDPort: the run id, the run secret execution-service
+// registered for it, and how many records to read (0 = the whole dataset). The host is untrusted, so these
+// are claims: the secret only proves itself to verifier-service, never to the enclave.
 type runInfo struct {
-	RunID string `json:"runId"`
-	Size  int    `json:"size"`
+	RunID     string `json:"runId"`
+	RunSecret string `json:"runSecret"`
+	Size      int    `json:"size"`
 }
 
 func readRunInfo() (runInfo, error) {
@@ -63,8 +65,8 @@ func readRunInfo() (runInfo, error) {
 	if err := json.Unmarshal(buf.Bytes(), &info); err != nil {
 		return runInfo{}, fmt.Errorf("decode run-info: %w", err)
 	}
-	if info.RunID == "" || info.Size < 0 {
-		return runInfo{}, fmt.Errorf("invalid run-info: runId must be nonempty and size must be nonnegative")
+	if info.RunID == "" || info.RunSecret == "" || info.Size < 0 {
+		return runInfo{}, fmt.Errorf("invalid run-info: runId and runSecret must be nonempty and size nonnegative")
 	}
 	return info, nil
 }

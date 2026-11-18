@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { type AttestationDocument, pcrHex } from "./attestation.js";
+import type { ConsumedChallenge } from "./challenge.js";
 
 export interface AttestBody {
   algorithmId: string;
@@ -17,7 +18,7 @@ export interface RegisteredPcrs {
 export interface AttestDeps {
   registered: RegisteredPcrs;
   verifyDocument(raw: Buffer): AttestationDocument;
-  consumeChallenge(challenge: string, algorithmId: string, runId: string): Promise<boolean>;
+  consumeChallenge(challenge: string, algorithmId: string, runId: string): Promise<ConsumedChallenge | null>;
   issueTokens(algorithmId: string, runId: string): Promise<unknown>;
 }
 
@@ -33,8 +34,16 @@ function decodeChallenge(challenge: string): Buffer | null {
   return Buffer.from(challenge, "base64url");
 }
 
+function userDataMatches(userData: Buffer | undefined, secretHashHex: string): boolean {
+  if (!userData) return false;
+  const expected = Buffer.from(secretHashHex, "hex");
+  return userData.length === expected.length && timingSafeEqual(userData, expected);
+}
+
 // The freshness check runs before the PCR check, and consumes the challenge, so the same document cannot be
-// replayed even when its measurements are valid.
+// replayed even when its measurements are valid. The user_data check is what ties the attested session to the
+// run the host was actually launched for: the enclave sets it to SHA-256(runSecret), and only that run's host
+// was given the secret.
 export async function attestRequest(body: AttestBody, deps: AttestDeps): Promise<AttestResult> {
   let doc: AttestationDocument;
   try {
@@ -51,8 +60,13 @@ export async function attestRequest(body: AttestBody, deps: AttestDeps): Promise
     };
   }
 
-  if (!(await deps.consumeChallenge(body.challenge, body.algorithmId, body.runId))) {
+  const consumed = await deps.consumeChallenge(body.challenge, body.algorithmId, body.runId);
+  if (!consumed) {
     return { statusCode: 401, body: "challenge invalid, expired, or already used" };
+  }
+
+  if (!userDataMatches(doc.userData, consumed.secretHash)) {
+    return { statusCode: 401, body: "attestation user data does not match the run binding" };
   }
 
   const gotPcr0 = pcrHex(doc.pcrs, 0);

@@ -27,21 +27,24 @@ Input:
   a ← algorithm id
   n ← dataset size (# of records)
 1  runId ← NEW-ID()
-2  emit run-requested
-3  cost dynamodb:read-capacity          // execution-service: algorithm lookup
-4  key ← LOOKUP-EIF(a) // S3 location of algorithm's EIF
-5  RUN-COUNT-CHECK(n)
-6  cost dynamodb:read-capacity          // execution-service Query on the PDM table
-7  RunInstances(Nitro parent, userdata ← ⟨a, runId, n, key, launchEpoch⟩)
-8  emit executor-launched
-9  cost apigateway:request + lambda     // per control-plane request/poll (GET /run/{runId}?algorithmId=... too)
-10 return runId
+2  cost dynamodb:read-capacity          // execution-service: algorithm lookup
+3  key ← LOOKUP-EIF(a) // S3 location of algorithm's EIF
+4  RUN-COUNT-CHECK(n)
+5  cost dynamodb:read-capacity          // execution-service Query on the PDM table
+6  secret ← NEW-SECRET()
+7  REGISTER-RUN(Verifier, a, runId, secret)  // mTLS; verifier stores SHA-256(secret) ↦ runId, 1h TTL
+8  emit run-requested
+9  RunInstances(Nitro parent, userdata ← ⟨a, runId, secret, n, key, launchEpoch⟩)
+10 emit executor-launched
+11 cost apigateway:request + lambda     // per control-plane request/poll (GET /run/{runId}?algorithmId=... too)
+12 return runId
 
 
-SECURE-RADS-EXECUTOR(a, runId, n, key)
+SECURE-RADS-EXECUTOR(a, runId, secret, n, key)
 Input:
   a ← algorithm id
   runId ← run id
+  secret ← per-run secret registered with the verifier
   n ← dataset size (# of records)
   key ←  S3 location of algorithm's EIF
 1  install nitro-cli
@@ -50,7 +53,7 @@ Input:
 4  cost s3:get                          // EIF pull
 5  EIF ← GET-S3(key)
 6  emit artifact-retrieved              // direct, auth none
-7  start vsock listeners                // output :5000, runInfo :5001
+7  start vsock listeners                // output :5000, runInfo :5001 (runId, secret, size)
 8  configure vsock-proxy
 9  RUN-ENCLAVE(EIF)
 10 emit enclave-launched                 // direct, auth none
@@ -66,12 +69,12 @@ SCE-UNIT(a)
 Input:
   a ← algorithm id
 1  cfg ← LOAD-RUN-CONFIG()
-2  ⟨runId, n⟩ ← READ-RUNINFO(:5001)
+2  ⟨runId, secret, n⟩ ← READ-RUNINFO(:5001)
 3  emit enclave-started                 // no token yet, auth none
 4  SEED-ENTROPY from NSM                 // no AWS cost
 5  emit unit-ready                      // no token yet, auth none
-6  challenge ← REQUEST-CHALLENGE(Verifier, a, runId)   // single-use nonce, verifier API GW/Lambda and DynamoDB metered
-7  token ← ATTEST(Verifier, runId, challenge)          // NSM nonce ← challenge; verifier API GW/Lambda and DynamoDB metered
+6  challenge ← REQUEST-CHALLENGE(Verifier, a, runId, secret)  // rejects a runId whose secret is not registered; single-use nonce, verifier API GW/Lambda and DynamoDB metered
+7  token ← ATTEST(Verifier, runId, challenge, SHA-256(secret))  // NSM nonce ← challenge, user_data ← secret hash; verifier API GW/Lambda and DynamoDB metered
 8  emit attested
 9  records ← FETCH-PDM(a, token, limit ← n)
 10 cost apigateway:request + lambda:invocation + lambda:compute + dynamodb:read-capacity // PDM /records

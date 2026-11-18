@@ -9,6 +9,7 @@ build:
 package:
   patterns:
     - userdata.sh.tmpl
+    - tls/**
 
 provider:
   name: aws
@@ -55,6 +56,9 @@ provider:
     ENCLAVE_SECURITY_GROUP_ID: !Ref EnclaveHostSecurityGroup
     ENCLAVE_INSTANCE_PROFILE_ARN: !GetAtt EnclaveHostInstanceProfile.Arn
     VERIFIER_HOST: ${env:VERIFIER_ATTEST_HOST}
+    # mTLS /runs endpoint and the mTLS domain's pin; the client cert/key are packaged from tls/.
+    VERIFIER_RUNS_URL: ${env:VERIFIER_RUNS_URL}
+    VERIFIER_PUBKEY_SHA256: ${env:VERIFIER_PUBKEY_SHA256}
     PDM_HOST: ${env:PDM_HOST}
     KMS_SERVICE_HOST: ${env:KMS_HOST}
     PDM_TABLE: ${param:pdmTable}

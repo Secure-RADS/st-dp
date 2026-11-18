@@ -21,9 +21,9 @@ RUN_RESULTS_QUEUE_URL = $(shell aws cloudformation describe-stacks --stack-name 
 API_URL = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='ExecutionApiUrl'].OutputValue" --output text)
 
-.PHONY: deploy destroy status logs env-check
+.PHONY: deploy destroy status logs env-check gen-client-cert
 
-deploy: env-check
+deploy: env-check gen-client-cert
 	cd execution-service && bun install && bunx serverless deploy \
 		--param="region=$(REGION)" \
 		--param="vpcId=$(DEFAULT_VPC_ID)" \
@@ -44,11 +44,22 @@ status:
 logs:
 	aws logs tail /aws/lambda/secure-rads-execution-service-dev-run --region $(REGION) --follow
 
+# Self-signed client cert for mTLS to verifier-service /runs - PoC only, baked into the Lambda package. Its
+# public half must be in the verifier truststore (see verifier-service README).
+gen-client-cert:
+	@mkdir -p execution-service/tls
+	@test -f execution-service/tls/client.key || openssl req -x509 -newkey ec \
+		-pkeyopt ec_paramgen_curve:prime256v1 -days 3650 -nodes \
+		-keyout execution-service/tls/client.key -out execution-service/tls/client.crt \
+		-subj "/CN=execution-service"
+
 env-check:
 	@$(call env_require,AWS_REGION)
 	@$(call env_require,AVAILABILITY_ZONE)
 	@$(call env_require,SCE_ENCLAVE_AMI_ID)
 	@$(call env_require,VERIFIER_ATTEST_HOST)
+	@$(call env_require,VERIFIER_RUNS_URL)
+	@$(call env_require,VERIFIER_PUBKEY_SHA256)
 	@$(call env_require,PDM_HOST)
 	@$(call env_require,KMS_HOST)
 	@$(call env_require,LOG_HOST_SECURE_RADS)

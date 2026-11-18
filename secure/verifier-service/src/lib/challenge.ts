@@ -21,7 +21,7 @@ function challengeId(challenge: string): string {
   return createHash("sha256").update(challenge).digest("hex");
 }
 
-export async function issueChallenge(algorithmId: string, runId: string): Promise<Challenge> {
+export async function issueChallenge(algorithmId: string, runId: string, secretHash: string): Promise<Challenge> {
   const challenge = randomBytes(32).toString("base64url");
   const now = Date.now();
   const expiresAt = now + CHALLENGE_TTL_SECONDS * 1000;
@@ -33,6 +33,7 @@ export async function issueChallenge(algorithmId: string, runId: string): Promis
         ChallengeId: challengeId(challenge),
         AlgorithmId: algorithmId,
         RunId: runId,
+        SecretHash: secretHash,
         ExpiresAt: Math.floor(expiresAt / 1000),
         CreatedAt: new Date(now).toISOString(),
       },
@@ -51,9 +52,18 @@ export async function issueChallenge(algorithmId: string, runId: string): Promis
   return { challenge, expiresAt: new Date(expiresAt).toISOString() };
 }
 
+export interface ConsumedChallenge {
+  secretHash: string;
+}
+
 // Atomically checks the challenge belongs to this algorithm/run, is unexpired and unused, then marks it used.
-// A second call with the same challenge fails the condition, which is what rejects a replay.
-export async function consumeChallenge(challenge: string, algorithmId: string, runId: string): Promise<boolean> {
+// A second call with the same challenge fails the condition, which is what rejects a replay. The old row is
+// returned so /attest can compare the attestation document's user_data against the run's secret hash.
+export async function consumeChallenge(
+  challenge: string,
+  algorithmId: string,
+  runId: string,
+): Promise<ConsumedChallenge | null> {
   const now = Math.floor(Date.now() / 1000);
 
   try {
@@ -70,6 +80,7 @@ export async function consumeChallenge(challenge: string, algorithmId: string, r
           ":runId": runId,
           ":now": now,
         },
+        ReturnValues: "ALL_OLD",
         ReturnConsumedCapacity: "TOTAL",
       }),
     );
@@ -81,9 +92,10 @@ export async function consumeChallenge(challenge: string, algorithmId: string, r
       "write-capacity",
       write.ConsumedCapacity?.CapacityUnits ?? 0,
     );
-    return true;
+    const secretHash = write.Attributes?.SecretHash;
+    return typeof secretHash === "string" ? { secretHash } : null;
   } catch (err) {
-    if ((err as Error).name === "ConditionalCheckFailedException") return false;
+    if ((err as Error).name === "ConditionalCheckFailedException") return null;
     throw err;
   }
 }
