@@ -112,7 +112,8 @@ To export one sweep only, move other `results/raw/sweep-*.json` files aside firs
 
 ### Event boundaries
 
-The event contract follows [RADS](../docs/e2e-rads.txt) and [Secure-RADS](../docs/e2e-secure-rads.txt).
+The event contract follows [RADS](../docs/e2e-rads.txt) and [Secure-RADS](../docs/e2e-secure-rads.txt). Full
+definitions of what each window counts are in [`docs/benchmark-phases.md`](../docs/benchmark-phases.md).
 
 | Phase | rads | secure-rads |
 | --- | --- | --- |

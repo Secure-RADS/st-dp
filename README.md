@@ -74,6 +74,7 @@ instance. Use a dedicated research account.
 - [`docs/running.md`](docs/running.md) - requirements, cost and account safety, make targets, CSV
   exports.
 - [`docs/cost-service.md`](docs/cost-service.md) - how per-run AWS costs are metered.
+- [`docs/benchmark-phases.md`](docs/benchmark-phases.md) - what each benchmark timing window counts.
 - [`docs/e2e-rads.txt`](docs/e2e-rads.txt), [`docs/e2e-secure-rads.txt`](docs/e2e-secure-rads.txt) -
   event-by-event plaintext flows for the build and execution phases.
 
