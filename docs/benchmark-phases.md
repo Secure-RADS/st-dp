@@ -5,7 +5,7 @@ defined once, in `PHASES` in that file. This page explains what work falls insid
 
 Event names and ordering come from [`docs/e2e-rads.txt`](e2e-rads.txt) and
 [`docs/e2e-secure-rads.txt`](e2e-secure-rads.txt). A change to either the producer or the event list must update
-both the allowlist in `telemetry-service/src/lib/events.ts` and `PHASES` here.
+both the allowlist in `telemetry-service/src/lib/events.ts` and `PHASES` in `benchmark/src/export.py`.
 
 ## How a phase is computed
 
