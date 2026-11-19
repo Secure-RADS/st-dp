@@ -5,6 +5,7 @@ import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { retryAsync } from "ts-retry";
 import { requireEnclaveToken } from "../lib/auth.js";
 import { parseSubjectAccessBody, toItem } from "../lib/subjectAccess.js";
+import { hasExistingAccess } from "../lib/subjectAccessDuplicates.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const table = requiredEnv("SUBJECT_ACCESS_TABLE");
@@ -54,9 +55,14 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const authError = await requireEnclaveToken(event.headers.authorization, parsed.algorithmId, parsed.runId);
   if (authError) return jsonResponse(401, { error: authError });
 
+  const dataSubjectIds = [...new Set(parsed.dataSubjectIds)];
+  if (await hasExistingAccess(ddb, table, parsed.algorithmId, parsed.runId, dataSubjectIds)) {
+    return jsonResponse(409, { error: "subject access already recorded for this run" });
+  }
+
   // A DS-keyed subject-access row per data subject; the sort key is (timestamp, algorithmId, runId).
   // BatchWrite takes WriteRequests, not bare items: the document client only marshals PutRequest.Item.
-  const items = [...new Set(parsed.dataSubjectIds)].map((dataSubjectId) => ({
+  const items = dataSubjectIds.map((dataSubjectId) => ({
     PutRequest: {
       Item: toItem({
         dataSubjectId,

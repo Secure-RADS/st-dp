@@ -8,7 +8,7 @@ Run, build, and debug events live in [`../telemetry-service`](../telemetry-servi
 
 The public domain carries the subject-access write and read paths:
 
-- `POST /subject-access` - sce-unit posts one batch of `{algorithmId, runId, dataSubjectIds, timestamp}` after a successful DC app run, using the ids PDM returned for that run. The bearer token is verified, so only an attested enclave can write its own algorithm's trail.
+- `POST /subject-access` - sce-unit posts one batch of `{algorithmId, runId, dataSubjectIds, timestamp}` after a successful DC app run, using the ids PDM returned for that run. The bearer token is verified, so only an attested enclave can write its own algorithm's trail. If any subject in the batch already has a row for that run, the handler returns `409`.
 - `GET /subject-access/{dataSubjectId}` - one data subject's chronological access entries as a key query.
 - `GET /subject-access` - a cursor-paginated view over all access events for the authority dashboard. `?limit=` caps at 1000 (default 500); pass the returned `nextCursor` as `?cursor=` until it is `null`. Scan order is not chronological.
 
@@ -20,7 +20,7 @@ The `rads` baseline has no verifier, so its log-service accepts subject-access w
 
 ## Key model
 
-Partition key `DataSubjectId`, sort key `Sk = <timestamp>#<algorithmId>#<runId>`. That tuple is unique per item: a data subject's record lives on exactly one PDM page, so it is read once per run by exactly one algorithm. A redelivered ingest overwrites an identical row instead of appending a duplicate.
+Partition key `DataSubjectId`, sort key `Sk = <timestamp>#<algorithmId>#<runId>`. That tuple is unique per item: a data subject's record lives on exactly one PDM page, so it is read once per run by exactly one algorithm. A repeat write for the same `(algorithmId, runId)` is rejected with `409` rather than appended under a new timestamp.
 
 ## Prerequisites (manual, one-time, outside this repo's IaC)
 

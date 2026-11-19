@@ -6,7 +6,7 @@ The data-subject access trail lives in [`../log-service`](../log-service).
 
 ## Endpoints
 
-- `POST /events` - producers post `{algorithmId, runId?, event, timestamp, detail?}`. The event is validated against the allowlist in `src/lib/events.ts`, enqueued, and the handler returns `202`.
+- `POST /events` - producers post `{algorithmId, runId?, event, timestamp, detail?}`. The event is validated against the allowlist in `src/lib/events.ts`, enqueued, and the handler returns `202`. If that run already recorded the same event, the handler returns `409` instead of enqueuing another row.
 - `GET /logs/{algorithmId}` - exports one algorithm's timeline. `?runId=` narrows to a single run.
 - `GET /logs` - exports the whole table.
 
