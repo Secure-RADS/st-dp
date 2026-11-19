@@ -130,6 +130,9 @@ This file is ignored by Git and must not be shared through the repository.
 
 ## 4. Deploy in Sydney
 
+`scripts/deploy.sh` and the manual CI workflow automate this section; see
+[`docs/deploy.md`](deploy.md). The steps below are the manual path.
+
 Set the certificate ARNs before deploying. Devbox already exports `REGION=ap-southeast-2`:
 
 ```sh
@@ -165,7 +168,7 @@ Upload the truststore, then deploy verifier-service again with its immutable S3 
 
 ```sh
 TRUSTSTORE_BUCKET=$(aws cloudformation describe-stacks --region "$REGION" \
-  --stack-name verifier-service-dev \
+  --stack-name secure-rads-verifier-service-dev \
   --query "Stacks[0].Outputs[?OutputKey=='TruststoreBucketName'].OutputValue" --output text)
 TRUSTSTORE_VERSION=$(aws s3api put-object --bucket "$TRUSTSTORE_BUCKET" \
   --key truststore.pem --body secure/csav/registry-service/tls/client.crt \
