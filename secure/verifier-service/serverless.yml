@@ -144,9 +144,6 @@ resources:
         KeySchema:
           - AttributeName: RunId
             KeyType: HASH
-        TimeToLiveSpecification:
-          AttributeName: ExpiresAt
-          Enabled: true
 
     # PEM bundle containing registry-service's client cert public cert
     # (csav/registry-service/tls/client.crt) - upload it here before deploy.
