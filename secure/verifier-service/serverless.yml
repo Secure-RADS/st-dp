@@ -38,12 +38,16 @@ provider:
             - dynamodb:UpdateItem
           Resource: !GetAtt AttestationChallengeTable.Arn
         - Effect: Allow
+          Action: dynamodb:PutItem
+          Resource: !GetAtt RunAttestationTable.Arn
+        - Effect: Allow
           Action: ssm:GetParameter
           Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/secure-rads/verifier-service/jwt-signing-key"
   environment:
     ALGORITHM_PCR_TABLE: !Ref AlgorithmPCRTable
     ATTESTATION_SESSION_TABLE: !Ref AttestationSessionTable
     ATTESTATION_CHALLENGE_TABLE: !Ref AttestationChallengeTable
+    RUN_ATTESTATION_TABLE: !Ref RunAttestationTable
     JWT_SIGNING_KEY_PARAM: /secure-rads/verifier-service/jwt-signing-key
     COST_HOST: ${env:COST_HOST_SECURE_RADS}
 
@@ -127,6 +131,19 @@ resources:
         TimeToLiveSpecification:
           AttributeName: ExpiresAt
           Enabled: true
+
+    # One row per run that has attested. The conditional put is what makes a run single-use: concurrency-safe
+    # first writer wins, and every later /attest for the same run id is rejected.
+    RunAttestationTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: RunId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: RunId
+            KeyType: HASH
 
     # PEM bundle containing registry-service's client cert public cert
     # (csav/registry-service/tls/client.crt) - upload it here before deploy.
