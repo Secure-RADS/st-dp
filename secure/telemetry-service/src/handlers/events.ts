@@ -1,5 +1,6 @@
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { parseIngestBody } from "../lib/ingest.js";
+import { runEventExists } from "../lib/lookup.js";
 import { enqueueEvent } from "../lib/queue.js";
 
 function jsonResponse(statusCode: number, body: unknown) {
@@ -18,6 +19,10 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
 
   const parsed = parseIngestBody(body);
   if ("error" in parsed) return jsonResponse(400, { error: parsed.error });
+
+  if (parsed.runId && (await runEventExists(parsed.algorithmId, parsed.runId, parsed.event))) {
+    return jsonResponse(409, { error: "event already recorded for this run" });
+  }
 
   await enqueueEvent(parsed);
   return jsonResponse(202, { ok: true });

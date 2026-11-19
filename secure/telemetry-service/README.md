@@ -4,7 +4,7 @@ Serverless Framework v4, TypeScript. Diagnostic timeline for performance, test, 
 
 ## Endpoints
 
-- `POST /events` - producers post `{algorithmId, runId?, event, timestamp, detail?}`. No token and no client certificate. The event is validated against the allowlist in `src/lib/events.ts`, enqueued, and the handler returns `202`.
+- `POST /events` - producers post `{algorithmId, runId?, event, timestamp, detail?}`. No token and no client certificate. The event is validated against the allowlist in `src/lib/events.ts`, enqueued, and the handler returns `202`. If that run already recorded the same event, the handler returns `409` instead of enqueuing another row.
 - `GET /logs/{algorithmId}` - exports one algorithm's timeline. `?runId=` narrows to a single run. Pages through all results.
 - `GET /logs` - exports the whole table across all algorithms.
 
