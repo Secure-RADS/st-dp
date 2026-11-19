@@ -77,10 +77,12 @@ instance. Use a dedicated research account.
 - [`docs/e2e-rads.txt`](docs/e2e-rads.txt), [`docs/e2e-secure-rads.txt`](docs/e2e-secure-rads.txt) -
   event-by-event plaintext flows for the build and execution phases.
 
-## Deferred work
+## Ongoing work
 
-Work identified during the PoC that is out of scope for this repository is listed in [`TODO.md`](TODO.md),
-each item linked to the closed issue holding the full analysis.
+This PoC is under active development until the paper is camera ready. Outstanding work identified
+during the PoC is tracked as open issues on the repository's
+[issue tracker](https://github.com/Secure-RADS/st-dp/issues). Contributions that address those
+issues are welcome.
 
 ## Contributing
 
