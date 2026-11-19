@@ -1,8 +1,8 @@
 # Contributing
 
 This repository is a research PoC of the Secure Computing Environment (SCE) on AWS Nitro Enclaves.
-Scope is limited to what the published work needs. Items deliberately left out are listed in
-[`TODO.md`](TODO.md); changes outside that scope may be declined.
+Scope is limited to what the published work needs. Outstanding work is tracked in the repository's
+open issues; changes outside that scope may be declined.
 
 ## Development environment
 

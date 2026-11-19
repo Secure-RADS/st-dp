@@ -32,7 +32,7 @@ If the report involves a credential, revoke it first; do not send the secret its
 
 - Findings that require control of the AWS account or the build host.
 - Denial of service against your own deployment.
-- Missing hardening that is listed as deferred work in [`TODO.md`](TODO.md).
+- Missing hardening already tracked as an open issue.
 - Reports from automated scanners with no demonstrated impact.
 
 ## Process

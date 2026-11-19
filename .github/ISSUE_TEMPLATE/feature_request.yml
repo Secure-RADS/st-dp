@@ -5,8 +5,9 @@ body:
   - type: markdown
     attributes:
       value: |
-        This repository is a research PoC of the Secure Computing Environment. Scope is limited
-        to what the published work needs; deferred items are listed in TODO.md.
+        This repository is a research PoC of the Secure Computing Environment, under active
+        development until the paper is camera ready. Scope is limited to what the published work
+        needs; outstanding work is tracked in open issues.
   - type: textarea
     id: problem
     attributes:
