@@ -6,6 +6,7 @@ import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { verifyAttestationDocument } from "../lib/attestation.js";
 import { type AttestBody, attestRequest } from "../lib/attestFlow.js";
 import { consumeChallenge } from "../lib/challenge.js";
+import { claimRunAttestation } from "../lib/runAttestation.js";
 import { issueTokenPair } from "../lib/tokens.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -66,6 +67,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       registered: registered.Item as { PCR0: string; PCR1: string; PCR2: string },
       verifyDocument: verifyAttestationDocument,
       consumeChallenge,
+      claimRunAttestation,
       issueTokens: issueTokenPair,
     });
   } finally {

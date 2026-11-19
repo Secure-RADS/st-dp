@@ -18,6 +18,7 @@ export interface AttestDeps {
   registered: RegisteredPcrs;
   verifyDocument(raw: Buffer): AttestationDocument;
   consumeChallenge(challenge: string, algorithmId: string, runId: string): Promise<boolean>;
+  claimRunAttestation(algorithmId: string, runId: string): Promise<boolean>;
   issueTokens(algorithmId: string, runId: string): Promise<unknown>;
 }
 
@@ -60,6 +61,11 @@ export async function attestRequest(body: AttestBody, deps: AttestDeps): Promise
   const gotPcr2 = pcrHex(doc.pcrs, 2);
   if (gotPcr0 !== deps.registered.PCR0 || gotPcr1 !== deps.registered.PCR1 || gotPcr2 !== deps.registered.PCR2) {
     return { statusCode: 401, body: "PCR mismatch: enclave measurements do not match registered algorithm" };
+  }
+
+  // A run attests once. Claiming after the measurement check keeps a wrong-image request from burning a run.
+  if (!(await deps.claimRunAttestation(body.algorithmId, body.runId))) {
+    return { statusCode: 409, body: "run already attested" };
   }
 
   const tokens = await deps.issueTokens(body.algorithmId, body.runId);

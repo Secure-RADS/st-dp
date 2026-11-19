@@ -71,7 +71,7 @@ Input:
 4  SEED-ENTROPY from NSM                 // no AWS cost
 5  emit unit-ready                      // no token yet, auth none
 6  challenge ← REQUEST-CHALLENGE(Verifier, a, runId)   // single-use nonce, verifier API GW/Lambda and DynamoDB metered
-7  token ← ATTEST(Verifier, runId, challenge)          // NSM nonce ← challenge; verifier API GW/Lambda and DynamoDB metered
+7  token ← ATTEST(Verifier, runId, challenge)          // NSM nonce ← challenge; claims the run so only one attestation succeeds; verifier API GW/Lambda and DynamoDB metered
 8  emit attested
 9  records ← FETCH-PDM(a, token, limit ← n)
 10 cost apigateway:request + lambda:invocation + lambda:compute + dynamodb:read-capacity // PDM /records
