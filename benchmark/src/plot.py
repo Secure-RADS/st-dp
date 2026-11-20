@@ -36,7 +36,7 @@ COST_COLS = [f"{service}_cost_usd" for service in COST_SERVICES]
 COST_COLORS = ["#1F4E79", "#4C9BE8", "#C0392B", "#6FBF73", "#F2C14E", "#8E44AD"]
 NOTE = (
     "host provisioning = per-run instance boot + tooling install (size-independent); "
-    "data retrieval is fetch through records.json write (secure-rads includes decrypt).\n"
+    "data retrieval is fetch through decrypted record delivery (secure-rads includes decrypt).\n"
     "rads has no enclave, so enclave boot / sce unit / attestation are blank for it."
 )
 

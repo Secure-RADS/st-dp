@@ -25,7 +25,7 @@ flowchart TD
     C --> G["opt/controller/rootfs/ (the DC app)"]
 ```
 
-- **nsjail**: enforces the privilege boundary at runtime — DC algorithm gets its rootfs and `RECORDS_PATH` / `RESULT_PATH` files under `/data`, nothing else.
+- **nsjail**: enforces the privilege boundary at runtime — the DC algorithm gets its rootfs, a `/data` scratch dir, and the AF_UNIX gRPC socket sce-unit serves at `/data/sce.sock`, nothing else.
 - **Trust material**: public key pin or CA cert injected into the EIF at build time, so the enclave can verify the Verifier Service, Personal Data Management Service, KMS Service, and Log Service later.
 - **Storage**: final EIF goes to S3, `AlgorithmId` -> S3 path goes to DynamoDB. Registry Service also generates PCR values and sends them to the Verifier Service.
 - **KMS keys**: one PCR-bound key per algorithm, created on first build and reused on rebuild (its policy is rewritten to the new measurements), so a build never orphans the previous key. The policy grants `Decrypt` to the kms-service role under `kms:RecipientAttestation` conditions; the enclave and its host never decrypt directly.

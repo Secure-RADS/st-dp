@@ -1,5 +1,11 @@
+mod gen;
+
+use gen::sce::v1::data_access_client::DataAccessClient;
+use gen::sce::v1::{FetchRecordsRequest, SubmitResultRequest};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use tonic::transport::{Endpoint, Uri};
+use tower::service_fn;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -28,13 +34,6 @@ struct Record {
     data: Data,
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct RecordsFile {
-    algorithm_id: String,
-    records: Vec<Record>,
-}
-
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct Segment {
@@ -59,14 +58,20 @@ fn round2(v: f64) -> f64 {
 
 fn analyze(algorithm_id: &str, records: &[Record]) -> Output {
     let mut per_interest: HashMap<&str, (usize, f64)> = HashMap::new();
-    let mut tiers: HashMap<String, usize> =
-        [("low", 0), ("medium", 0), ("high", 0)].map(|(k, v)| (k.to_string(), v)).into();
+    let mut tiers: HashMap<String, usize> = [("low", 0), ("medium", 0), ("high", 0)]
+        .map(|(k, v)| (k.to_string(), v))
+        .into();
     let mut connections_sum = 0usize;
 
     for rec in records {
         let weeks = rec.data.engagement.len().max(1) as f64;
-        let mean_minutes =
-            rec.data.engagement.iter().map(|e| e.minutes_active).sum::<f64>() / weeks;
+        let mean_minutes = rec
+            .data
+            .engagement
+            .iter()
+            .map(|e| e.minutes_active)
+            .sum::<f64>()
+            / weeks;
         let tier = if mean_minutes < 30.0 {
             "low"
         } else if mean_minutes <= 120.0 {
@@ -104,32 +109,109 @@ fn analyze(algorithm_id: &str, records: &[Record]) -> Output {
     }
 }
 
-fn load_records(path: &str) -> Result<(String, Vec<Record>), String> {
-    let body = std::fs::read_to_string(path).map_err(|e| format!("read {path} failed: {e}"))?;
-    let file: RecordsFile =
-        serde_json::from_str(&body).map_err(|e| format!("parse {path} failed: {e}"))?;
-    Ok((file.algorithm_id, file.records))
-}
-
-fn write_result(result: &Output) -> Result<(), String> {
-    let out =
-        serde_json::to_string(result).map_err(|e| format!("serialize result failed: {e}"))?;
-    match std::env::var("RESULT_PATH") {
-        Ok(path) if !path.is_empty() => {
-            std::fs::write(&path, out).map_err(|e| format!("write {path} failed: {e}"))
+fn value_to_json(value: &prost_types::Value) -> serde_json::Value {
+    use prost_types::value::Kind;
+    match value.kind.as_ref() {
+        Some(Kind::NullValue(_)) => serde_json::Value::Null,
+        Some(Kind::NumberValue(n)) => serde_json::Number::from_f64(*n)
+            .map(serde_json::Value::Number)
+            .unwrap_or(serde_json::Value::Null),
+        Some(Kind::StringValue(s)) => serde_json::Value::String(s.clone()),
+        Some(Kind::BoolValue(b)) => serde_json::Value::Bool(*b),
+        Some(Kind::StructValue(s)) => struct_to_json(s),
+        Some(Kind::ListValue(l)) => {
+            serde_json::Value::Array(l.values.iter().map(value_to_json).collect())
         }
-        _ => {
-            println!("{out}");
-            Ok(())
-        }
+        None => serde_json::Value::Null,
     }
 }
 
-fn main() {
-    let records_path = std::env::var("RECORDS_PATH").expect("RECORDS_PATH is required");
+fn struct_to_json(value: &prost_types::Struct) -> serde_json::Value {
+    serde_json::Value::Object(
+        value
+            .fields
+            .iter()
+            .map(|(k, v)| (k.clone(), value_to_json(v)))
+            .collect(),
+    )
+}
 
-    let (algorithm_id, records) = load_records(&records_path).expect("load records");
-    eprintln!("loaded {} records from {records_path}", records.len());
+fn json_to_value(value: &serde_json::Value) -> prost_types::Value {
+    use prost_types::value::Kind;
+    let kind = match value {
+        serde_json::Value::Null => Kind::NullValue(0),
+        serde_json::Value::Bool(b) => Kind::BoolValue(*b),
+        serde_json::Value::Number(n) => Kind::NumberValue(n.as_f64().unwrap_or(0.0)),
+        serde_json::Value::String(s) => Kind::StringValue(s.clone()),
+        serde_json::Value::Array(items) => Kind::ListValue(prost_types::ListValue {
+            values: items.iter().map(json_to_value).collect(),
+        }),
+        serde_json::Value::Object(_) => Kind::StructValue(json_to_struct(value)),
+    };
+    prost_types::Value { kind: Some(kind) }
+}
 
-    write_result(&analyze(&algorithm_id, &records)).expect("write result");
+fn json_to_struct(value: &serde_json::Value) -> prost_types::Struct {
+    let fields = match value {
+        serde_json::Value::Object(map) => map
+            .iter()
+            .map(|(k, v)| (k.clone(), json_to_value(v)))
+            .collect(),
+        _ => Default::default(),
+    };
+    prost_types::Struct { fields }
+}
+
+async fn channel(socket_path: &str) -> Result<tonic::transport::Channel, String> {
+    let path = socket_path.to_string();
+    Endpoint::try_from("http://[::]:50051")
+        .map_err(|e| format!("build endpoint: {e}"))?
+        .connect_with_connector(service_fn(move |_: Uri| {
+            let path = path.clone();
+            async move {
+                let stream = tokio::net::UnixStream::connect(path).await?;
+                Ok::<_, std::io::Error>(hyper_util::rt::TokioIo::new(stream))
+            }
+        }))
+        .await
+        .map_err(|e| format!("connect {socket_path}: {e}"))
+}
+
+#[tokio::main]
+async fn main() {
+    let socket_path = std::env::var("SCE_RPC_SOCKET").expect("SCE_RPC_SOCKET is required");
+    let algorithm_id = std::env::var("ALGORITHM_ID").expect("ALGORITHM_ID is required");
+
+    let channel = channel(&socket_path).await.expect("connect to sce-unit");
+    let mut client = DataAccessClient::new(channel);
+
+    let mut stream = client
+        .fetch_records(FetchRecordsRequest {})
+        .await
+        .expect("fetch records")
+        .into_inner();
+
+    let mut records: Vec<Record> = Vec::new();
+    while let Some(record) = stream.message().await.expect("receive record") {
+        let data = record
+            .data
+            .as_ref()
+            .map(struct_to_json)
+            .unwrap_or(serde_json::Value::Object(Default::default()));
+        let data: Data = serde_json::from_value(data).expect("decode record");
+        records.push(Record {
+            record_id: record.record_id,
+            data,
+        });
+    }
+    eprintln!("loaded {} records over {socket_path}", records.len());
+
+    let result = analyze(&algorithm_id, &records);
+    let payload = serde_json::to_value(&result).expect("serialize result");
+    client
+        .submit_result(SubmitResultRequest {
+            result: Some(json_to_struct(&payload)),
+        })
+        .await
+        .expect("submit result");
 }

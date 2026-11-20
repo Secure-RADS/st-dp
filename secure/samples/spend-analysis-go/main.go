@@ -1,12 +1,22 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"math"
+	"net"
 	"os"
 	"sort"
+
+	scev1 "spend-analysis/gen/scev1"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 type Transaction struct {
@@ -25,11 +35,6 @@ type Data struct {
 type Record struct {
 	RecordID string `json:"recordId"`
 	Data     Data   `json:"data"`
-}
-
-type RecordsFile struct {
-	AlgorithmID string   `json:"algorithmId"`
-	Records     []Record `json:"records"`
 }
 
 type Anomaly struct {
@@ -107,44 +112,80 @@ func analyze(algorithmID string, records []Record) Result {
 	}
 }
 
-func loadRecords(path string) (string, []Record, error) {
-	body, err := os.ReadFile(path)
+func fetchRecords(ctx context.Context, client scev1.DataAccessClient) ([]Record, error) {
+	stream, err := client.FetchRecords(ctx, &scev1.FetchRecordsRequest{})
 	if err != nil {
-		return "", nil, fmt.Errorf("read %s: %w", path, err)
+		return nil, fmt.Errorf("fetch records: %w", err)
 	}
-	var file RecordsFile
-	if err := json.Unmarshal(body, &file); err != nil {
-		return "", nil, fmt.Errorf("parse %s: %w", path, err)
+
+	var records []Record
+	for {
+		message, err := stream.Recv()
+		if err == io.EOF {
+			return records, nil
+		}
+		if err != nil {
+			return nil, fmt.Errorf("receive record: %w", err)
+		}
+		raw, err := protojson.Marshal(message.GetData())
+		if err != nil {
+			return nil, fmt.Errorf("encode record %s: %w", message.GetRecordId(), err)
+		}
+		var data Data
+		if err := json.Unmarshal(raw, &data); err != nil {
+			return nil, fmt.Errorf("decode record %s: %w", message.GetRecordId(), err)
+		}
+		records = append(records, Record{RecordID: message.GetRecordId(), Data: data})
 	}
-	return file.AlgorithmID, file.Records, nil
 }
 
-func writeResult(result Result) error {
-	out, err := json.Marshal(result)
+func submitResult(ctx context.Context, client scev1.DataAccessClient, result Result) error {
+	raw, err := json.Marshal(result)
 	if err != nil {
 		return fmt.Errorf("marshal result: %w", err)
 	}
-	if path := os.Getenv("RESULT_PATH"); path != "" {
-		return os.WriteFile(path, out, 0o644)
+	payload := &structpb.Struct{}
+	if err := protojson.Unmarshal(raw, payload); err != nil {
+		return fmt.Errorf("encode result: %w", err)
 	}
-	fmt.Println(string(out))
+	if _, err := client.SubmitResult(ctx, &scev1.SubmitResultRequest{Result: payload}); err != nil {
+		return fmt.Errorf("submit result: %w", err)
+	}
 	return nil
 }
 
 func main() {
 	log.SetOutput(os.Stderr)
-	recordsPath := os.Getenv("RECORDS_PATH")
-	if recordsPath == "" {
-		log.Fatal("RECORDS_PATH is required")
+	socketPath := os.Getenv("SCE_RPC_SOCKET")
+	if socketPath == "" {
+		log.Fatal("SCE_RPC_SOCKET is required")
+	}
+	algorithmID := os.Getenv("ALGORITHM_ID")
+	if algorithmID == "" {
+		log.Fatal("ALGORITHM_ID is required")
 	}
 
-	algorithmID, records, err := loadRecords(recordsPath)
+	conn, err := grpc.NewClient(
+		"passthrough:///sce-unit",
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+			return (&net.Dialer{}).DialContext(ctx, "unix", socketPath)
+		}),
+	)
+	if err != nil {
+		log.Fatalf("dial %s: %v", socketPath, err)
+	}
+	defer conn.Close()
+
+	ctx := context.Background()
+	client := scev1.NewDataAccessClient(conn)
+	records, err := fetchRecords(ctx, client)
 	if err != nil {
 		log.Fatalf("load: %v", err)
 	}
-	log.Printf("loaded %d records from %s", len(records), recordsPath)
+	log.Printf("loaded %d records over %s", len(records), socketPath)
 
-	if err := writeResult(analyze(algorithmID, records)); err != nil {
-		log.Fatalf("write result: %v", err)
+	if err := submitResult(ctx, client, analyze(algorithmID, records)); err != nil {
+		log.Fatalf("result: %v", err)
 	}
 }

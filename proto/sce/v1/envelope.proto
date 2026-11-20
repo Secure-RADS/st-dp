@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package sce.v1;
+
+// RecordEnvelope is what pdm-service stores in DynamoDB Data. ciphertext is AES-256-GCM over a serialized
+// sce.v1.Record; nonce is the 96-bit GCM nonce, and the auth tag is appended to ciphertext (Go GCM layout).
+message RecordEnvelope {
+  uint32 version = 1;
+  bytes nonce = 2;
+  bytes ciphertext = 3;
+}

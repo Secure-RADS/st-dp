@@ -84,7 +84,11 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   // A standalone list aligned with `records`; the enclave assembles the DSAR trail from it and posts after a
   // successful DC app run. Record objects stay {recordId, data}, so the DC app never sees subject ids.
   const items = result.Items ?? [];
-  const records = items.map((item) => ({ recordId: item.RecordId, data: item.Data }));
+  const records = items.map((item) => ({
+    recordId: item.RecordId,
+    // Data is a DynamoDB Binary holding a serialized RecordEnvelope; JSON transport needs it base64.
+    data: Buffer.from(item.Data as Uint8Array).toString("base64"),
+  }));
   const dataSubjectIds = items.map((item) => (typeof item.DataSubjectId === "string" ? item.DataSubjectId : ""));
   const nextCursor = result.LastEvaluatedKey
     ? Buffer.from(JSON.stringify(result.LastEvaluatedKey)).toString("base64url")

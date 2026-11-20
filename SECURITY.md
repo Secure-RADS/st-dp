@@ -22,8 +22,7 @@ If the report involves a credential, revoke it first; do not send the secret its
 ## What is in scope
 
 - Attestation bypass: an enclave or process that should fail verification and does not.
-- Trust boundary breaks: the Data Controller app reaching data outside its `RECORDS_PATH`, or
-  reading decrypted records after the run.
+- Trust boundary breaks: the Data Controller app reaching data outside the records streamed over its `SCE_RPC_SOCKET`, or reading decrypted records after the run.
 - Enclave escape or unintended host access from `sce-unit` or the jailed app.
 - Secret exposure in the repository or in build artifacts.
 - IAM or resource policies that grant more than the documented flow requires.

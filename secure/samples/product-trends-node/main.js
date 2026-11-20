@@ -1,6 +1,16 @@
-const fs = require("node:fs");
+import * as grpc from "@grpc/grpc-js";
+import { create, fromBinary, fromJson, toBinary, toJson } from "@bufbuild/protobuf";
+import { StructSchema } from "@bufbuild/protobuf/wkt";
+import {
+  FetchRecordsRequestSchema,
+  RecordSchema,
+  SubmitResultRequestSchema,
+  SubmitResultResponseSchema,
+} from "./gen/sce/v1/records_pb.js";
 
 const AGE_BANDS = ["18-29", "30-44", "45-59", "60+"];
+const FETCH_RECORDS = "/sce.v1.DataAccess/FetchRecords";
+const SUBMIT_RESULT = "/sce.v1.DataAccess/SubmitResult";
 
 function ageBand(age) {
   if (age < 30) return "18-29";
@@ -44,26 +54,54 @@ function analyze(algorithmId, records) {
   };
 }
 
-function loadRecords(path) {
-  const body = JSON.parse(fs.readFileSync(path, "utf8"));
-  return { algorithmId: body.algorithmId, records: body.records };
+function fetchRecords(client) {
+  return new Promise((resolve, reject) => {
+    const records = [];
+    const call = client.makeServerStreamRequest(
+      FETCH_RECORDS,
+      (message) => toBinary(FetchRecordsRequestSchema, message),
+      (bytes) => fromBinary(RecordSchema, bytes),
+      create(FetchRecordsRequestSchema),
+    );
+    call.on("data", (record) => records.push(record));
+    call.on("error", reject);
+    call.on("end", () => resolve(records));
+  });
 }
 
-function writeResult(result) {
-  const payload = JSON.stringify(result);
-  if (process.env.RESULT_PATH) {
-    fs.writeFileSync(process.env.RESULT_PATH, payload);
-  } else {
-    console.log(payload);
+function submitResult(client, result) {
+  return new Promise((resolve, reject) => {
+    const request = create(SubmitResultRequestSchema, { result: fromJson(StructSchema, result) });
+    client.makeUnaryRequest(
+      SUBMIT_RESULT,
+      (message) => toBinary(SubmitResultRequestSchema, message),
+      (bytes) => fromBinary(SubmitResultResponseSchema, bytes),
+      request,
+      (error) => (error ? reject(error) : resolve()),
+    );
+  });
+}
+
+async function main() {
+  const socketPath = process.env.SCE_RPC_SOCKET;
+  if (!socketPath) throw new Error("SCE_RPC_SOCKET is required");
+  const algorithmId = process.env.ALGORITHM_ID;
+  if (!algorithmId) throw new Error("ALGORITHM_ID is required");
+
+  const client = new grpc.Client(`unix:${socketPath}`, grpc.credentials.createInsecure());
+  try {
+    const records = (await fetchRecords(client)).map((record) => ({
+      recordId: record.recordId,
+      data: record.data ? toJson(StructSchema, record.data) : {},
+    }));
+    console.error(`loaded ${records.length} records over ${socketPath}`);
+    await submitResult(client, analyze(algorithmId, records));
+  } finally {
+    client.close();
   }
 }
 
-function main() {
-  const recordsPath = process.env.RECORDS_PATH;
-  if (!recordsPath) throw new Error("RECORDS_PATH is required");
-  const { algorithmId, records } = loadRecords(recordsPath);
-  console.error(`loaded ${records.length} records from ${recordsPath}`);
-  writeResult(analyze(algorithmId, records));
-}
-
-main();
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

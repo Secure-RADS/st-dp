@@ -2,6 +2,9 @@ import { createCipheriv, randomBytes } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { GenerateDataKeyCommand, KMSClient } from "@aws-sdk/client-kms";
 import { GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
+import { create, fromJson, type JsonObject, toBinary } from "@bufbuild/protobuf";
+import { StructSchema } from "@bufbuild/protobuf/wkt";
+import { RecordEnvelopeSchema } from "./gen/sce/v1/envelope_pb";
 import { readDatasetMeta, resolveSeedNames, streamDatasetRecords } from "./lib/datasets";
 import { documentClient, writeAll } from "./lib/dynamo";
 import { requireEnv } from "./lib/env";
@@ -23,12 +26,20 @@ function dekCachePath(algorithmId: string): string {
   return `/tmp/sce-seed-dek-${algorithmId}.bin`;
 }
 
-function encryptData(dek: Buffer, data: unknown): Record<string, string> {
+function encryptData(dek: Buffer, data: Record<string, unknown>): Uint8Array {
+  const plaintext = toBinary(StructSchema, fromJson(StructSchema, data as JsonObject));
   const nonce = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", dek, nonce);
-  const ct = Buffer.concat([cipher.update(JSON.stringify(data), "utf8"), cipher.final()]);
+  const ct = Buffer.concat([cipher.update(plaintext), cipher.final()]);
   const tag = cipher.getAuthTag();
-  return { v: "1", nonce: nonce.toString("base64"), ct: Buffer.concat([ct, tag]).toString("base64") };
+  return toBinary(
+    RecordEnvelopeSchema,
+    create(RecordEnvelopeSchema, {
+      version: 1,
+      nonce,
+      ciphertext: Buffer.concat([ct, tag]),
+    }),
+  );
 }
 
 async function loadOrCreateDek(algorithmId: string, kmsKeyArn: string): Promise<Buffer> {

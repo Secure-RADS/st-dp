@@ -4,31 +4,24 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
+
+	scev1 "sce-unit/gen/scev1"
+
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
-// recordEnvelope is the shape pdm-service stores each record's Data as: AES-256-GCM ciphertext of the
-// original JSON, with the nonce and auth tag alongside. The data key that decrypts it is unwrapped via KMS.
-type recordEnvelope struct {
-	V     string `json:"v"`
-	Nonce string `json:"nonce"`
-	CT    string `json:"ct"`
-}
-
-// decryptRecord decrypts one envelope under the plaintext data key and returns the original record object.
-func decryptRecord(dek []byte, blob json.RawMessage) (json.RawMessage, error) {
-	var env recordEnvelope
-	if err := json.Unmarshal(blob, &env); err != nil {
+// decryptRecord decrypts one RecordEnvelope under the plaintext data key. pdm-service sends the envelope as
+// base64, and the ciphertext is AES-256-GCM over a serialized google.protobuf.Struct.
+func decryptRecord(dek []byte, envelopeB64 string) (*structpb.Struct, error) {
+	raw, err := base64.StdEncoding.DecodeString(envelopeB64)
+	if err != nil {
+		return nil, fmt.Errorf("decode envelope: %w", err)
+	}
+	envelope := &scev1.RecordEnvelope{}
+	if err := proto.Unmarshal(raw, envelope); err != nil {
 		return nil, fmt.Errorf("parse envelope: %w", err)
-	}
-	nonce, err := base64.StdEncoding.DecodeString(env.Nonce)
-	if err != nil {
-		return nil, fmt.Errorf("decode nonce: %w", err)
-	}
-	body, err := base64.StdEncoding.DecodeString(env.CT)
-	if err != nil {
-		return nil, fmt.Errorf("decode ciphertext: %w", err)
 	}
 
 	block, err := aes.NewCipher(dek)
@@ -39,13 +32,18 @@ func decryptRecord(dek []byte, blob json.RawMessage) (json.RawMessage, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(body) < gcm.Overhead() {
+	if len(envelope.GetCiphertext()) < gcm.Overhead() {
 		return nil, fmt.Errorf("ciphertext too short")
 	}
 	// Go's GCM appends the auth tag to the ciphertext, matching how seeding built the envelope.
-	plain, err := gcm.Open(nil, nonce, body, nil)
+	plain, err := gcm.Open(nil, envelope.GetNonce(), envelope.GetCiphertext(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("decrypt record: %w", err)
 	}
-	return plain, nil
+
+	data := &structpb.Struct{}
+	if err := proto.Unmarshal(plain, data); err != nil {
+		return nil, fmt.Errorf("parse record data: %w", err)
+	}
+	return data, nil
 }

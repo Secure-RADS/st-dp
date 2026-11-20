@@ -1,6 +1,6 @@
 # Sample Data Controller apps
 
-Reference Data Controller (DC) images for the demo. Each is a self-contained app in a different language that reads the records file at `RECORDS_PATH` (JSON written by sce-unit after decrypt), aggregates, and writes one JSON result to `RESULT_PATH`. Same file contract as rads. All ignore the PII block on each record; the computation only touches the context fields.
+Reference Data Controller (DC) images for the demo. Each is a self-contained app in a different language that calls sce-unit over the gRPC socket at `SCE_RPC_SOCKET` (`/data/sce.sock`), streams decrypted records with `FetchRecords`, aggregates them, and submits one result with `SubmitResult`. The protobuf contract lives in [`proto/sce/v1`](../../proto/sce/v1); generated stubs are checked in per app. All ignore the PII block on each record; the computation only touches the context fields.
 
 Each app is pinned to the fixed `algorithmId` its dataset is seeded under (see `seeding/config.ts`), so the whole demo - seed, build, run - lines up and is repeatable. The root `Makefile` drives all five (`make secure-rads-all`).
 
@@ -20,4 +20,4 @@ Each app's own README documents its exact input shape and the report it returns.
 docker build --platform linux/arm64 -t <app>:local secure/samples/<app>
 ```
 
-The images are arm64 to match the Graviton enclave hosts. Inside the enclave, nsjail sets `RECORDS_PATH=/data/records.json` and `RESULT_PATH=/data/result.json`.
+The images are arm64 to match the Graviton enclave hosts. Inside the enclave, nsjail sets `SCE_RPC_SOCKET=/data/sce.sock` and `ALGORITHM_ID`; sce-unit serves the gRPC API on that socket.

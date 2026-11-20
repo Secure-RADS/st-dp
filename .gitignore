@@ -22,3 +22,6 @@ __pycache__/
 
 # OpenCode local state
 .opencode/
+
+# Rust build output
+secure/samples/audience-segments-rust/target/

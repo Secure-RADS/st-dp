@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package sce.v1;
+
+import "google/protobuf/struct.proto";
+
+// Record is one personal-data record handed to the DC application. record_id stays separate so the DC app
+// never sees data subject ids; data is schemaless per dataset, so it travels as a Struct.
+message Record {
+  string record_id = 1;
+  google.protobuf.Struct data = 2;
+}
+
+message FetchRecordsRequest {}
+
+message SubmitResultRequest {
+  google.protobuf.Struct result = 1;
+}
+
+message SubmitResultResponse {}
+
+// DataAccess runs over an AF_UNIX socket inside the enclave, between sce-unit (server) and the DC app.
+service DataAccess {
+  // Streams this run's decrypted records. sce-unit applies the run-info limit; the request carries no filters.
+  rpc FetchRecords(FetchRecordsRequest) returns (stream Record);
+  // The DC app submits its result once, then exits. sce-unit converts it back to JSON for the host.
+  rpc SubmitResult(SubmitResultRequest) returns (SubmitResultResponse);
+}

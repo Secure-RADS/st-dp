@@ -11,6 +11,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-install-project
 
 COPY main.py pyproject.toml uv.lock ./
+COPY sce ./sce
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked
 

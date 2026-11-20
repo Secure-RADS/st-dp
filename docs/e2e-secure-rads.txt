@@ -70,26 +70,28 @@ Input:
 3  emit enclave-started                 // no token yet, auth none
 4  SEED-ENTROPY from NSM                 // no AWS cost
 5  emit unit-ready                      // no token yet, auth none
-6  challenge ← REQUEST-CHALLENGE(Verifier, a, runId)   // single-use nonce, verifier API GW/Lambda and DynamoDB metered
-7  token ← ATTEST(Verifier, runId, challenge)          // NSM nonce ← challenge; claims the run so only one attestation succeeds; verifier API GW/Lambda and DynamoDB metered
-8  emit attested
-9  records ← FETCH-PDM(a, token, limit ← n)
-10 cost apigateway:request + lambda:invocation + lambda:compute + dynamodb:read-capacity // PDM /records
-11 emit records-fetched
-12 ciphertext ← KMS-SERVICE-DECRYPT(token)  // unwraps the data key under this enclave's measurements
-13 cost apigateway:request + lambda:invocation + lambda:compute + dynamodb:read-capacity // kms-service /decrypt
-14 DEK ← UNWRAP(ciphertext, enclaveKey)   // KMS request itself is excluded from cost
-15 plaintext ← DECRYPT(records, DEK)
-16 emit records-decrypted
-17 write {algorithmId, records} to /data/records.json
-18 emit records-stored-locally
-19 START nsjail                         // RECORDS_PATH, RESULT_PATH
-20 wait for nsjail exit
-21 output ← read /data/result.json
-22 emit dc-app-completed               // on success, else run-failed
-23 STREAM output to parent              // vsock :5000
-24 emit output-sent
-25 // on failure: emit run-failed
+6  START nsjail                         // SCE_RPC_SOCKET=/data/sce.sock, ALGORITHM_ID
+7  wait for app FetchRecords RPC        // first call triggers the steps below; retries reuse the outcome
+8  challenge ← REQUEST-CHALLENGE(Verifier, a, runId)   // single-use nonce, verifier API GW/Lambda and DynamoDB metered
+9  token ← ATTEST(Verifier, runId, challenge)          // NSM nonce ← challenge; claims the run so only one attestation succeeds; verifier API GW/Lambda and DynamoDB metered
+10 emit attested
+11 records ← FETCH-PDM(a, token, limit ← n)
+12 cost apigateway:request + lambda:invocation + lambda:compute + dynamodb:read-capacity // PDM /records
+13 emit records-fetched
+14 ciphertext ← KMS-SERVICE-DECRYPT(token)  // unwraps the data key under this enclave's measurements
+15 cost apigateway:request + lambda:invocation + lambda:compute + dynamodb:read-capacity // kms-service /decrypt
+16 DEK ← UNWRAP(ciphertext, enclaveKey)   // KMS request itself is excluded from cost
+17 plaintext ← DECRYPT(records, DEK)      // RecordEnvelope -> sce.v1.Record
+18 emit records-decrypted
+19 emit records-stored-locally
+20 STREAM records to app                 // gRPC FetchRecords, one sce.v1.Record per message
+21 wait for app SubmitResult RPC         // google.protobuf.Struct
+22 wait for nsjail exit
+23 emit dc-app-completed               // on success, else run-failed
+24 output ← JSON(result)
+25 STREAM output to parent              // vsock :5000
+26 emit output-sent
+27 // on failure: emit run-failed
 
 
 

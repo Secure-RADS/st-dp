@@ -1,5 +1,10 @@
-FROM node:20-alpine
+FROM node:22-alpine
 
-COPY main.js package.json /app/
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+
+COPY main.js ./
+COPY gen ./gen
 
 ENTRYPOINT ["node", "/app/main.js"]

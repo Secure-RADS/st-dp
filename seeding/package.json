@@ -22,6 +22,7 @@
     "@aws-sdk/client-dynamodb": "^3.1141.0",
     "@aws-sdk/client-kms": "^3.1119.0",
     "@aws-sdk/lib-dynamodb": "^3.700.0",
+    "@bufbuild/protobuf": "^2.10.0",
     "p-map": "^7.0.6",
     "uuid": "^14.0.2"
   },

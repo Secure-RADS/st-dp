@@ -1,8 +1,11 @@
-import json
 import os
 import sys
 
+import grpc
+from google.protobuf import json_format, struct_pb2
 from pydantic import BaseModel
+
+from sce.v1 import records_pb2, records_pb2_grpc
 
 
 class Day(BaseModel):
@@ -81,39 +84,27 @@ def analyze(algorithm_id: str | None, records: list[Record]) -> Analysis:
 def required_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise ValueError(f"missing required env var {name}; run with RECORDS_PATH set")
+        raise ValueError(f"missing required env var {name}")
     return value
 
 
-def load_records(path: str) -> tuple[str | None, list[Record]]:
-    try:
-        with open(path, "r", encoding="utf-8") as handle:
-            body = json.load(handle)
-    except (OSError, json.JSONDecodeError) as error:
-        raise ValueError(f"could not read records file {path}: {error}") from error
-    records = body["records"] if isinstance(body, dict) else body
-    algorithm_id = body.get("algorithmId") if isinstance(body, dict) else None
-    return algorithm_id, [Record.model_validate(record) for record in records]
-
-
-def write_result(result: Analysis) -> None:
-    payload = result.model_dump_json()
-    path = os.environ.get("RESULT_PATH")
-    if path:
-        try:
-            with open(path, "w", encoding="utf-8") as handle:
-                handle.write(payload)
-        except OSError as error:
-            raise ValueError(f"could not write result to {path}: {error}") from error
-    else:
-        print(payload)
-
-
 def main() -> None:
-    records_path = required_env("RECORDS_PATH")
-    algorithm_id, records = load_records(records_path)
-    log(f"loaded {len(records)} records from {records_path}")
-    write_result(analyze(algorithm_id, records))
+    algorithm_id = required_env("ALGORITHM_ID")
+    socket_path = required_env("SCE_RPC_SOCKET")
+    channel = grpc.insecure_channel(f"unix://{socket_path}")
+    try:
+        stub = records_pb2_grpc.DataAccessStub(channel)
+        records = [
+            Record.model_validate({"data": json_format.MessageToDict(record.data)})
+            for record in stub.FetchRecords(records_pb2.FetchRecordsRequest())
+        ]
+        log(f"loaded {len(records)} records over {socket_path}")
+        result = analyze(algorithm_id, records)
+        payload = struct_pb2.Struct()
+        json_format.ParseDict(result.model_dump(), payload)
+        stub.SubmitResult(records_pb2.SubmitResultRequest(result=payload))
+    finally:
+        channel.close()
 
 
 if __name__ == "__main__":

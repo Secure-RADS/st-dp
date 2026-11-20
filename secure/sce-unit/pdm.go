@@ -13,8 +13,9 @@ import (
 const pdmRequestTimeout = 60 * time.Second
 
 type pdmRecord struct {
-	RecordId string          `json:"recordId"`
-	Data     json.RawMessage `json:"data"`
+	RecordId string `json:"recordId"`
+	// Data is the base64 RecordEnvelope pdm-service reads from DynamoDB.
+	Data string `json:"data"`
 }
 
 // fetchAllRecords pulls personal-data records for this enclave's algorithm from the PDM service, following

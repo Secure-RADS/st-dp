@@ -72,7 +72,7 @@ func composeFinalRootfs(bundleDir, execPath, pathEnv string, execArgs []string, 
 	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
 		return err
 	}
-	if err := writeNsjailCfg(filepath.Join(cfgDir, "nsjail.cfg"), execPath, pathEnv, execArgs); err != nil {
+	if err := writeNsjailCfg(filepath.Join(cfgDir, "nsjail.cfg"), execPath, pathEnv, execArgs, cfg.AlgorithmId); err != nil {
 		return err
 	}
 	if err := writeRunConfig(filepath.Join(cfgDir, "run-config.json"), cfg); err != nil {
@@ -85,7 +85,7 @@ func composeFinalRootfs(bundleDir, execPath, pathEnv string, execArgs []string, 
 	return os.Rename(tmpFinal, dcRootfs)
 }
 
-func writeNsjailCfg(path, execPath, pathEnv string, args []string) error {
+func writeNsjailCfg(path, execPath, pathEnv string, args []string, algorithmID string) error {
 	tmpl, err := template.New("nsjail.cfg").Parse(nsjailCfgTmpl)
 	if err != nil {
 		return err
@@ -98,10 +98,11 @@ func writeNsjailCfg(path, execPath, pathEnv string, args []string) error {
 	defer out.Close()
 
 	return tmpl.Execute(out, struct {
-		Path    string
-		PathEnv string
-		Args    []string
-	}{Path: execPath, PathEnv: pathEnv, Args: args})
+		Path        string
+		PathEnv     string
+		Args        []string
+		AlgorithmId string
+	}{Path: execPath, PathEnv: pathEnv, Args: args, AlgorithmId: algorithmID})
 }
 
 func writeRunConfig(path string, cfg runConfig) error {
