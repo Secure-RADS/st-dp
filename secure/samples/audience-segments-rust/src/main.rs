@@ -113,9 +113,14 @@ fn value_to_json(value: &prost_types::Value) -> serde_json::Value {
     use prost_types::value::Kind;
     match value.kind.as_ref() {
         Some(Kind::NullValue(_)) => serde_json::Value::Null,
-        Some(Kind::NumberValue(n)) => serde_json::Number::from_f64(*n)
-            .map(serde_json::Value::Number)
-            .unwrap_or(serde_json::Value::Null),
+        Some(Kind::NumberValue(n)) => {
+            let number = if n.fract() == 0.0 && *n >= i64::MIN as f64 && *n <= i64::MAX as f64 {
+                serde_json::Number::from(*n as i64)
+            } else {
+                serde_json::Number::from_f64(*n).unwrap_or_else(|| serde_json::Number::from(0))
+            };
+            serde_json::Value::Number(number)
+        }
         Some(Kind::StringValue(s)) => serde_json::Value::String(s.clone()),
         Some(Kind::BoolValue(b)) => serde_json::Value::Bool(*b),
         Some(Kind::StructValue(s)) => struct_to_json(s),

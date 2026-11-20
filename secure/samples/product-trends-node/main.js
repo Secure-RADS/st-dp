@@ -1,6 +1,5 @@
 import * as grpc from "@grpc/grpc-js";
-import { create, fromBinary, fromJson, toBinary, toJson } from "@bufbuild/protobuf";
-import { StructSchema } from "@bufbuild/protobuf/wkt";
+import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import {
   FetchRecordsRequestSchema,
   RecordSchema,
@@ -59,7 +58,7 @@ function fetchRecords(client) {
     const records = [];
     const call = client.makeServerStreamRequest(
       FETCH_RECORDS,
-      (message) => toBinary(FetchRecordsRequestSchema, message),
+      (message) => Buffer.from(toBinary(FetchRecordsRequestSchema, message)),
       (bytes) => fromBinary(RecordSchema, bytes),
       create(FetchRecordsRequestSchema),
     );
@@ -71,10 +70,10 @@ function fetchRecords(client) {
 
 function submitResult(client, result) {
   return new Promise((resolve, reject) => {
-    const request = create(SubmitResultRequestSchema, { result: fromJson(StructSchema, result) });
+    const request = create(SubmitResultRequestSchema, { result });
     client.makeUnaryRequest(
       SUBMIT_RESULT,
-      (message) => toBinary(SubmitResultRequestSchema, message),
+      (message) => Buffer.from(toBinary(SubmitResultRequestSchema, message)),
       (bytes) => fromBinary(SubmitResultResponseSchema, bytes),
       request,
       (error) => (error ? reject(error) : resolve()),
@@ -92,7 +91,7 @@ async function main() {
   try {
     const records = (await fetchRecords(client)).map((record) => ({
       recordId: record.recordId,
-      data: record.data ? toJson(StructSchema, record.data) : {},
+      data: record.data ?? {},
     }));
     console.error(`loaded ${records.length} records over ${socketPath}`);
     await submitResult(client, analyze(algorithmId, records));
