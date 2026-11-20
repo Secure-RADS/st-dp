@@ -65,13 +65,14 @@ eif-build-base:
 # Self-signed client cert for mTLS to verifier-service - PoC only, baked
 # into the image at build time (see csav/README.md's trust-material design).
 gen-client-cert:
-	mkdir -p tls
-	openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -days 3650 -nodes \
-		-keyout tls/client.key -out tls/client.crt \
-		-subj "/CN=registry-service"
+	@test -f tls/client.crt -a -f tls/client.key || ( \
+		mkdir -p tls && \
+		openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -days 3650 -nodes \
+			-keyout tls/client.key -out tls/client.crt \
+			-subj "/CN=registry-service")
 
 # Build the docker image locally (arm64, matches the t4g.small host).
-image: sce-unit-base eif-build-base
+image: sce-unit-base eif-build-base gen-client-cert
 	docker build --platform linux/arm64 -f Dockerfile -t $(IMAGE) ../../..
 
 # Save the image + .env (bucket/region/pins for compose var substitution) and scp

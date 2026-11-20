@@ -46,27 +46,41 @@ mount {
 	nodev: true
 }
 
+# gRPC's Abseil entropy source opens /dev/urandom; without it the first RNG use aborts.
+mount {
+	dst: "/dev"
+	fstype: "tmpfs"
+	rw: true
+	nosuid: true
+}
+
+mount {
+	src: "/dev/urandom"
+	dst: "/dev/urandom"
+	is_bind: true
+}
+
 # Allowlist for the shipped samples: file I/O, process control, and AF_UNIX
 # sockets for the sce-unit gRPC channel. The jail stays loopback-free.
 seccomp_string: "ALLOW {"
 seccomp_string: "	read, write, close, lseek, pread64, pwrite64, readv, writev,"
 seccomp_string: "	openat, openat2, newfstatat, newfstat, statx, getdents64, faccessat, faccessat2,"
 seccomp_string: "	readlinkat, unlinkat, mkdirat, renameat, renameat2, ftruncate, fsync, fdatasync,"
-seccomp_string: "	fchmodat, utimensat, statfs, fstatfs,"
+seccomp_string: "	fchmodat, fchmodat2, utimensat, statfs, fstatfs, close_range, copy_file_range, sendfile, splice, tee, vmsplice, fallocate,"
 seccomp_string: "	mmap, mprotect, munmap, madvise, mremap, brk,"
-seccomp_string: "	rt_sigaction, rt_sigprocmask, rt_sigreturn, rt_sigtimedwait, sigaltstack,"
+seccomp_string: "	rt_sigaction, rt_sigprocmask, rt_sigreturn, rt_sigtimedwait, sigaltstack, restart_syscall,"
 seccomp_string: "	futex, set_robust_list, set_tid_address, rseq, membarrier,"
 seccomp_string: "	clone, clone3, exit, exit_group, wait4, waitid, tgkill, kill,"
 seccomp_string: "	execve, execveat,"
-seccomp_string: "	getpid, gettid, getppid, getuid, geteuid, getgid, getegid, getgroups,"
+seccomp_string: "	getpid, gettid, getppid, getuid, geteuid, getgid, getegid, getgroups, getpgid, getsid,"
 seccomp_string: "	getcwd, ioctl, fcntl, pipe2, dup, dup3,"
-seccomp_string: "	gettimeofday, clock_gettime, clock_nanosleep, nanosleep, getrandom,"
-seccomp_string: "	prctl, prlimit64, getrlimit, newuname, sysinfo, sched_yield, sched_getaffinity,"
+seccomp_string: "	gettimeofday, clock_gettime, clock_getres, clock_nanosleep, nanosleep, getitimer, setitimer, times, getrandom,"
+seccomp_string: "	prctl, prlimit64, getrlimit, newuname, sysinfo, sched_yield, sched_getaffinity, sched_getparam, sched_getscheduler, getcpu,"
 seccomp_string: "	epoll_create1, epoll_ctl, epoll_pwait, epoll_pwait2, ppoll, pselect6,"
+seccomp_string: "	eventfd2, timerfd_create, timerfd_settime, timerfd_gettime, signalfd4, getrusage,"
 seccomp_string: "	socket, socketpair, connect, bind, listen, accept, accept4,"
 seccomp_string: "	sendto, recvfrom, sendmsg, recvmsg, shutdown, getsockopt, setsockopt,"
-seccomp_string: "	getpeername, getsockname,"
-seccomp_string: "	eventfd2"
+seccomp_string: "	getpeername, getsockname"
 seccomp_string: "}"
 seccomp_string: "DEFAULT KILL_PROCESS"
 
