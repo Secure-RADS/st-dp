@@ -14,9 +14,11 @@ usage: scripts/deploy.sh <list|deploy> [tree] [unit...] [options]
 options:
   --dry-run                 print commands without changing AWS
   --skip-registry-image     skip the secure registry-service image build/ship
+  --jobs N                  deploy up to N independent units at once (default 4)
+  --sequential              deploy one unit at a time
 
 tree defaults to all. Named units must come from `list`; missing dependencies
-are not deployed automatically.
+are not deployed automatically. Units run in dependency-ordered waves.
 EOF
 }
 
@@ -128,6 +130,29 @@ units_rads=(
 	rads/csav/registry-service
 	rads/sce/execution-service
 	rads/transparency-portal
+)
+
+declare -A DEPENDS=(
+	[secure/storage]=""
+	[secure/verifier-service]=""
+	[secure/result-consumer]=""
+	[secure/log-service]="secure/verifier-service"
+	[secure/telemetry-service]=""
+	[secure/cost-service]=""
+	[secure/pdm-service]="secure/verifier-service"
+	[secure/kms-service]="secure/storage secure/pdm-service"
+	[secure/csav]="secure/storage"
+	[secure/sce/execution-service]="secure/storage secure/result-consumer secure/pdm-service"
+	[secure/registry-image]="secure/csav secure/kms-service"
+	[secure/transparency-portal]=""
+	[rads/result-consumer]=""
+	[rads/log-service]=""
+	[rads/telemetry-service]=""
+	[rads/cost-service]=""
+	[rads/pdm-service]=""
+	[rads/csav/registry-service]=""
+	[rads/sce/execution-service]="rads/csav/registry-service rads/result-consumer rads/pdm-service"
+	[rads/transparency-portal]=""
 )
 
 describe_unit() {
@@ -393,6 +418,83 @@ deploy_unit() {
 	esac
 }
 
+unit_done() {
+	local needle="$1" unit
+	[ ${#completed[@]} -eq 0 ] && return 1
+	for unit in "${completed[@]}"; do
+		[ "$unit" = "$needle" ] && return 0
+	done
+	return 1
+}
+
+unit_in_plan() {
+	local needle="$1" unit
+	for unit in "${plan[@]}"; do
+		[ "$unit" = "$needle" ] && return 0
+	done
+	return 1
+}
+
+run_wave() {
+	local jobs="$1"
+	shift
+	local -a wave=("$@") batch=() pids=() logs=()
+	local i j fail unit log
+	for ((i = 0; i < ${#wave[@]}; i += jobs)); do
+		batch=("${wave[@]:i:jobs}")
+		pids=()
+		logs=()
+		for unit in "${batch[@]}"; do
+			log=$(mktemp)
+			(deploy_unit "$unit") >"$log" 2>&1 &
+			pids+=("$!")
+			logs+=("$log")
+		done
+		fail=0
+		for j in "${!pids[@]}"; do
+			wait "${pids[$j]}" || fail=1
+		done
+		for j in "${!batch[@]}"; do
+			printf '==> %s\n' "${batch[$j]}"
+			cat "${logs[$j]}"
+			rm -f "${logs[$j]}"
+		done
+		[ "$fail" = 0 ] || die "one or more units failed"
+	done
+}
+
+deploy_parallel() {
+	local jobs="$1"
+	local -a remaining=("${plan[@]}") completed=() wave=() next=()
+	local unit dep ok
+	while [ ${#remaining[@]} -gt 0 ]; do
+		wave=()
+		for unit in "${remaining[@]}"; do
+			ok=1
+			for dep in ${DEPENDS[$unit]-}; do
+				unit_in_plan "$dep" || continue
+				unit_done "$dep" || {
+					ok=0
+					break
+				}
+			done
+			[ "$ok" = 1 ] && wave+=("$unit")
+		done
+		[ ${#wave[@]} -gt 0 ] || die "dependency cycle among: ${remaining[*]}"
+		run_wave "$jobs" "${wave[@]}"
+		completed+=("${wave[@]}")
+		next=()
+		for unit in "${remaining[@]}"; do
+			ok=1
+			for dep in "${wave[@]}"; do
+				[ "$unit" = "$dep" ] && ok=0
+			done
+			[ "$ok" = 1 ] && next+=("$unit")
+		done
+		remaining=("${next[@]}")
+	done
+}
+
 planned_units() {
 	local tree="$1"
 	shift
@@ -425,19 +527,28 @@ shift
 
 dry_run=0
 skip_registry_image=0
+jobs=4
 positional=()
-for arg in "$@"; do
-	case "$arg" in
+while [ $# -gt 0 ]; do
+	case "$1" in
 	--dry-run) dry_run=1 ;;
 	--skip-registry-image) skip_registry_image=1 ;;
+	--jobs)
+		[ $# -ge 2 ] || die "--jobs needs a value"
+		jobs=$2
+		shift
+		;;
+	--sequential) jobs=1 ;;
 	-h | --help)
 		usage
 		exit 0
 		;;
-	-*) die "unknown option: $arg" ;;
-	*) positional+=("$arg") ;;
+	-*) die "unknown option: $1" ;;
+	*) positional+=("$1") ;;
 	esac
+	shift
 done
+[[ "$jobs" =~ ^[1-9][0-9]*$ ]] || die "--jobs must be a positive integer"
 
 if [ "$cmd" = list ] || [ "$cmd" = --list ] || [ "$cmd" = -l ]; then
 	for unit in "${units_secure[@]}" "${units_rads[@]}"; do
@@ -485,7 +596,11 @@ if [ "$skip_registry_image" = 1 ]; then
 	plan=("${filtered[@]}")
 fi
 
-for unit in "${plan[@]}"; do
-	printf '==> %s\n' "$unit"
-	deploy_unit "$unit"
-done
+if [ "$jobs" -gt 1 ] && [ "$dry_run" = 0 ]; then
+	deploy_parallel "$jobs"
+else
+	for unit in "${plan[@]}"; do
+		printf '==> %s\n' "$unit"
+		deploy_unit "$unit"
+	done
+fi

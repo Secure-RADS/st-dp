@@ -21,6 +21,9 @@ workflow.
 A full tree deploy runs every unit. Named units deploy only what you name; dependencies are not
 deployed automatically.
 
+Units deploy in dependency-ordered waves. Independent units in a wave run concurrently, up to
+`--jobs` (default 4). `--sequential` runs one at a time.
+
 ## Local use
 
 The script reads the root `.env` (see `.env.example`) like the Makefiles do. `make env` populates
@@ -31,9 +34,12 @@ scripts/deploy.sh list
 scripts/deploy.sh deploy secure --dry-run
 scripts/deploy.sh deploy rads rads/log-service
 scripts/deploy.sh deploy secure --skip-registry-image
+scripts/deploy.sh deploy secure --sequential
+scripts/deploy.sh deploy secure --jobs 2
 ```
 
-`--dry-run` prints the commands but still resolves inputs from AWS (read-only calls).
+`--dry-run` prints the commands but still resolves inputs from AWS (read-only calls) and always
+runs sequentially.
 
 ## Manual workflow
 
@@ -44,7 +50,8 @@ Run `deploy` from the Actions tab (`workflow_dispatch`). Inputs:
 - `dry_run`: print commands without changing AWS.
 - `registry_image`: build and ship the secure registry-service image (default on).
 
-Deploys are serialized per branch with a concurrency group.
+Deploys are serialized per branch with a concurrency group. Within a run, independent units deploy
+in parallel waves (`--jobs 4`).
 
 ## Authentication
 
@@ -117,10 +124,12 @@ verifier is redeployed with the new truststore.
 
 ## Registry image
 
-The secure registry-service image builds on a Blacksmith arm64 runner, so `--platform linux/arm64`
-is native and needs no QEMU. It builds `sce-unit-base` and `eif-build-base` first, pulls the private
-`ghcr.io/secure-rads/nsjail-docker` base, ships the tarball over SSH, and restarts the compose
-service on the CSAV host.
+The secure registry-service image builds on a 2 vCPU Blacksmith arm64 runner, so
+`--platform linux/arm64` is native and needs no QEMU. That runner holds one job at a time here, so the
+image build gets the full runner. The `eif-build-base` cargo step is the heavy part; bump to
+`blacksmith-4vcpu-ubuntu-2404-arm` if that build dominates. It builds `sce-unit-base` and
+`eif-build-base` first, pulls the private `ghcr.io/secure-rads/nsjail-docker` base, ships the tarball
+over SSH, and restarts the compose service on the CSAV host.
 
 ## Known gaps
 

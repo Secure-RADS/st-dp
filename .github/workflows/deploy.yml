@@ -34,7 +34,7 @@ concurrency:
 
 jobs:
   deploy:
-    runs-on: blacksmith-4vcpu-ubuntu-2404-arm
+    runs-on: blacksmith-2vcpu-ubuntu-2404-arm
     env:
       AWS_REGION: ${{ vars.AWS_REGION || 'ap-southeast-2' }}
       AVAILABILITY_ZONE: ${{ vars.AVAILABILITY_ZONE }}
@@ -135,4 +135,5 @@ jobs:
           fi
           [ "$DRY_RUN" = "true" ] && args+=(--dry-run)
           [ "$REGISTRY_IMAGE" = "false" ] && args+=(--skip-registry-image)
+          args+=(--jobs 4)
           scripts/deploy.sh deploy "${args[@]}"
