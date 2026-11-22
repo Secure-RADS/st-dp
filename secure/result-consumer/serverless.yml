@@ -18,8 +18,12 @@ provider:
         - Effect: Allow
           Action: dynamodb:PutItem
           Resource: !GetAtt RunResultsTable.Arn
+        - Effect: Allow
+          Action: dynamodb:GetItem
+          Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${param:runAttestationTable}"
   environment:
     RUN_RESULTS_TABLE: !Ref RunResultsTable
+    RUN_ATTESTATION_TABLE: ${param:runAttestationTable}
     TELEMETRY_HOST: ${env:TELEMETRY_HOST_SECURE_RADS}
     COST_HOST: ${env:COST_HOST_SECURE_RADS}
 

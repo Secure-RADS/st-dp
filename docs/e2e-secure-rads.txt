@@ -55,7 +55,7 @@ Input:
 9  RUN-ENCLAVE(EIF)
 10 emit enclave-launched                 // direct, auth none
 11 wait for enclave exit
-12 publish result to SQS
+12 publish signed result to SQS      // host forwards the enclave-signed envelope
 13 cost sqs:send                        // message bytes
 14 emit executor-finished               // direct, auth none
 15 cost ec2:instance                    // captured before the cost POST and terminate request
@@ -87,7 +87,7 @@ Input:
 20 wait for nsjail exit
 21 output ← read /data/result.json
 22 emit dc-app-completed               // on success, else run-failed
-23 STREAM output to parent              // vsock :5000
+23 SIGN result and STREAM to parent    // signature key registered at attestation, vsock :5000
 24 emit output-sent
 25 // on failure: emit run-failed
 
@@ -111,7 +111,9 @@ SECURE-RADS-RESULT-CONSUMER(result)
 Input:
   result ← processing result returned by the SCE-UNIT
 1  SQS delivers result batch; invoke Lambda // receive is billed before the handler runs
-2  persist result to DynamoDB
-3  cost dynamodb:write-capacity; emit result-persisted
-4  cost sqs:receive + lambda:invocation + lambda:compute // reported by handler after processing
-5  cost sqs:delete                         // reported on success; Lambda deletes after return
+2  key ← GET-RUN-ATTESTATION(result.runId)  // public key verifier recorded at /attest
+3  if not VERIFY-SIGNATURE(key, result) then reject
+4  persist verified result to DynamoDB
+5  cost dynamodb:write-capacity; emit result-persisted
+6  cost sqs:receive + lambda:invocation + lambda:compute // reported by handler after processing
+7  cost sqs:delete                         // reported on success; Lambda deletes after return

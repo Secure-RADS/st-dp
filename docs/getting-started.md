@@ -143,13 +143,7 @@ export SECURE_COST_CERT_ARN=<cost.sr-acm-certificate-arn>
 export RADS_COST_CERT_ARN=<cost.r-acm-certificate-arn>
 ```
 
-Deploy the result consumer first because the execution-service stack needs its queue and table:
-
-```sh
-(cd secure/result-consumer && bun install && bunx serverless deploy --param="region=$REGION")
-```
-
-Generate the mTLS client certificate, then deploy verifier-service once to create its truststore bucket:
+Generate the mTLS client certificate, then deploy verifier-service once to create its truststore bucket and run-attestation table:
 
 ```sh
 make -C secure/csav/registry-service gen-client-cert
@@ -159,13 +153,24 @@ make -C secure/csav/registry-service gen-client-cert
   --param="certificateArn=$VERIFIER_CERT_ARN" \
   --param="publicDomainName=verifier-attest.sr.secure-rads.org" \
   --param="publicCertificateArn=$VERIFIER_ATTEST_CERT_ARN")
+RUN_ATTESTATION_TABLE=$(aws cloudformation describe-stacks --region "$REGION" \
+  --stack-name secure-rads-verifier-service-dev \
+  --query "Stacks[0].Outputs[?OutputKey=='RunAttestationTableName'].OutputValue" --output text)
+```
+
+Deploy the result consumer next because it needs the verifier's run-attestation table to verify result signatures, and the execution-service stack needs its queue and table:
+
+```sh
+(cd secure/result-consumer && bun install && bunx serverless deploy \
+  --param="region=$REGION" \
+  --param="runAttestationTable=$RUN_ATTESTATION_TABLE")
 ```
 
 Upload the truststore, then deploy verifier-service again with its immutable S3 object version:
 
 ```sh
 TRUSTSTORE_BUCKET=$(aws cloudformation describe-stacks --region "$REGION" \
-  --stack-name verifier-service-dev \
+  --stack-name secure-rads-verifier-service-dev \
   --query "Stacks[0].Outputs[?OutputKey=='TruststoreBucketName'].OutputValue" --output text)
 TRUSTSTORE_VERSION=$(aws s3api put-object --bucket "$TRUSTSTORE_BUCKET" \
   --key truststore.pem --body secure/csav/registry-service/tls/client.crt \

@@ -82,6 +82,7 @@ func main() {
 	log.Printf("sce-unit: nsjail exited: %v", waitErr)
 
 	output, readErr := os.ReadFile(resultFileHost)
+	status := resultStatus(waitErr, readErr, len(output))
 
 	failed := waitErr != nil || readErr != nil || len(output) == 0
 	if failed {
@@ -111,8 +112,13 @@ func main() {
 	} else if output[len(output)-1] != '\n' {
 		output = append(output, '\n')
 	}
-	if err := sendOutput(output); err != nil {
-		log.Printf("sce-unit: send output to host failed: %v", err)
+	if err := sendResult(resultPayload{
+		RunID:       runID,
+		AlgorithmID: cfg.AlgorithmId,
+		Status:      status,
+		Output:      string(output),
+	}); err != nil {
+		log.Printf("sce-unit: send signed result to host failed: %v", err)
 		timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventRunFailed, map[string]any{"error": err.Error()})
 		os.Exit(1)
 	}
@@ -120,6 +126,16 @@ func main() {
 	if failed {
 		os.Exit(1)
 	}
+}
+
+func resultStatus(waitErr, readErr error, outputLen int) string {
+	if exitErr, ok := waitErr.(*exec.ExitError); ok {
+		return fmt.Sprintf("exit:%d", exitErr.ExitCode())
+	}
+	if waitErr != nil || readErr != nil || outputLen == 0 {
+		return "exit:1"
+	}
+	return "exit:0"
 }
 
 func failRun(timelineLog *sharedlog.Client, algorithmID, runID string, err error) {
@@ -130,8 +146,17 @@ func failRun(timelineLog *sharedlog.Client, algorithmID, runID string, err error
 	failure, _ := json.Marshal(struct {
 		Error string `json:"error"`
 	}{Error: err.Error()})
-	if err := sendOutput(append(failure, '\n')); err != nil {
-		log.Printf("sce-unit: send error to host failed: %v", err)
+	payload := resultPayload{
+		RunID:       runID,
+		AlgorithmID: algorithmID,
+		Status:      "exit:1",
+		Output:      string(append(failure, '\n')),
+	}
+	if sendErr := sendResult(payload); sendErr != nil {
+		log.Printf("sce-unit: send signed failure to host failed: %v", sendErr)
+		if err := sendOutput(append(failure, '\n')); err != nil {
+			log.Printf("sce-unit: send error to host failed: %v", err)
+		}
 	}
 	os.Exit(1)
 }
@@ -140,10 +165,11 @@ func failRun(timelineLog *sharedlog.Client, algorithmID, runID string, err error
 // records.json the DC app loads via RECORDS_PATH. It also returns the data subjects whose records were
 // handed to the DC app, for the post-completion subject-access trail.
 func prepareRecordsFile(cfg runConfig, timelineLog *sharedlog.Client, runID string, limit int) ([]string, error) {
-	tp, err := attest(cfg, runID)
+	tp, signer, err := attest(cfg, runID)
 	if err != nil {
 		return nil, fmt.Errorf("attestation failed: %w", err)
 	}
+	setResultSigner(signer)
 	log.Printf("sce-unit: attested successfully, access token expires %s", tp.AccessTokenExpiresAt.Format(time.RFC3339))
 	setTokens(tp)
 	go refreshLoop(cfg, runID)

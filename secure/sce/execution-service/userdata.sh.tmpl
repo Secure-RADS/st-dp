@@ -32,10 +32,24 @@ def read(path):
     except FileNotFoundError:
         return ""
 out = read("/tmp/output.txt")
-# When the DC app produced no output, surface the enclave launch log so an empty result is diagnosable
-# instead of silent (the enclave console is otherwise lost when the host terminates).
-diag = {"runEnclave": read("/tmp/run-enclave.log")} if not out else {}
-print(json.dumps({"runId": "{{.RunId}}", "algorithmId": "{{.AlgorithmId}}", "instanceId": sys.argv[2], "status": "exit:" + sys.argv[1], "output": out, "diag": diag}))
+# The enclave signs the result fields; this host only forwards the envelope plus its instance id.
+# Anything the host builds itself has no signature and result-consumer rejects it.
+try:
+    message = json.loads(out)
+except json.JSONDecodeError:
+    message = None
+if isinstance(message, dict) and isinstance(message.get("payload"), str) and isinstance(message.get("signature"), str):
+    message["instanceId"] = sys.argv[2]
+else:
+    message = {
+        "runId": "{{.RunId}}",
+        "algorithmId": "{{.AlgorithmId}}",
+        "instanceId": sys.argv[2],
+        "status": "exit:" + sys.argv[1],
+        "output": out,
+        "diag": {"runEnclave": read("/tmp/run-enclave.log")},
+    }
+print(json.dumps(message))
 PYEOF
   aws sqs send-message --queue-url "{{.QueueUrl}}" --message-body file:///tmp/result.json --region "$REGION" || true
   emit_event executor-finished

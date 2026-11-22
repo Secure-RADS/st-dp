@@ -4,13 +4,21 @@ Serverless Framework v4, TypeScript. The consumer half of the async run-result f
 
 ## Resources
 
-- `RunResultsQueue` - standard SQS queue the enclave host produces JSON run results to. 60s visibility timeout, 14-day retention, redrive to `RunResultsDLQ` after 3 receives.
+- `RunResultsQueue` - standard SQS queue the enclave host forwards signed run results to. 60s visibility timeout, 14-day retention, redrive to `RunResultsDLQ` after 3 receives.
 - `RunResultsDLQ` - dead-letter queue for messages that keep failing.
 - `RunResultsTable` - PAY_PER_REQUEST DynamoDB table, PK `RunId`.
 
-The `consume` Lambda parses each message `{ runId, instanceId?, algorithmId?, status?, output?, diag? }` and `PutItem`s it (idempotent on `RunId`). A message with no valid `runId` is skipped, not thrown, so it can't block the rest of the batch; it ages out to the DLQ. DynamoDB errors throw so the batch retries.
+The enclave signs the result fields with the ephemeral key it registered during attestation. The host only forwards `{ runId, algorithmId, instanceId?, payload, signature }`, where `payload` is base64 of the exact signed JSON bytes.
 
-When `algorithmId` is present it also writes `result-persisted` to telemetry-service over plain HTTPS. It does not emit host or terminal events; the enclave owns those.
+For each message the `consume` Lambda:
+
+1. reads the run's attested public key from `RunAttestationTable`;
+2. verifies the signature and checks the signed `runId`/`algorithmId` match the attested run;
+3. `PutItem`s the verified fields (idempotent on `RunId`).
+
+A message with no valid `runId`, no attested key, or an invalid signature is skipped, not thrown, so it can't block the rest of the batch; it ages out to the DLQ. DynamoDB errors throw so the batch retries.
+
+When the signature verifies it also writes `result-persisted` to telemetry-service over plain HTTPS. It does not emit host or terminal events; the enclave owns those.
 
 The stack Outputs (`RunResultsQueueUrl`, `RunResultsQueueArn`, `RunResultsTableName`, `RunResultsTableArn`) are consumed by execution-service.
 
@@ -18,7 +26,12 @@ Bun is used as the local dev/bundle tool only (`bun install`) - the Lambda itsel
 
 ## Deploy
 
+Deploy verifier-service first, then pass its run-attestation table name:
+
 ```sh
+RUN_ATTESTATION_TABLE=$(aws cloudformation describe-stacks \
+  --stack-name secure-rads-verifier-service-dev \
+  --query "Stacks[0].Outputs[?OutputKey=='RunAttestationTableName'].OutputValue" --output text)
 bun install
-bunx serverless deploy
+bunx serverless deploy --param="runAttestationTable=$RUN_ATTESTATION_TABLE"
 ```

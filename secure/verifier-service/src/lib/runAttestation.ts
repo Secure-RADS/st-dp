@@ -6,7 +6,7 @@ import { requiredEnv } from "@srads/common/env";
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const tableName = requiredEnv("RUN_ATTESTATION_TABLE");
 
-export async function claimRunAttestation(algorithmId: string, runId: string): Promise<boolean> {
+export async function claimRunAttestation(algorithmId: string, runId: string, publicKey: Buffer): Promise<boolean> {
   try {
     const write = await ddb.send(
       new PutCommand({
@@ -15,6 +15,7 @@ export async function claimRunAttestation(algorithmId: string, runId: string): P
           RunId: runId,
           AlgorithmId: algorithmId,
           AttestedAt: new Date().toISOString(),
+          PublicKey: publicKey.toString("base64"),
         },
         ConditionExpression: "attribute_not_exists(RunId)",
         ReturnConsumedCapacity: "TOTAL",

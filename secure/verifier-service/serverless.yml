@@ -302,6 +302,8 @@ resources:
       Value: !Ref AttestationSessionTable
     AttestationChallengeTableName:
       Value: !Ref AttestationChallengeTable
+    RunAttestationTableName:
+      Value: !Ref RunAttestationTable
     TruststoreBucketName:
       Value: !Ref TruststoreBucket
     ApiRegionalDomainName:

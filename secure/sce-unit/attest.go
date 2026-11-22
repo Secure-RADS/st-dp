@@ -6,6 +6,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -19,38 +20,41 @@ import (
 
 const attestRequestTimeout = 30 * time.Second
 
-func attest(cfg runConfig, runID string) (tokenPair, error) {
+func attest(cfg runConfig, runID string) (tokenPair, *ecdsa.PrivateKey, error) {
 	priv, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
 	if err != nil {
-		return tokenPair{}, fmt.Errorf("generate ephemeral key: %w", err)
+		return tokenPair{}, nil, fmt.Errorf("generate ephemeral key: %w", err)
 	}
-	pubKey := elliptic.Marshal(elliptic.P384(), priv.PublicKey.X, priv.PublicKey.Y)
+	pubKey, err := x509.MarshalPKIXPublicKey(&priv.PublicKey)
+	if err != nil {
+		return tokenPair{}, nil, fmt.Errorf("marshal ephemeral public key: %w", err)
+	}
 
 	// The verifier issues the nonce, so the document it receives is bound to this specific /attest request.
 	challenge, err := fetchChallenge(cfg, runID)
 	if err != nil {
-		return tokenPair{}, fmt.Errorf("request challenge: %w", err)
+		return tokenPair{}, nil, fmt.Errorf("request challenge: %w", err)
 	}
 	nonce, err := base64.RawURLEncoding.DecodeString(challenge)
 	if err != nil {
-		return tokenPair{}, fmt.Errorf("decode challenge: %w", err)
+		return tokenPair{}, nil, fmt.Errorf("decode challenge: %w", err)
 	}
 
 	sess, err := nsm.OpenDefaultSession()
 	if err != nil {
-		return tokenPair{}, fmt.Errorf("open NSM session: %w", err)
+		return tokenPair{}, nil, fmt.Errorf("open NSM session: %w", err)
 	}
 	defer sess.Close()
 
 	res, err := sess.Send(&request.Attestation{Nonce: nonce, PublicKey: pubKey})
 	if err != nil {
-		return tokenPair{}, fmt.Errorf("request attestation document: %w", err)
+		return tokenPair{}, nil, fmt.Errorf("request attestation document: %w", err)
 	}
 	if res.Error != "" {
-		return tokenPair{}, fmt.Errorf("NSM: %s", res.Error)
+		return tokenPair{}, nil, fmt.Errorf("NSM: %s", res.Error)
 	}
 	if res.Attestation == nil || res.Attestation.Document == nil {
-		return tokenPair{}, fmt.Errorf("NSM returned no attestation document")
+		return tokenPair{}, nil, fmt.Errorf("NSM returned no attestation document")
 	}
 
 	body, err := json.Marshal(struct {
@@ -65,10 +69,14 @@ func attest(cfg runConfig, runID string) (tokenPair, error) {
 		Challenge:           challenge,
 	})
 	if err != nil {
-		return tokenPair{}, err
+		return tokenPair{}, nil, err
 	}
 
-	return postForTokens(cfg, "/attest", body)
+	tokens, err := postForTokens(cfg, "/attest", body)
+	if err != nil {
+		return tokenPair{}, nil, err
+	}
+	return tokens, priv, nil
 }
 
 // fetchChallenge gets a single-use nonce from verifier-service before the NSM attestation request, so the
