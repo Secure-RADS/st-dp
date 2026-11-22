@@ -1,19 +1,16 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
 import { CostPhase, costEvent, recordLambda } from "@srads/common/cost";
 import { requiredEnv } from "@srads/common/env";
 import { emitEvent } from "@srads/common/log";
 import type { SQSHandler, SQSRecord } from "aws-lambda";
+import { fetchRunAttestation } from "../lib/attestation.js";
 import { type SignedResultMessage, verifySignedResult } from "../lib/verify.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const table = requiredEnv("RUN_RESULTS_TABLE");
-const attestationTable = requiredEnv("RUN_ATTESTATION_TABLE");
-
-interface AttestedRun {
-  AlgorithmId?: unknown;
-  PublicKey?: unknown;
-}
+const verifierAttestHost = requiredEnv("VERIFIER_ATTEST_HOST");
+const verifierAttestPin = requiredEnv("VERIFIER_ATTEST_PUBKEY_SHA256");
 
 function messageId(record: SQSRecord): { algorithmId: string; runId: string } | undefined {
   try {
@@ -43,32 +40,13 @@ async function persist(record: SQSRecord): Promise<void> {
     return;
   }
 
-  const attestation = await ddb.send(
-    new GetCommand({
-      TableName: attestationTable,
-      Key: { RunId: message.runId },
-      ConsistentRead: true,
-      ReturnConsumedCapacity: "TOTAL",
-    }),
-  );
-  if (typeof message.algorithmId === "string") {
-    await costEvent(
-      message.algorithmId,
-      message.runId,
-      CostPhase.Execution,
-      "dynamodb",
-      "read-capacity",
-      attestation.ConsumedCapacity?.CapacityUnits ?? 0,
-    );
-  }
-
-  const attested = attestation.Item as AttestedRun | undefined;
-  if (typeof attested?.AlgorithmId !== "string" || typeof attested.PublicKey !== "string") {
-    console.error("skipping result with no attested signing key", message.runId);
+  const attested = await fetchRunAttestation(verifierAttestHost, verifierAttestPin, message.runId);
+  if (!attested || attested.runId !== message.runId) {
+    console.error("skipping result with no matching run attestation", message.runId);
     return;
   }
 
-  const result = verifySignedResult(message, attested.AlgorithmId, attested.PublicKey);
+  const result = verifySignedResult(message, attested.algorithmId, attested.publicKey);
   if (!result) {
     console.error("skipping result with invalid signature", message.runId);
     return;

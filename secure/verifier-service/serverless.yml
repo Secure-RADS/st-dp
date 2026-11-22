@@ -38,7 +38,9 @@ provider:
             - dynamodb:UpdateItem
           Resource: !GetAtt AttestationChallengeTable.Arn
         - Effect: Allow
-          Action: dynamodb:PutItem
+          Action:
+            - dynamodb:PutItem
+            - dynamodb:GetItem
           Resource: !GetAtt RunAttestationTable.Arn
         - Effect: Allow
           Action: ssm:GetParameter
@@ -73,6 +75,10 @@ functions:
   # access JWTs against, locally, with no verifier round-trip (no /validate anymore).
   jwks:
     handler: src/handlers/jwks.handler
+
+  # result-consumer reads the public key recorded for one run.
+  runAttestation:
+    handler: src/handlers/runAttestation.handler
 
 resources:
   Conditions:
@@ -277,6 +283,29 @@ resources:
       Type: AWS::Lambda::Permission
       Properties:
         FunctionName: !Ref JwksLambdaFunction
+        Action: lambda:InvokeFunction
+        Principal: apigateway.amazonaws.com
+        SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicHttpApi}/*/*/*"
+
+    RunAttestationIntegration:
+      Type: AWS::ApiGatewayV2::Integration
+      Properties:
+        ApiId: !Ref PublicHttpApi
+        IntegrationType: AWS_PROXY
+        IntegrationUri: !GetAtt RunAttestationLambdaFunction.Arn
+        PayloadFormatVersion: "2.0"
+
+    RunAttestationRoute:
+      Type: AWS::ApiGatewayV2::Route
+      Properties:
+        ApiId: !Ref PublicHttpApi
+        RouteKey: "GET /runs/{runId}"
+        Target: !Sub "integrations/${RunAttestationIntegration}"
+
+    RunAttestationInvokePermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        FunctionName: !Ref RunAttestationLambdaFunction
         Action: lambda:InvokeFunction
         Principal: apigateway.amazonaws.com
         SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicHttpApi}/*/*/*"

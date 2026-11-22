@@ -111,7 +111,7 @@ SECURE-RADS-RESULT-CONSUMER(result)
 Input:
   result ← processing result returned by the SCE-UNIT
 1  SQS delivers result batch; invoke Lambda // receive is billed before the handler runs
-2  key ← GET-RUN-ATTESTATION(result.runId)  // public key verifier recorded at /attest
+2  key ← GET-VERIFIER-RUN-ATTESTATION(result.runId) // verifier GET /runs/{runId}
 3  if not VERIFY-SIGNATURE(key, result) then reject
 4  persist verified result to DynamoDB
 5  cost dynamodb:write-capacity; emit result-persisted

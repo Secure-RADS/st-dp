@@ -12,8 +12,8 @@ The enclave signs the result fields with the ephemeral key it registered during 
 
 For each message the `consume` Lambda:
 
-1. reads the run's attested public key from `RunAttestationTable`;
-2. verifies the signature and checks the signed `runId`/`algorithmId` match the attested run;
+1. fetches the run's attestation from verifier-service `GET /runs/{runId}`, pinned to the verifier leaf SPKI;
+2. checks the returned `runId` matches the message, then verifies the signature and signed `algorithmId`;
 3. `PutItem`s the verified fields (idempotent on `RunId`).
 
 A message with no valid `runId`, no attested key, or an invalid signature is skipped, not thrown, so it can't block the rest of the batch; it ages out to the DLQ. DynamoDB errors throw so the batch retries.
@@ -26,12 +26,9 @@ Bun is used as the local dev/bundle tool only (`bun install`) - the Lambda itsel
 
 ## Deploy
 
-Deploy verifier-service first, then pass its run-attestation table name:
+Deploy verifier-service first so `GET /runs/{runId}` exists, then set the usual environment:
 
 ```sh
-RUN_ATTESTATION_TABLE=$(aws cloudformation describe-stacks \
-  --stack-name secure-rads-verifier-service-dev \
-  --query "Stacks[0].Outputs[?OutputKey=='RunAttestationTableName'].OutputValue" --output text)
 bun install
-bunx serverless deploy --param="runAttestationTable=$RUN_ATTESTATION_TABLE"
+bunx serverless deploy
 ```

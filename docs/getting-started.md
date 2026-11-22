@@ -153,17 +153,12 @@ make -C secure/csav/registry-service gen-client-cert
   --param="certificateArn=$VERIFIER_CERT_ARN" \
   --param="publicDomainName=verifier-attest.sr.secure-rads.org" \
   --param="publicCertificateArn=$VERIFIER_ATTEST_CERT_ARN")
-RUN_ATTESTATION_TABLE=$(aws cloudformation describe-stacks --region "$REGION" \
-  --stack-name secure-rads-verifier-service-dev \
-  --query "Stacks[0].Outputs[?OutputKey=='RunAttestationTableName'].OutputValue" --output text)
 ```
 
-Deploy the result consumer next because it needs the verifier's run-attestation table to verify result signatures, and the execution-service stack needs its queue and table:
+Deploy the result consumer next because the execution-service stack needs its queue and table. It calls verifier-service's `/runs/{runId}` at runtime, so verifier-service must be deployed first:
 
 ```sh
-(cd secure/result-consumer && bun install && bunx serverless deploy \
-  --param="region=$REGION" \
-  --param="runAttestationTable=$RUN_ATTESTATION_TABLE")
+(cd secure/result-consumer && bun install && bunx serverless deploy --param="region=$REGION")
 ```
 
 Upload the truststore, then deploy verifier-service again with its immutable S3 object version:
