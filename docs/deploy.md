@@ -30,13 +30,10 @@ the discoverable values first.
 
 ```sh
 scripts/deploy.sh list
-scripts/deploy.sh deploy secure --dry-run
+scripts/deploy.sh deploy all
+scripts/deploy.sh deploy secure
 scripts/deploy.sh deploy rads rads/log-service
-scripts/deploy.sh deploy secure --skip-registry-image
 ```
-
-`--dry-run` prints the commands but still resolves inputs from AWS (read-only calls) and runs
-sequentially.
 
 ## Manual workflow
 

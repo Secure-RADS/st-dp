@@ -6,14 +6,10 @@ cd "$repo_root"
 
 usage() {
 	cat <<'EOF'
-usage: scripts/deploy.sh <list|deploy> [tree] [unit...] [options]
+usage: scripts/deploy.sh <list|deploy> [tree] [unit...]
 
   list                      print deployable units in dependency order
   deploy [tree] [unit...]   deploy a tree (all|secure|rads) or named units
-
-options:
-  --dry-run                 print commands without changing AWS
-  --skip-registry-image     skip the secure registry-service image build/ship
 
 tree defaults to all. Named units must come from `list`; missing dependencies
 are not deployed automatically. Units run in dependency-ordered waves, and every
@@ -35,7 +31,6 @@ need() {
 
 run() {
 	printf '+ %s\n' "$*"
-	[ "$dry_run" = 1 ] && return 0
 	"$@"
 }
 
@@ -68,10 +63,6 @@ cert_for() {
 sls() {
 	local dir="$1"
 	shift
-	if [ "$dry_run" = 1 ]; then
-		printf '+ (cd %s && bun install --frozen-lockfile && bunx serverless deploy %s)\n' "$dir" "$*"
-		return 0
-	fi
 	(
 		cd "$dir"
 		bun install --frozen-lockfile
@@ -92,12 +83,8 @@ ensure_env_file() {
 }
 
 load_env() {
-	if [ "$dry_run" = 1 ] && [ ! -f .env ]; then
-		region=${AWS_REGION:-ap-southeast-2}
-		return 0
-	fi
 	ensure_env_file
-	[ "$dry_run" = 1 ] || scripts/derive-env.sh >/dev/null
+	scripts/derive-env.sh >/dev/null
 	set -a
 	# shellcheck disable=SC1091
 	. ./.env
@@ -232,17 +219,12 @@ unit_secure_verifier_service() {
 		--param="publicCertificateArn=$public_cert"
 
 	truststore=secure/csav/registry-service/tls/client.crt
-	[ "$dry_run" = 1 ] || [ -f "$truststore" ] || die "$truststore is required for the verifier truststore"
-	if [ "$dry_run" = 1 ]; then
-		printf '+ aws s3api put-object --bucket <TruststoreBucketName> --key truststore.pem --body %s\n' "$truststore"
-		version="<versionId>"
-	else
-		version=$(aws s3api put-object \
-			--bucket "$(stack_output secure-rads-verifier-service-dev TruststoreBucketName)" \
-			--key truststore.pem \
-			--body "$truststore" \
-			--query VersionId --output text)
-	fi
+	[ -f "$truststore" ] || die "$truststore is required for the verifier truststore"
+	version=$(aws s3api put-object \
+		--bucket "$(stack_output secure-rads-verifier-service-dev TruststoreBucketName)" \
+		--key truststore.pem \
+		--body "$truststore" \
+		--query VersionId --output text)
 	sls secure/verifier-service \
 		--param="region=$region" \
 		--param="domainName=$VERIFIER_HOST" \
@@ -516,21 +498,16 @@ cmd=${1:-}
 }
 shift
 
-dry_run=0
-skip_registry_image=0
 positional=()
-while [ $# -gt 0 ]; do
-	case "$1" in
-	--dry-run) dry_run=1 ;;
-	--skip-registry-image) skip_registry_image=1 ;;
+for arg in "$@"; do
+	case "$arg" in
 	-h | --help)
 		usage
 		exit 0
 		;;
-	-*) die "unknown option: $1" ;;
-	*) positional+=("$1") ;;
+	-*) die "unknown option: $arg" ;;
+	*) positional+=("$arg") ;;
 	esac
-	shift
 done
 
 if [ "$cmd" = list ] || [ "$cmd" = --list ] || [ "$cmd" = -l ]; then
@@ -571,19 +548,5 @@ load_env
 
 mapfile -t plan < <(planned_units "$tree" "${positional[@]}")
 [ ${#plan[@]} -gt 0 ] || die "no units selected for tree $tree"
-if [ "$skip_registry_image" = 1 ]; then
-	filtered=()
-	for unit in "${plan[@]}"; do
-		[ "$unit" = secure/registry-image ] || filtered+=("$unit")
-	done
-	plan=("${filtered[@]}")
-fi
 
-if [ "$dry_run" = 0 ]; then
-	deploy_parallel
-else
-	for unit in "${plan[@]}"; do
-		printf '==> %s\n' "$unit"
-		deploy_unit "$unit"
-	done
-fi
+deploy_parallel
