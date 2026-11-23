@@ -92,6 +92,20 @@ The DNS helper creates DNS-only CNAME records:
 scripts/cloudflare-dns.sh <hostname> <api-gateway-target>
 ```
 
+### Working from a git worktree
+
+A worktree is a separate checkout, so the ignored `.env` and `.aws/` files from the primary checkout are not present there and every command fails looking for them. Do not copy the credentials. Resolve the primary checkout and link its files into the worktree:
+
+```sh
+main_root=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
+ln -s "$main_root/.env" .env
+mkdir -p .aws
+ln -s "$main_root/.aws/credentials" .aws/credentials
+ln -s "$main_root/.aws/config" .aws/config
+```
+
+The links sit inside ignored paths, so `git status` stays clean. Credentials are always read from the primary checkout's `.aws/` files, never from a second copy in the worktree.
+
 ## 3. Prepare the AWS account
 
 Before deployment, prepare the selected region with:

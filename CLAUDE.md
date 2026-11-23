@@ -118,6 +118,7 @@ This project has live AWS account access. Treat it as production-adjacent, not a
 - Never take destructive or state-changing AWS actions (delete/create/modify resources, IAM changes, deploys) without explicit user confirmation for that specific action.
 - Do not assume the account, region, or credentials in use — verify with `aws sts get-caller-identity` before acting if there's any doubt.
 - Flag use of the root account as a risk when relevant; do not treat root credentials as routine.
+- When working from a git worktree, credentials live in the primary checkout, not the worktree. Worktrees do not carry the ignored `.env`, `.aws/credentials`, or `.aws/config`. Resolve the primary checkout with `git rev-parse --path-format=absolute --git-common-dir` and inherit those files (symlink them into the worktree) instead of creating new credentials.
 
 ## Speed and Turnaround
 
