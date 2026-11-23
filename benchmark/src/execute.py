@@ -45,10 +45,9 @@ def generate() -> None:
 
 def _seed_env(tree: Tree, outputs: SeedOutputs, dataset: str) -> dict[str, str]:
     env = {"AWS_REGION": config.REGION, "SEED_DATASET": dataset}
+    env["PDM_TABLE_PREFIX"] = outputs[tree]["pdm"].get("PdmTablePrefix", "")
     if tree is Tree.RADS:
-        env["RADS_PDM_TABLE"] = outputs[Tree.RADS]["pdm"].get("PersonalDataTableName", "")
         return env
-    env["PDM_TABLE"] = outputs[Tree.SECURE_RADS]["pdm"].get("PersonalDataTableName", "")
     env["DATA_KEY_TABLE"] = outputs[Tree.SECURE_RADS]["pdm"].get("DataKeyTableName", "")
     env["ALGORITHM_TABLE"] = outputs[Tree.SECURE_RADS]["registry_storage"].get("AlgorithmTableName", "")
     return env

@@ -1,6 +1,6 @@
 # rads-pdm-service
 
-Serverless Framework v4, TypeScript. The Personal Data Management Service for the baseline: stores per-user personal-data records keyed by `AlgorithmId` in DynamoDB as plaintext JSON and serves them to the executor.
+Serverless Framework v4, TypeScript. The Personal Data Management Service for the baseline: stores per-user personal-data records as plaintext JSON in one DynamoDB table per algorithm, named `<PDM_TABLE_PREFIX>-<algorithmId>`, and serves them to the executor. The stack does not own the tables; seeding creates them.
 
 ## Endpoints
 

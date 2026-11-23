@@ -5,7 +5,8 @@ import { requiredEnv } from "@srads/common/env";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
-const table = requiredEnv("PDM_TABLE");
+const tablePrefix = requiredEnv("PDM_TABLE_PREFIX");
+const ALGORITHM_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const PAGE_SIZE = 500;
 const MAX_QUERY_ATTEMPTS = 8;
@@ -44,6 +45,9 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   if (!algorithmId) {
     return jsonResponse(400, { error: "missing algorithmId" });
   }
+  if (!ALGORITHM_ID.test(algorithmId)) {
+    return jsonResponse(400, { error: "invalid algorithmId" });
+  }
   const runId = event.headers["x-run-id"] ?? "";
 
   let exclusiveStartKey: Record<string, unknown> | undefined;
@@ -57,7 +61,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
 
   const result = await queryWithRetry(
     new QueryCommand({
-      TableName: table,
+      TableName: `${tablePrefix}-${algorithmId}`,
       KeyConditionExpression: "AlgorithmId = :a",
       ExpressionAttributeValues: { ":a": algorithmId },
       Limit: PAGE_SIZE,

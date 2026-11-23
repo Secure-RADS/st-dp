@@ -93,8 +93,8 @@ instance_ip = $(shell aws ec2 describe-instances --region $(REGION) --instance-i
 CSAV_IP = $(call instance_ip,secure-rads-csav,CsavInstanceId)
 EXECUTION_API_URL = $(shell aws cloudformation describe-stacks --stack-name secure-rads-execution-service-dev --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='ExecutionApiUrl'].OutputValue" --output text)
-PDM_TABLE = $(shell aws cloudformation describe-stacks --stack-name secure-rads-pdm-service-dev --region $(REGION) \
-	--query "Stacks[0].Outputs[?OutputKey=='PersonalDataTableName'].OutputValue" --output text)
+PDM_TABLE_PREFIX = $(shell aws cloudformation describe-stacks --stack-name secure-rads-pdm-service-dev --region $(REGION) \
+	--query "Stacks[0].Outputs[?OutputKey=='PdmTablePrefix'].OutputValue" --output text)
 DATA_KEY_TABLE = $(shell aws cloudformation describe-stacks --stack-name secure-rads-pdm-service-dev --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='DataKeyTableName'].OutputValue" --output text)
 # registry-service stores each algorithm's per-algo KMS key ARN here; seeding reads it to encrypt the records.
@@ -198,7 +198,7 @@ secure-rads-ready:
 # envelope-encrypted under each algorithm's per-algo KMS key, so the algorithm must be built first
 # (make secure-rads-build), which provisions that key and stores its ARN in the AlgorithmTable.
 secure-rads-seed:
-	cd seeding && bun install && bun run generate && PDM_TABLE=$(PDM_TABLE) DATA_KEY_TABLE=$(DATA_KEY_TABLE) ALGORITHM_TABLE=$(ALGORITHM_TABLE) AWS_REGION=$(REGION) bun run seed-secure-rads
+	cd seeding && bun install && bun run generate && PDM_TABLE_PREFIX=$(PDM_TABLE_PREFIX) DATA_KEY_TABLE=$(DATA_KEY_TABLE) ALGORITHM_TABLE=$(ALGORITHM_TABLE) AWS_REGION=$(REGION) bun run seed-secure-rads
 
 # Build phase (one app): make secure-rads-build APP=<dir> ALGORITHM_ID=<id>.
 # Builds the arm64 image, ships it to the csav host, and registers it under ALGORITHM_ID.
@@ -262,8 +262,8 @@ RADS_REGISTRY_URL = $(shell aws cloudformation describe-stacks --stack-name rads
 	--query "Stacks[0].Outputs[?OutputKey=='HttpApiUrl'].OutputValue" --output text)
 RADS_EXECUTION_API_URL = $(shell aws cloudformation describe-stacks --stack-name rads-execution-service-dev --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='HttpApiUrl'].OutputValue" --output text)
-RADS_PDM_TABLE = $(shell aws cloudformation describe-stacks --stack-name rads-pdm-service-dev --region $(REGION) \
-	--query "Stacks[0].Outputs[?OutputKey=='PersonalDataTableName'].OutputValue" --output text)
+RADS_PDM_TABLE_PREFIX = $(shell aws cloudformation describe-stacks --stack-name rads-pdm-service-dev --region $(REGION) \
+	--query "Stacks[0].Outputs[?OutputKey=='PdmTablePrefix'].OutputValue" --output text)
 
 # Build phase (one app): make rads-build APP=<dir> ALGORITHM_ID=<id>.
 # Builds the arm64 image, gets a presigned S3 PUT URL from /upload, uploads the tarball straight to S3, then
@@ -290,7 +290,7 @@ rads-build-all:
 
 # Seed all five context datasets into the rads PDM table as plaintext, each under its fixed algorithmId.
 rads-seed:
-	cd seeding && bun install && bun run generate && RADS_PDM_TABLE=$(RADS_PDM_TABLE) AWS_REGION=$(REGION) bun run seed-rads
+	cd seeding && bun install && bun run generate && PDM_TABLE_PREFIX=$(RADS_PDM_TABLE_PREFIX) AWS_REGION=$(REGION) bun run seed-rads
 
 # Execution phase (one run): make rads-run ALGORITHM_ID=<id>.
 # Fires /run (202 + runId), then polls GET /run/{runId} until the runner reports back.
