@@ -45,7 +45,7 @@ bunx serverless deploy \
   --param="runResultsQueueUrl=<rads-run-results queue URL>" \
   --param="runResultsQueueArn=<rads-run-results queue ARN>" \
   --param="pdmUrl=https://pdm.example.org" \
-  --param="pdmTable=rads-personal-data" \
+  --param="pdmTablePrefix=rads-personal-data" \
   --param="vpcId=<VPC id>"
 ```
 

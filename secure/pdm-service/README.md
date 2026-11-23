@@ -1,6 +1,6 @@
 # pdm-service
 
-Serverless Framework v4, TypeScript. The Personal Data Management Service: stores per-user personal-data records keyed by `AlgorithmId` in DynamoDB and serves them to an attested enclave.
+Serverless Framework v4, TypeScript. The Personal Data Management Service: stores per-user personal-data records in one DynamoDB table per algorithm, named `<PDM_TABLE_PREFIX>-<algorithmId>`, and serves them to an attested enclave. Seeding creates the tables and encrypts each one at rest with a dedicated per-algorithm table key, separate from the PCR-bound enclave key.
 
 ## Endpoints
 

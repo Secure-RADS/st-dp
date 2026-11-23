@@ -22,7 +22,7 @@ const enclaveInstanceProfileArn = requiredEnv("ENCLAVE_INSTANCE_PROFILE_ARN");
 const verifierHost = requiredEnv("VERIFIER_HOST");
 const pdmHost = requiredEnv("PDM_HOST");
 const kmsServiceHost = requiredEnv("KMS_SERVICE_HOST");
-const pdmTable = requiredEnv("PDM_TABLE");
+const pdmTablePrefix = requiredEnv("PDM_TABLE_PREFIX");
 const logHost = requiredEnv("LOG_HOST");
 const telemetryHost = requiredEnv("TELEMETRY_HOST");
 const costHost = requiredEnv("COST_HOST");
@@ -108,7 +108,7 @@ export const create: APIGatewayProxyHandlerV2 = async (event) => {
         try {
           const { count: available, readCapacityUnits } = await countAlgorithmRecords(
             ddb,
-            pdmTable,
+            `${pdmTablePrefix}-${request.algorithmId}`,
             request.algorithmId,
             request.size,
           );

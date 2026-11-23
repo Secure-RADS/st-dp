@@ -15,7 +15,7 @@ const algorithmTable = requiredEnv("ALGORITHM_TABLE");
 const runResultsTable = requiredEnv("RUN_RESULTS_TABLE");
 const runResultsQueueUrl = requiredEnv("RUN_RESULTS_QUEUE_URL");
 const pdmUrl = requiredEnv("PDM_URL");
-const pdmTable = requiredEnv("PDM_TABLE");
+const pdmTablePrefix = requiredEnv("PDM_TABLE_PREFIX");
 const logHost = requiredEnv("LOG_HOST");
 const telemetryHost = requiredEnv("TELEMETRY_HOST");
 const costHost = requiredEnv("COST_HOST");
@@ -106,7 +106,7 @@ export const create: APIGatewayProxyHandlerV2 = async (event) => {
         try {
           const { count: available, readCapacityUnits } = await countAlgorithmRecords(
             ddb,
-            pdmTable,
+            `${pdmTablePrefix}-${request.algorithmId}`,
             request.algorithmId,
             request.size,
           );

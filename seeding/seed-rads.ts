@@ -1,8 +1,9 @@
 import { readDatasetMeta, resolveSeedNames, streamDatasetRecords } from "./lib/datasets";
-import { documentClient, writeAll } from "./lib/dynamo";
+import { documentClient, dynamoClient, writeAll } from "./lib/dynamo";
 import { requireEnv } from "./lib/env";
+import { ensurePdmTable, pdmTableName } from "./lib/tables";
 
-const table = requireEnv("RADS_PDM_TABLE");
+const tablePrefix = requireEnv("PDM_TABLE_PREFIX");
 const BATCH_SIZE = 25;
 const flushEvery = Math.max(25, Number(process.env.SEED_FLUSH_BATCHES ?? 400));
 const pipelineDepth = Math.max(1, Number(process.env.SEED_PIPELINE ?? 2));
@@ -10,9 +11,12 @@ const skip = Math.max(0, Number(process.env.SEED_SKIP ?? 0));
 
 const region = process.env.AWS_REGION ?? "ap-southeast-2";
 const client = documentClient(region);
+const tables = dynamoClient(region);
 
 for (const name of resolveSeedNames()) {
   const meta = await readDatasetMeta(name);
+  const table = pdmTableName(tablePrefix, meta.algorithmId);
+  await ensurePdmTable(tables, table);
   const progress = { written: skip, total: meta.expectedCount };
   console.log(
     `${meta.name} (${meta.algorithmId}): seeding${meta.expectedCount ? ` ${meta.expectedCount}` : ""} records` +

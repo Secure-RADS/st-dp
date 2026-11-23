@@ -6,7 +6,8 @@ import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { verifyAccessToken } from "../lib/jwt.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
-const table = requiredEnv("PDM_TABLE");
+const tablePrefix = requiredEnv("PDM_TABLE_PREFIX");
+const ALGORITHM_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const PAGE_SIZE = 500;
 const MAX_QUERY_ATTEMPTS = 8;
@@ -51,6 +52,9 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   if (!validation) {
     return jsonResponse(401, { error: "invalid token" });
   }
+  if (!ALGORITHM_ID.test(validation.algorithmId)) {
+    return jsonResponse(401, { error: "invalid token" });
+  }
   const runId = validation.runId;
 
   let exclusiveStartKey: Record<string, unknown> | undefined;
@@ -64,7 +68,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
 
   const result = await queryWithRetry(
     new QueryCommand({
-      TableName: table,
+      TableName: `${tablePrefix}-${validation.algorithmId}`,
       KeyConditionExpression: "AlgorithmId = :a",
       ExpressionAttributeValues: { ":a": validation.algorithmId },
       Limit: PAGE_SIZE,

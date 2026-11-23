@@ -19,9 +19,9 @@ provider:
       statements:
         - Effect: Allow
           Action: dynamodb:Query
-          Resource: !GetAtt PersonalDataTable.Arn
+          Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/secure-rads-personal-data-*"
   environment:
-    PDM_TABLE: !Ref PersonalDataTable
+    PDM_TABLE_PREFIX: secure-rads-personal-data
     LOG_HOST: ${env:LOG_HOST_SECURE_RADS}
     COST_HOST: ${env:COST_HOST_SECURE_RADS}
     VERIFIER_JWKS_URL: ${env:VERIFIER_JWKS_URL}
@@ -45,21 +45,6 @@ functions:
 
 resources:
   Resources:
-    PersonalDataTable:
-      Type: AWS::DynamoDB::Table
-      Properties:
-        BillingMode: PAY_PER_REQUEST
-        AttributeDefinitions:
-          - AttributeName: AlgorithmId
-            AttributeType: S
-          - AttributeName: RecordId
-            AttributeType: S
-        KeySchema:
-          - AttributeName: AlgorithmId
-            KeyType: HASH
-          - AttributeName: RecordId
-            KeyType: RANGE
-
     DataKeyTable:
       Type: AWS::DynamoDB::Table
       Properties:
@@ -88,8 +73,8 @@ resources:
         Stage: !Ref HttpApiStage
 
   Outputs:
-    PersonalDataTableName:
-      Value: !Ref PersonalDataTable
+    PdmTablePrefix:
+      Value: secure-rads-personal-data
     DataKeyTableName:
       Value: !Ref DataKeyTable
     ApiRegionalDomainName:

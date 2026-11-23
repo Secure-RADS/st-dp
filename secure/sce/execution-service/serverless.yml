@@ -24,7 +24,7 @@ provider:
             - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${param:runResultsTable}"
         - Effect: Allow
           Action: dynamodb:Query
-          Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${param:pdmTable}"
+          Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${param:pdmTablePrefix}-*"
         - Effect: Allow
           Action: ec2:RunInstances
           Resource:
@@ -57,7 +57,7 @@ provider:
     VERIFIER_HOST: ${env:VERIFIER_ATTEST_HOST}
     PDM_HOST: ${env:PDM_HOST}
     KMS_SERVICE_HOST: ${env:KMS_HOST}
-    PDM_TABLE: ${param:pdmTable}
+    PDM_TABLE_PREFIX: ${param:pdmTablePrefix}
     LOG_HOST: ${env:LOG_HOST_SECURE_RADS}
     TELEMETRY_HOST: ${env:TELEMETRY_HOST_SECURE_RADS}
     COST_HOST: ${env:COST_HOST_SECURE_RADS}

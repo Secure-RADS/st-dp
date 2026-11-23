@@ -10,8 +10,8 @@ ARTIFACT_BUCKET = $(shell aws cloudformation describe-stacks --stack-name secure
 	--query "Stacks[0].Outputs[?OutputKey=='ArtifactBucketName'].OutputValue" --output text)
 ALGORITHM_TABLE = $(shell aws cloudformation describe-stacks --stack-name secure-rads-registry-service-storage --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='AlgorithmTableName'].OutputValue" --output text)
-PDM_TABLE = $(shell aws cloudformation describe-stacks --stack-name secure-rads-pdm-service-dev --region $(REGION) \
-	--query "Stacks[0].Outputs[?OutputKey=='PersonalDataTableName'].OutputValue" --output text)
+PDM_TABLE_PREFIX = $(shell aws cloudformation describe-stacks --stack-name secure-rads-pdm-service-dev --region $(REGION) \
+	--query "Stacks[0].Outputs[?OutputKey=='PdmTablePrefix'].OutputValue" --output text)
 RUN_RESULTS_QUEUE_ARN = $(shell aws cloudformation describe-stacks --stack-name secure-rads-result-consumer-dev --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='RunResultsQueueArn'].OutputValue" --output text)
 RUN_RESULTS_TABLE = $(shell aws cloudformation describe-stacks --stack-name secure-rads-result-consumer-dev --region $(REGION) \
@@ -29,7 +29,7 @@ deploy: env-check
 		--param="vpcId=$(DEFAULT_VPC_ID)" \
 		--param="artifactBucket=$(ARTIFACT_BUCKET)" \
 		--param="algorithmTable=$(ALGORITHM_TABLE)" \
-		--param="pdmTable=$(PDM_TABLE)" \
+		--param="pdmTablePrefix=$(PDM_TABLE_PREFIX)" \
 		--param="runResultsQueueArn=$(RUN_RESULTS_QUEUE_ARN)" \
 		--param="runResultsQueueUrl=$(RUN_RESULTS_QUEUE_URL)" \
 		--param="runResultsTable=$(RUN_RESULTS_TABLE)" \
