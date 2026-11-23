@@ -88,7 +88,7 @@ set_key TELEMETRY_HOST_PUBKEY_SHA256 "$(pin_for "$telemetry_host")"
 
 pdm_function=$(aws lambda list-functions --region "$region" \
     --query "Functions[?starts_with(FunctionName, 'secure-rads-pdm-service')].FunctionName" \
-    --output text | head -n1)
+    --output text | awk 'NF {print $1; exit}')
 
 if [ -n "$pdm_function" ] && [ "$pdm_function" != "None" ]; then
     jwks_sha=$(aws lambda get-function-configuration --region "$region" \

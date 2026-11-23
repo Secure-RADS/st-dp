@@ -41,18 +41,37 @@ stack_output() {
 	printf '%s' "$value"
 }
 
+host_matches() {
+	local host="$1" pattern="$2" suffix
+	[ "$host" = "$pattern" ] && return 0
+	case "$pattern" in
+	'*.'*)
+		suffix=${pattern#\*.}
+		case "$host" in
+		*".$suffix")
+			local prefix=${host%".$suffix"}
+			[ -n "$prefix" ] && [[ "$prefix" != *.* ]] && return 0
+			;;
+		esac
+		;;
+	esac
+	return 1
+}
+
 cert_for() {
-	local host="$1" acm_region="${2:-$region}" arn candidate
+	local host="$1" acm_region="${2:-$region}" arn candidate name
 	arn=$(aws acm list-certificates --region "$acm_region" --certificate-statuses ISSUED \
 		--query "CertificateSummaryList[?DomainName=='$host'].CertificateArn | [0]" --output text)
 	if [ -z "$arn" ] || [ "$arn" = None ]; then
 		for candidate in $(aws acm list-certificates --region "$acm_region" \
 			--certificate-statuses ISSUED --query 'CertificateSummaryList[].CertificateArn' --output text); do
-			if aws acm describe-certificate --region "$acm_region" --certificate-arn "$candidate" \
-				--query 'Certificate.SubjectAlternativeNames' --output text | tr '\t' '\n' | grep -qx "$host"; then
-				arn=$candidate
-				break
-			fi
+			for name in $(aws acm describe-certificate --region "$acm_region" --certificate-arn "$candidate" \
+				--query 'Certificate.[DomainName,SubjectAlternativeNames]' --output text); do
+				if host_matches "$host" "$name"; then
+					arn=$candidate
+					break 2
+				fi
+			done
 		done
 	fi
 	[ -n "$arn" ] && [ "$arn" != None ] || die "no ISSUED ACM certificate for $host in $acm_region"
@@ -89,6 +108,13 @@ load_env() {
 	. ./.env
 	set +a
 	region=${AWS_REGION:-ap-southeast-2}
+}
+
+prepare_deps() {
+	(
+		cd packages/common
+		bun install --frozen-lockfile
+	)
 }
 
 units_secure=(
@@ -249,6 +275,7 @@ unit_secure_registry_image() {
 }
 
 unit_secure_transparency_portal() {
+	run make -C secure/transparency-portal install
 	run make -C secure/transparency-portal deploy-infra
 	run make -C secure/transparency-portal deploy
 }
@@ -336,6 +363,7 @@ unit_rads_execution_service() {
 }
 
 unit_rads_transparency_portal() {
+	run make -C rads/transparency-portal install
 	run make -C rads/transparency-portal deploy-infra
 	run make -C rads/transparency-portal deploy
 }
@@ -511,6 +539,7 @@ for requested in "${positional[@]}"; do
 done
 
 load_env
+prepare_deps
 
 mapfile -t plan < <(planned_units "$tree" "${positional[@]}")
 [ ${#plan[@]} -gt 0 ] || die "no units selected for tree $tree"
