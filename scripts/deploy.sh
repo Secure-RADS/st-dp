@@ -6,14 +6,13 @@ cd "$repo_root"
 
 usage() {
 	cat <<'EOF'
-usage: scripts/deploy.sh <list|deploy> [tree] [unit...]
+usage: scripts/deploy.sh deploy [tree] [unit...]
 
-  list                      print deployable units in dependency order
   deploy [tree] [unit...]   deploy a tree (all|secure|rads) or named units
 
-tree defaults to all. Named units must come from `list`; missing dependencies
-are not deployed automatically. Units run in dependency-ordered waves, and every
-unit in a wave runs at the same time.
+tree defaults to all. Named units come from the unit lists in this script;
+missing dependencies are not deployed automatically. Units run in
+dependency-ordered waves, and every unit in a wave runs at the same time.
 EOF
 }
 
@@ -140,32 +139,6 @@ declare -A DEPENDS=(
 	[rads/sce/execution-service]="rads/csav/registry-service rads/result-consumer rads/pdm-service"
 	[rads/transparency-portal]=""
 )
-
-describe_unit() {
-	case "$1" in
-	secure/storage) echo "S3 artifact bucket + algorithms table (CloudFormation)" ;;
-	secure/result-consumer) echo "run-results queue + table (serverless)" ;;
-	secure/log-service) echo "subject-access log API (serverless)" ;;
-	secure/telemetry-service) echo "run timeline API (serverless)" ;;
-	secure/cost-service) echo "cost API (serverless)" ;;
-	secure/verifier-service) echo "attestation + JWKS APIs, truststore (serverless, two-pass)" ;;
-	secure/pdm-service) echo "personal data API (serverless)" ;;
-	secure/kms-service) echo "KMS broker API (serverless)" ;;
-	secure/csav) echo "CSAV EC2 host (CloudFormation)" ;;
-	secure/sce/execution-service) echo "enclave execution API (serverless)" ;;
-	secure/registry-image) echo "registry-service container image build + ship" ;;
-	secure/transparency-portal) echo "transparency SPA (CloudFormation + S3 + CloudFront)" ;;
-	rads/result-consumer) echo "run-results queue + table (serverless)" ;;
-	rads/log-service) echo "subject-access log API (serverless)" ;;
-	rads/telemetry-service) echo "run timeline API (serverless)" ;;
-	rads/cost-service) echo "cost API (serverless)" ;;
-	rads/pdm-service) echo "personal data API (serverless)" ;;
-	rads/csav/registry-service) echo "images bucket + algorithms table + registry API (serverless)" ;;
-	rads/sce/execution-service) echo "executor control plane (serverless)" ;;
-	rads/transparency-portal) echo "transparency SPA (CloudFormation + S3 + CloudFront)" ;;
-	*) echo "unknown unit" ;;
-	esac
-}
 
 unit_secure_storage() {
 	run make -C secure/csav/registry-service deploy-storage
@@ -395,7 +368,7 @@ deploy_unit() {
 	rads/csav/registry-service) unit_rads_registry_service ;;
 	rads/sce/execution-service) unit_rads_execution_service ;;
 	rads/transparency-portal) unit_rads_transparency_portal ;;
-	*) die "unknown unit: $1 (run 'scripts/deploy.sh list')" ;;
+	*) die "unknown unit: $1" ;;
 	esac
 }
 
@@ -510,13 +483,6 @@ for arg in "$@"; do
 	esac
 done
 
-if [ "$cmd" = list ] || [ "$cmd" = --list ] || [ "$cmd" = -l ]; then
-	for unit in "${units_secure[@]}" "${units_rads[@]}"; do
-		printf '%-34s %s\n' "$unit" "$(describe_unit "$unit")"
-	done
-	exit 0
-fi
-
 [ "$cmd" = deploy ] || {
 	usage
 	exit 1
@@ -541,7 +507,7 @@ for requested in "${positional[@]}"; do
 	for unit in "${allowed[@]}"; do
 		[ "$requested" = "$unit" ] && known=1 && break
 	done
-	[ "$known" = 1 ] || die "unknown unit for tree $tree: $requested (run 'scripts/deploy.sh list')"
+	[ "$known" = 1 ] || die "unknown unit for tree $tree: $requested"
 done
 
 load_env

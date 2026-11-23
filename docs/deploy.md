@@ -10,8 +10,7 @@ algorithms, or manage Cloudflare DNS.
 
 ## Units
 
-`scripts/deploy.sh list` prints the units in dependency order. The same order is used by the
-workflow.
+The lists below reflect the dependency order the script uses.
 
 | Tree | Units |
 | --- | --- |
@@ -29,7 +28,6 @@ The script reads the root `.env` (see `.env.example`) like the Makefiles do. `ma
 the discoverable values first.
 
 ```sh
-scripts/deploy.sh list
 scripts/deploy.sh deploy all
 scripts/deploy.sh deploy secure
 scripts/deploy.sh deploy rads rads/log-service
