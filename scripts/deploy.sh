@@ -14,11 +14,10 @@ usage: scripts/deploy.sh <list|deploy> [tree] [unit...] [options]
 options:
   --dry-run                 print commands without changing AWS
   --skip-registry-image     skip the secure registry-service image build/ship
-  --jobs N                  deploy up to N independent units at once (default 4)
-  --sequential              deploy one unit at a time
 
 tree defaults to all. Named units must come from `list`; missing dependencies
-are not deployed automatically. Units run in dependency-ordered waves.
+are not deployed automatically. Units run in dependency-ordered waves, and every
+unit in a wave runs at the same time.
 EOF
 }
 
@@ -436,35 +435,27 @@ unit_in_plan() {
 }
 
 run_wave() {
-	local jobs="$1"
-	shift
-	local -a wave=("$@") batch=() pids=() logs=()
-	local i j fail unit log
-	for ((i = 0; i < ${#wave[@]}; i += jobs)); do
-		batch=("${wave[@]:i:jobs}")
-		pids=()
-		logs=()
-		for unit in "${batch[@]}"; do
-			log=$(mktemp)
-			(deploy_unit "$unit") >"$log" 2>&1 &
-			pids+=("$!")
-			logs+=("$log")
-		done
-		fail=0
-		for j in "${!pids[@]}"; do
-			wait "${pids[$j]}" || fail=1
-		done
-		for j in "${!batch[@]}"; do
-			printf '==> %s\n' "${batch[$j]}"
-			cat "${logs[$j]}"
-			rm -f "${logs[$j]}"
-		done
-		[ "$fail" = 0 ] || die "one or more units failed"
+	local -a wave=("$@") pids=() logs=()
+	local i fail unit log
+	for unit in "${wave[@]}"; do
+		log=$(mktemp)
+		(deploy_unit "$unit") >"$log" 2>&1 &
+		pids+=("$!")
+		logs+=("$log")
 	done
+	fail=0
+	for i in "${!pids[@]}"; do
+		wait "${pids[$i]}" || fail=1
+	done
+	for i in "${!wave[@]}"; do
+		printf '==> %s\n' "${wave[$i]}"
+		cat "${logs[$i]}"
+		rm -f "${logs[$i]}"
+	done
+	[ "$fail" = 0 ] || die "one or more units failed"
 }
 
 deploy_parallel() {
-	local jobs="$1"
 	local -a remaining=("${plan[@]}") completed=() wave=() next=()
 	local unit dep ok
 	while [ ${#remaining[@]} -gt 0 ]; do
@@ -481,7 +472,7 @@ deploy_parallel() {
 			[ "$ok" = 1 ] && wave+=("$unit")
 		done
 		[ ${#wave[@]} -gt 0 ] || die "dependency cycle among: ${remaining[*]}"
-		run_wave "$jobs" "${wave[@]}"
+		run_wave "${wave[@]}"
 		completed+=("${wave[@]}")
 		next=()
 		for unit in "${remaining[@]}"; do
@@ -527,18 +518,11 @@ shift
 
 dry_run=0
 skip_registry_image=0
-jobs=4
 positional=()
 while [ $# -gt 0 ]; do
 	case "$1" in
 	--dry-run) dry_run=1 ;;
 	--skip-registry-image) skip_registry_image=1 ;;
-	--jobs)
-		[ $# -ge 2 ] || die "--jobs needs a value"
-		jobs=$2
-		shift
-		;;
-	--sequential) jobs=1 ;;
 	-h | --help)
 		usage
 		exit 0
@@ -548,7 +532,6 @@ while [ $# -gt 0 ]; do
 	esac
 	shift
 done
-[[ "$jobs" =~ ^[1-9][0-9]*$ ]] || die "--jobs must be a positive integer"
 
 if [ "$cmd" = list ] || [ "$cmd" = --list ] || [ "$cmd" = -l ]; then
 	for unit in "${units_secure[@]}" "${units_rads[@]}"; do
@@ -596,8 +579,8 @@ if [ "$skip_registry_image" = 1 ]; then
 	plan=("${filtered[@]}")
 fi
 
-if [ "$jobs" -gt 1 ] && [ "$dry_run" = 0 ]; then
-	deploy_parallel "$jobs"
+if [ "$dry_run" = 0 ]; then
+	deploy_parallel
 else
 	for unit in "${plan[@]}"; do
 		printf '==> %s\n' "$unit"

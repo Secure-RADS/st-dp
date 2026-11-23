@@ -21,8 +21,7 @@ workflow.
 A full tree deploy runs every unit. Named units deploy only what you name; dependencies are not
 deployed automatically.
 
-Units deploy in dependency-ordered waves. Independent units in a wave run concurrently, up to
-`--jobs` (default 4). `--sequential` runs one at a time.
+Units deploy in dependency-ordered waves. Every unit in a wave runs at the same time.
 
 ## Local use
 
@@ -34,24 +33,18 @@ scripts/deploy.sh list
 scripts/deploy.sh deploy secure --dry-run
 scripts/deploy.sh deploy rads rads/log-service
 scripts/deploy.sh deploy secure --skip-registry-image
-scripts/deploy.sh deploy secure --sequential
-scripts/deploy.sh deploy secure --jobs 2
 ```
 
-`--dry-run` prints the commands but still resolves inputs from AWS (read-only calls) and always
-runs sequentially.
+`--dry-run` prints the commands but still resolves inputs from AWS (read-only calls) and runs
+sequentially.
 
 ## Manual workflow
 
-Run `deploy` from the Actions tab (`workflow_dispatch`). Inputs:
+Run `deploy` from the Actions tab (`workflow_dispatch`). It takes no inputs: it deploys both trees,
+every unit, including the secure registry-service image.
 
-- `tree`: `all`, `secure`, or `rads`.
-- `units`: optional space-separated unit names, for example `secure/log-service secure/pdm-service`.
-- `dry_run`: print commands without changing AWS.
-- `registry_image`: build and ship the secure registry-service image (default on).
-
-Deploys are serialized per branch with a concurrency group. Within a run, independent units deploy
-in parallel waves (`--jobs 4`).
+Deploys are serialized per branch with a concurrency group. Within a run, every independent unit in
+a wave deploys at the same time.
 
 ## Authentication
 
