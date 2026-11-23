@@ -50,16 +50,14 @@ Input:
 4  cost s3:get                          // EIF pull
 5  EIF ← GET-S3(key)
 6  emit artifact-retrieved              // direct, auth none
-7  start vsock listeners                // output :5000, runInfo :5001
+7  start vsock listeners                // runInfo :5001, creds :5002
 8  configure vsock-proxy
 9  RUN-ENCLAVE(EIF)
 10 emit enclave-launched                 // direct, auth none
 11 wait for enclave exit
-12 publish signed result to SQS      // host forwards the enclave-signed envelope
-13 cost sqs:send                        // message bytes
-14 emit executor-finished               // direct, auth none
-15 cost ec2:instance                    // captured before the cost POST and terminate request
-16 terminate instance
+12 emit executor-finished               // direct, auth none
+13 cost ec2:instance                    // captured before the cost POST and terminate request
+14 terminate instance
 
 
 SCE-UNIT(a)
@@ -87,9 +85,11 @@ Input:
 20 wait for nsjail exit
 21 output ← read /data/result.json
 22 emit dc-app-completed               // on success, else run-failed
-23 SIGN result and STREAM to parent    // signature key registered at attestation, vsock :5000
-24 emit output-sent
-25 // on failure: emit run-failed
+23 SIGN result                         // signature key registered at attestation
+24 SEND signed envelope to SQS          // host-role credentials over vsock :5002, TLS to SQS
+25 cost sqs:send
+26 emit output-sent
+27 // on failure: emit run-failed
 
 
 

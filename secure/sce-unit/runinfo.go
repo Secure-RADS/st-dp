@@ -14,11 +14,15 @@ import (
 // no other way to learn the per-run id it was launched for (the EIF only carries the per-algorithm config).
 const hostRunIDPort = 5001
 
-// runInfo is the per-run data the host serves on hostRunIDPort: the run id and how many records to read
-// (0 = the whole dataset). The enclave takes no user-data, so this is its only source for both.
+// runInfo is the per-run data the host serves on hostRunIDPort: the run id, record limit (0 = whole
+// dataset), instance id, region, and run-results queue URL. The enclave takes no user-data, so this is its
+// only source for all of them.
 type runInfo struct {
-	RunID string `json:"runId"`
-	Size  int    `json:"size"`
+	RunID      string `json:"runId"`
+	Size       int    `json:"size"`
+	InstanceID string `json:"instanceId"`
+	Region     string `json:"region"`
+	QueueURL   string `json:"queueUrl"`
 }
 
 func readRunInfo() (runInfo, error) {
@@ -65,6 +69,9 @@ func readRunInfo() (runInfo, error) {
 	}
 	if info.RunID == "" || info.Size < 0 {
 		return runInfo{}, fmt.Errorf("invalid run-info: runId must be nonempty and size must be nonnegative")
+	}
+	if info.InstanceID == "" || info.Region == "" || info.QueueURL == "" {
+		return runInfo{}, fmt.Errorf("invalid run-info: instanceId, region, and queueUrl must be nonempty")
 	}
 	return info, nil
 }

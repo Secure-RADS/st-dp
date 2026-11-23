@@ -23,6 +23,7 @@ type resultPayload struct {
 type signedResult struct {
 	RunID       string `json:"runId"`
 	AlgorithmID string `json:"algorithmId"`
+	InstanceID  string `json:"instanceId,omitempty"`
 	Payload     string `json:"payload"`
 	Signature   string `json:"signature"`
 }
@@ -46,7 +47,7 @@ func getResultSigner() *ecdsa.PrivateKey {
 
 // sendResult signs the enclave-owned result fields and streams the envelope to the host. The host may add
 // instanceId, but it cannot change the signed payload or signature without the consumer rejecting it.
-func sendResult(p resultPayload) error {
+func sendResult(info runInfo, p resultPayload) error {
 	key := getResultSigner()
 	if key == nil {
 		return fmt.Errorf("no result signing key: enclave has not attested")
@@ -65,11 +66,12 @@ func sendResult(p resultPayload) error {
 	envelope, err := json.Marshal(signedResult{
 		RunID:       p.RunID,
 		AlgorithmID: p.AlgorithmID,
+		InstanceID:  info.InstanceID,
 		Payload:     base64.StdEncoding.EncodeToString(payload),
 		Signature:   base64.StdEncoding.EncodeToString(signature),
 	})
 	if err != nil {
 		return fmt.Errorf("marshal signed result: %w", err)
 	}
-	return sendOutput(envelope)
+	return sendSQSResult(info, envelope)
 }

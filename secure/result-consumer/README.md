@@ -4,11 +4,11 @@ Serverless Framework v4, TypeScript. The consumer half of the async run-result f
 
 ## Resources
 
-- `RunResultsQueue` - standard SQS queue the enclave host forwards signed run results to. 60s visibility timeout, 14-day retention, redrive to `RunResultsDLQ` after 3 receives.
+- `RunResultsQueue` - standard SQS queue sce-unit sends signed run results to. 60s visibility timeout, 14-day retention, redrive to `RunResultsDLQ` after 3 receives.
 - `RunResultsDLQ` - dead-letter queue for messages that keep failing.
 - `RunResultsTable` - PAY_PER_REQUEST DynamoDB table, PK `RunId`.
 
-The enclave signs the result fields with the ephemeral key it registered during attestation. The host only forwards `{ runId, algorithmId, instanceId?, payload, signature }`, where `payload` is base64 of the exact signed JSON bytes.
+The enclave signs the result fields with the ephemeral key it registered during attestation and sends `{ runId, algorithmId, instanceId?, payload, signature }` itself, where `payload` is base64 of the exact signed JSON bytes.
 
 For each message the `consume` Lambda:
 

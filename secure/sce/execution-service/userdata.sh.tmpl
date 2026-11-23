@@ -16,45 +16,15 @@ emit_cost() {
     -d "{\"algorithmId\":\"{{.AlgorithmId}}\",\"runId\":\"{{.RunId}}\",\"eventId\":\"$(cat /proc/sys/kernel/random/uuid)\",\"phase\":\"execution\",\"service\":\"$1\",\"operation\":\"$2\",\"quantity\":$3,\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)\"}" >/dev/null || true
 }
 
-# Always self-terminate on exit and send the run result to SQS, where a consumer Lambda persists it for the
-# caller to poll (GET /run/<runId>). The result carries the runId execution-service assigned at launch.
+# Always self-terminate on exit. sce-unit sends the signed result to SQS itself using credentials served on
+# port 5002, so the host no longer builds or publishes results.
 finish() {
-  STATUS=$?
   set +e
   TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
   INSTANCE_ID=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-id)
   REGION=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/placement/region)
-  python3 - "$STATUS" "$INSTANCE_ID" > /tmp/result.json <<'PYEOF'
-import json, sys
-def read(path):
-    try:
-        return open(path, "rb").read().decode("utf-8", "replace")
-    except FileNotFoundError:
-        return ""
-out = read("/tmp/output.txt")
-# The enclave signs the result fields; this host only forwards the envelope plus its instance id.
-# Anything the host builds itself has no signature and result-consumer rejects it.
-try:
-    message = json.loads(out)
-except json.JSONDecodeError:
-    message = None
-if isinstance(message, dict) and isinstance(message.get("payload"), str) and isinstance(message.get("signature"), str):
-    message["instanceId"] = sys.argv[2]
-else:
-    message = {
-        "runId": "{{.RunId}}",
-        "algorithmId": "{{.AlgorithmId}}",
-        "instanceId": sys.argv[2],
-        "status": "exit:" + sys.argv[1],
-        "output": out,
-        "diag": {"runEnclave": read("/tmp/run-enclave.log")},
-    }
-print(json.dumps(message))
-PYEOF
-  aws sqs send-message --queue-url "{{.QueueUrl}}" --message-body file:///tmp/result.json --region "$REGION" || true
   emit_event executor-finished
-  emit_cost sqs send "$(wc -c < /tmp/result.json)"
-  # The runtime estimate is captured before this cost POST and the terminate request.
+  # The runtime estimate is captured before the cost POST and the terminate request.
   emit_cost ec2 instance "$(( $(date +%s) - {{.LaunchEpoch}} ))"
   aws ec2 terminate-instances --instance-ids "$INSTANCE_ID" --region "$REGION"
 }
@@ -80,34 +50,58 @@ emit_cost s3 get 1
 # Checkpoint: the algorithm artifact (EIF) is now on the host, before the enclave is launched.
 emit_event artifact-retrieved
 
-# sce-unit connects back to the parent (CID 3) on port 5000 and streams the DC app's output; one connection per run.
-python3 - <<'PYEOF' &
-import socket
-s = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
-s.settimeout(3600)
-s.bind((socket.VMADDR_CID_ANY, 5000))
-s.listen(1)
-conn, _ = s.accept()
-conn.settimeout(3600)
-with open("/tmp/output.txt", "wb") as f:
-    while chunk := conn.recv(65536):
-        f.write(chunk)
-PYEOF
-OUTPUT_LISTENER_PID=$!
-
-# Serve this run's id and record limit to the enclave on port 5001 - the enclave takes no user-data, so it
-# has no other way to learn the per-run id or how many records to read (the EIF carries per-algorithm config).
-python3 - <<'PYEOF' &
-import json, socket
+# Serve this run's id, record limit, instance id, region, and queue URL to the enclave on port 5001 - the
+# enclave takes no user-data, so it has no other way to learn them (the EIF carries per-algorithm config).
+TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+INSTANCE_ID=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-id)
+python3 - "$INSTANCE_ID" > /dev/null <<'PYEOF' &
+import json, socket, sys
 s = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
 s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 s.bind((socket.VMADDR_CID_ANY, 5001))
 s.listen(5)
-body = json.dumps({"runId": "{{.RunId}}", "size": {{.Size}}}).encode()
+body = json.dumps({
+    "runId": "{{.RunId}}",
+    "size": {{.Size}},
+    "instanceId": sys.argv[1],
+    "region": "{{.Region}}",
+    "queueUrl": "{{.QueueUrl}}",
+}).encode()
 while True:
     conn, _ = s.accept()
     conn.sendall(body)
     conn.close()
+PYEOF
+RUNINFO_LISTENER_PID=$!
+
+# Serve fresh IMDSv2 role credentials to the enclave on port 5002 so it can call SQS. The enclave has no
+# IMDS access; the host holds the role. The role also lets the host send to the queue, so result integrity
+# still comes from the enclave signature, not from this credential split.
+python3 - <<'PYEOF' &
+import json, socket, urllib.request
+def get(path, token=None):
+    req = urllib.request.Request("http://169.254.169.254"+path)
+    if token:
+        req.add_header("X-aws-ec2-metadata-token", token)
+    return urllib.request.urlopen(req, timeout=5).read().decode()
+s = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
+s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+s.bind((socket.VMADDR_CID_ANY, 5002))
+s.listen(5)
+while True:
+    conn, _ = s.accept()
+    try:
+        token = urllib.request.urlopen(urllib.request.Request("http://169.254.169.254/latest/api/token",
+            data=b"", method="PUT", headers={"X-aws-ec2-metadata-token-ttl-seconds": "21600"}), timeout=5).read().decode()
+        role = get("/latest/meta-data/iam/security-credentials/", token)
+        creds = json.loads(get("/latest/meta-data/iam/security-credentials/"+role, token))
+        conn.sendall(json.dumps({
+            "accessKeyId": creds["AccessKeyId"],
+            "secretAccessKey": creds["SecretAccessKey"],
+            "sessionToken": creds["Token"],
+        }).encode())
+    finally:
+        conn.close()
 PYEOF
 
 # Only way out of the enclave: one vsock-proxy per allowed host forwards vsock traffic over real TCP/TLS, resolving DNS here since the enclave has none.
@@ -118,12 +112,14 @@ allowlist:
   - {address: "{{.LogHost}}", port: 443}
   - {address: "{{.TelemetryHost}}", port: 443}
   - {address: "{{.KmsHost}}", port: 443}
+  - {address: "sqs.{{.Region}}.amazonaws.com", port: 443}
 EOF
 vsock-proxy 8000 "{{.KmsHost}}" 443 --config /etc/nitro_enclaves/vsock-proxy.yaml &
 vsock-proxy 8001 "{{.VerifierHost}}" 443 --config /etc/nitro_enclaves/vsock-proxy.yaml &
 vsock-proxy 8002 "{{.PdmHost}}" 443 --config /etc/nitro_enclaves/vsock-proxy.yaml &
 vsock-proxy 8003 "{{.LogHost}}" 443 --config /etc/nitro_enclaves/vsock-proxy.yaml &
 vsock-proxy 8004 "{{.TelemetryHost}}" 443 --config /etc/nitro_enclaves/vsock-proxy.yaml &
+vsock-proxy 8005 "sqs.{{.Region}}.amazonaws.com" 443 --config /etc/nitro_enclaves/vsock-proxy.yaml &
 
 # run-enclave can transiently fail right after the allocator starts (hugepages not yet reserved) - retry.
 launched=false
@@ -138,15 +134,12 @@ done
 
 if [ "$launched" = true ]; then
   emit_event enclave-launched
-  # Wait for output first so a transient describe-enclaves miss cannot publish an empty result.
-  wait "$OUTPUT_LISTENER_PID" || exit $?
   while true; do
     ENCLAVE_COUNT=$(nitro-cli describe-enclaves | python3 -c 'import json, sys; print(sum(e.get("EnclaveCID") == 16 for e in json.load(sys.stdin)))') || exit 1
     [ "$ENCLAVE_COUNT" -eq 0 ] && break
     sleep 1
   done
 else
-  kill "$OUTPUT_LISTENER_PID" 2>/dev/null || true
-  wait "$OUTPUT_LISTENER_PID" 2>/dev/null || true
+  kill "$RUNINFO_LISTENER_PID" 2>/dev/null || true
   exit 1
 fi

@@ -11,7 +11,6 @@ import (
 	"time"
 
 	sharedlog "github.com/Secure-RADS/st-dp/packages/go-common/log"
-	"golang.org/x/sys/unix"
 )
 
 const (
@@ -25,7 +24,6 @@ const (
 
 	// The parent EC2 instance is always CID 3 on Nitro; the host's user data listens on this port.
 	hostCID         = 3
-	hostOutputPort  = 5000
 	vsockRetryWait  = 500 * time.Millisecond
 	vsockRetryLimit = 20
 )
@@ -51,14 +49,14 @@ func main() {
 	}
 	info, err := readRunInfo()
 	if err != nil {
-		failRun(timelineLog, cfg.AlgorithmId, "", err)
+		failRun(timelineLog, cfg.AlgorithmId, runInfo{}, err)
 	}
 	runID := info.RunID
 	timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventEnclaveStarted, nil)
 
 	// Must run before any crypto/rand use (attestation, TLS) - see entropy.go.
 	if err := seedEntropy(); err != nil {
-		failRun(timelineLog, cfg.AlgorithmId, runID, fmt.Errorf("seed entropy: %w", err))
+		failRun(timelineLog, cfg.AlgorithmId, info, fmt.Errorf("seed entropy: %w", err))
 	}
 	log.Printf("sce-unit: seeded kernel entropy from NSM")
 	timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventUnitReady, nil)
@@ -66,7 +64,7 @@ func main() {
 	// Attest, fetch, decrypt, and write records.json before nsjail starts - same file contract as rads.
 	subjectIDs, err := prepareRecordsFile(cfg, timelineLog, runID, info.Size)
 	if err != nil {
-		failRun(timelineLog, cfg.AlgorithmId, runID, err)
+		failRun(timelineLog, cfg.AlgorithmId, info, err)
 	}
 
 	var jailLog bytes.Buffer
@@ -74,7 +72,7 @@ func main() {
 	cmd.Stdout = io.MultiWriter(os.Stdout, &jailLog)
 	cmd.Stderr = io.MultiWriter(os.Stderr, &jailLog)
 	if err := cmd.Start(); err != nil {
-		failRun(timelineLog, cfg.AlgorithmId, runID, fmt.Errorf("start nsjail: %w", err))
+		failRun(timelineLog, cfg.AlgorithmId, info, fmt.Errorf("start nsjail: %w", err))
 	}
 	log.Printf("sce-unit: nsjail started (pid %d)", cmd.Process.Pid)
 
@@ -112,13 +110,13 @@ func main() {
 	} else if output[len(output)-1] != '\n' {
 		output = append(output, '\n')
 	}
-	if err := sendResult(resultPayload{
+	if err := sendResult(info, resultPayload{
 		RunID:       runID,
 		AlgorithmID: cfg.AlgorithmId,
 		Status:      status,
 		Output:      string(output),
 	}); err != nil {
-		log.Printf("sce-unit: send signed result to host failed: %v", err)
+		log.Printf("sce-unit: send signed result to SQS failed: %v", err)
 		timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventRunFailed, map[string]any{"error": err.Error()})
 		os.Exit(1)
 	}
@@ -138,25 +136,25 @@ func resultStatus(waitErr, readErr error, outputLen int) string {
 	return "exit:0"
 }
 
-func failRun(timelineLog *sharedlog.Client, algorithmID, runID string, err error) {
+func failRun(timelineLog *sharedlog.Client, algorithmID string, info runInfo, err error) {
 	log.Printf("sce-unit: %v", err)
-	if runID != "" {
-		timelineLog.EmitEvent(algorithmID, &runID, sharedlog.EventRunFailed, map[string]any{"error": err.Error()})
+	if info.RunID != "" {
+		timelineLog.EmitEvent(algorithmID, &info.RunID, sharedlog.EventRunFailed, map[string]any{"error": err.Error()})
+	}
+	if info.RunID == "" || info.QueueURL == "" {
+		os.Exit(1)
 	}
 	failure, _ := json.Marshal(struct {
 		Error string `json:"error"`
 	}{Error: err.Error()})
 	payload := resultPayload{
-		RunID:       runID,
+		RunID:       info.RunID,
 		AlgorithmID: algorithmID,
 		Status:      "exit:1",
 		Output:      string(append(failure, '\n')),
 	}
-	if sendErr := sendResult(payload); sendErr != nil {
-		log.Printf("sce-unit: send signed failure to host failed: %v", sendErr)
-		if err := sendOutput(append(failure, '\n')); err != nil {
-			log.Printf("sce-unit: send error to host failed: %v", err)
-		}
+	if sendErr := sendResult(info, payload); sendErr != nil {
+		log.Printf("sce-unit: send signed failure to SQS failed: %v", sendErr)
 	}
 	os.Exit(1)
 }
@@ -221,35 +219,4 @@ func prepareRecordsFile(cfg runConfig, timelineLog *sharedlog.Client, runID stri
 	log.Printf("sce-unit: wrote %d bytes to %s", len(body), recordsFileHost)
 	timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventRecordsStoredLocally, nil)
 	return subjectIDs, nil
-}
-
-// sendOutput streams the DC app's response to the parent instance over vsock - the enclave's only channel out.
-func sendOutput(output []byte) error {
-	fd, err := unix.Socket(unix.AF_VSOCK, unix.SOCK_STREAM, 0)
-	if err != nil {
-		return err
-	}
-	defer unix.Close(fd)
-
-	addr := &unix.SockaddrVM{CID: hostCID, Port: hostOutputPort}
-	for i := 0; ; i++ {
-		err = unix.Connect(fd, addr)
-		if err == nil {
-			break
-		}
-		if i >= vsockRetryLimit {
-			return err
-		}
-		time.Sleep(vsockRetryWait)
-	}
-	log.Printf("sce-unit: connected to host vsock %d:%d, sending %d bytes", hostCID, hostOutputPort, len(output))
-
-	for len(output) > 0 {
-		n, err := unix.Write(fd, output)
-		if err != nil {
-			return err
-		}
-		output = output[n:]
-	}
-	return nil
 }
