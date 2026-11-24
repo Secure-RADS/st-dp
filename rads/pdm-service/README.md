@@ -4,7 +4,7 @@ Serverless Framework v4, TypeScript. The Personal Data Management Service for th
 
 ## Endpoints
 
-- `GET /records` - `?algorithmId=` selects which records are returned. Paginated via `?cursor=` (base64url of DynamoDB's `LastEvaluatedKey`), 500 items per page. The response also carries a standalone `dataSubjectIds` list aligned with `records`: the rads host assembles the GDPR access trail from it after a successful DC app run, and `records` stays `{recordId, data}`, so the DC app never sees subject ids. PDM itself writes nothing to the log on retrieval.
+- `GET /records` - `?algorithmId=` selects which records are returned. Paginated via `?cursor=` (base64url of DynamoDB's `LastEvaluatedKey`), up to 2000 items or about 2.5 MB per page. The response also carries a standalone `dataSubjectIds` list aligned with `records`: the rads host assembles the GDPR access trail from it after a successful DC app run, and `records` stays `{recordId, data}`, so the DC app never sees subject ids. PDM itself writes nothing to the log on retrieval.
 - `GET /count` - public metadata endpoint used by execution-service's size check. Returns the seeded record count for `?algorithmId=` and stops early when `?size=` is supplied. Never returns personal data.
 - `GET /subject/{dataSubjectId}` - the public data-subject access-request endpoint. No auth (the identifier is an opaque UUID) and rate-limited via a small reserved concurrency; it relays to log-service's `/subject-access/{dataSubjectId}` and returns which algorithms/runs touched that data subject. Never returns personal data.
 
