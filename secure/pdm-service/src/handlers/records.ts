@@ -9,7 +9,11 @@ const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const tablePrefix = requiredEnv("PDM_TABLE_PREFIX");
 const ALGORITHM_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const PAGE_SIZE = 500;
+// Each HTTP request costs far more than a DynamoDB page, so fill a larger response from several queries.
+// The byte budget keeps the response under the Lambda limit for large records (finance averages ~5.9 KB).
+const PAGE_ITEMS = 2000;
+const PAGE_BYTES = 2_500_000;
+const QUERY_LIMIT = 250;
 const MAX_QUERY_ATTEMPTS = 8;
 
 async function queryWithRetry(command: QueryCommand) {
@@ -66,33 +70,36 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     }
   }
 
-  const result = await queryWithRetry(
-    new QueryCommand({
-      TableName: `${tablePrefix}-${validation.algorithmId}`,
-      KeyConditionExpression: "AlgorithmId = :a",
-      ExpressionAttributeValues: { ":a": validation.algorithmId },
-      Limit: PAGE_SIZE,
-      ExclusiveStartKey: exclusiveStartKey,
-      ReturnConsumedCapacity: "TOTAL",
-    }),
-  );
-  await costEvent(
-    validation.algorithmId,
-    runId,
-    CostPhase.Execution,
-    "dynamodb",
-    "read-capacity",
-    result.ConsumedCapacity?.CapacityUnits ?? 0,
-  );
+  const items: Record<string, unknown>[] = [];
+  let consumedCapacity = 0;
+  let pageBytes = 0;
+  let nextKey = exclusiveStartKey;
+  do {
+    const result = await queryWithRetry(
+      new QueryCommand({
+        TableName: `${tablePrefix}-${validation.algorithmId}`,
+        KeyConditionExpression: "AlgorithmId = :a",
+        ExpressionAttributeValues: { ":a": validation.algorithmId },
+        Limit: QUERY_LIMIT,
+        ExclusiveStartKey: nextKey,
+        ReturnConsumedCapacity: "TOTAL",
+      }),
+    );
+    for (const item of result.Items ?? []) {
+      items.push(item);
+      pageBytes += Buffer.byteLength(JSON.stringify(item));
+    }
+    consumedCapacity += result.ConsumedCapacity?.CapacityUnits ?? 0;
+    nextKey = result.LastEvaluatedKey as Record<string, unknown> | undefined;
+  } while (nextKey && items.length < PAGE_ITEMS && pageBytes < PAGE_BYTES);
+
+  await costEvent(validation.algorithmId, runId, CostPhase.Execution, "dynamodb", "read-capacity", consumedCapacity);
 
   // A standalone list aligned with `records`; the enclave assembles the DSAR trail from it and posts after a
   // successful DC app run. Record objects stay {recordId, data}, so the DC app never sees subject ids.
-  const items = result.Items ?? [];
   const records = items.map((item) => ({ recordId: item.RecordId, data: item.Data }));
   const dataSubjectIds = items.map((item) => (typeof item.DataSubjectId === "string" ? item.DataSubjectId : ""));
-  const nextCursor = result.LastEvaluatedKey
-    ? Buffer.from(JSON.stringify(result.LastEvaluatedKey)).toString("base64url")
-    : null;
+  const nextCursor = nextKey ? Buffer.from(JSON.stringify(nextKey)).toString("base64url") : null;
 
   await recordRequest(validation.algorithmId, runId, CostPhase.Execution, startedAt);
   return jsonResponse(200, { algorithmId: validation.algorithmId, records, dataSubjectIds, nextCursor });
