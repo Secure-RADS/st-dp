@@ -50,6 +50,7 @@ function isRetryable(error: unknown): boolean {
     error.name === "ThrottlingException" ||
     error.name === "ProvisionedThroughputExceededException" ||
     error.name === "RequestLimitExceeded" ||
+    error.name === "InternalServerError" ||
     error.name === "TimeoutError" ||
     /throughput|throttl|timeout/i.test(error.message)
   );
