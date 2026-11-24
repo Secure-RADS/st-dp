@@ -26,6 +26,12 @@ provider:
           Action: dynamodb:Query
           Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${param:pdmTablePrefix}-*"
         - Effect: Allow
+          Action: kms:Decrypt
+          Resource: !Sub "arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+          Condition:
+            StringEquals:
+              "kms:ViaService": !Sub "dynamodb.${AWS::Region}.amazonaws.com"
+        - Effect: Allow
           Action: ec2:RunInstances
           Resource:
             - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*"
