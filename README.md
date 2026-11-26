@@ -73,6 +73,7 @@ instance. Use a dedicated research account.
   full deployment in a new account and region.
 - [`docs/running.md`](docs/running.md) - requirements, cost and account safety, make targets, CSV
   exports.
+- [`docs/deploy.md`](docs/deploy.md) - the single deploy entrypoint and the manual CI pipeline.
 - [`docs/cost-service.md`](docs/cost-service.md) - how per-run AWS costs are metered.
 - [`docs/e2e-rads.txt`](docs/e2e-rads.txt), [`docs/e2e-secure-rads.txt`](docs/e2e-secure-rads.txt) -
   event-by-event plaintext flows for the build and execution phases.
