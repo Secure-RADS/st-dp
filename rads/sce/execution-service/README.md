@@ -7,7 +7,7 @@ run it, and returns immediately. Results come back asynchronously through the sh
 
 `POST /run` is fire-and-forget: it assigns a `runId`, looks up `{Bucket, Key}` for the `AlgorithmId` in the
 `rads-algorithms` DynamoDB table (PK `AlgorithmId`), and — when `size` is set — rejects the request if that
-count exceeds the rows already seeded for the algorithm in PDM. It then launches a per-run EC2 executor, and returns
+count exceeds the rows already seeded for the algorithm in PDM. The check calls PDM's public `/count` endpoint; this Lambda has no DynamoDB access to PDM. It then launches a per-run EC2 executor, and returns
 `202 {runId, algorithmId, instanceId, status: "pending"}`. The executor installs AWS CLI + Docker, downloads
 `rads-host-tools` from `s3://<images-bucket>/executor/rads-host-tools`, `aws s3 cp`s the image tar into place,
 `docker load`s it, fetches PDM records up to the requested size into `/opt/rads/run/records.json`, then `docker run`s the
@@ -45,7 +45,6 @@ bunx serverless deploy \
   --param="runResultsQueueUrl=<rads-run-results queue URL>" \
   --param="runResultsQueueArn=<rads-run-results queue ARN>" \
   --param="pdmUrl=https://pdm.example.org" \
-  --param="pdmTable=rads-personal-data" \
   --param="vpcId=<VPC id>"
 ```
 

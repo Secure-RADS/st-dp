@@ -35,6 +35,10 @@ functions:
       - httpApi:
           method: GET
           path: /records
+  # Reached only through the mTLS API below; no event on the plain httpApi.
+  count:
+    handler: src/handlers/count.handler
+    timeout: 29
   subject:
     handler: src/handlers/subject.handler
     reservedConcurrency: 5
@@ -44,6 +48,13 @@ functions:
           path: /subject/{dataSubjectId}
 
 resources:
+  Conditions:
+    HasTruststoreVersion:
+      Fn::Not:
+        - Fn::Equals:
+            - "${param:truststoreVersionId, ''}"
+            - ""
+
   Resources:
     PersonalDataTable:
       Type: AWS::DynamoDB::Table
@@ -71,6 +82,71 @@ resources:
           - AttributeName: AlgorithmId
             KeyType: HASH
 
+    TruststoreBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        VersioningConfiguration:
+          Status: Enabled
+
+    # Internal API for the execution-service size check. mTLS is enforced on its custom domain, and the
+    # default execute-api endpoint is disabled so there is no way around the client certificate.
+    CountHttpApi:
+      Type: AWS::ApiGatewayV2::Api
+      Properties:
+        Name: secure-rads-pdm-service-count
+        ProtocolType: HTTP
+        DisableExecuteApiEndpoint: true
+
+    CountHttpApiStage:
+      Type: AWS::ApiGatewayV2::Stage
+      Properties:
+        ApiId: !Ref CountHttpApi
+        StageName: $default
+        AutoDeploy: true
+
+    CountIntegration:
+      Type: AWS::ApiGatewayV2::Integration
+      Properties:
+        ApiId: !Ref CountHttpApi
+        IntegrationType: AWS_PROXY
+        IntegrationUri: !GetAtt CountLambdaFunction.Arn
+        PayloadFormatVersion: "2.0"
+
+    CountRoute:
+      Type: AWS::ApiGatewayV2::Route
+      Properties:
+        ApiId: !Ref CountHttpApi
+        RouteKey: GET /count
+        AuthorizationType: NONE
+        Target: !Join ["integrations/", !Ref CountIntegration]
+
+    CountLambdaPermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        Action: lambda:InvokeFunction
+        FunctionName: !GetAtt CountLambdaFunction.Arn
+        Principal: apigateway.amazonaws.com
+        SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${CountHttpApi}/*/GET/count"
+
+    CountApiCustomDomain:
+      Type: AWS::ApiGatewayV2::DomainName
+      Condition: HasTruststoreVersion
+      Properties:
+        DomainName: ${param:mtlsDomainName}
+        DomainNameConfigurations:
+          - CertificateArn: ${param:mtlsCertificateArn}
+        MutualTlsAuthentication:
+          TruststoreUri: !Sub "s3://${TruststoreBucket}/${param:truststoreKey, 'truststore.pem'}"
+          TruststoreVersion: ${param:truststoreVersionId, ''}
+
+    CountApiDomainMapping:
+      Type: AWS::ApiGatewayV2::ApiMapping
+      Condition: HasTruststoreVersion
+      Properties:
+        DomainName: !Ref CountApiCustomDomain
+        ApiId: !Ref CountHttpApi
+        Stage: !Ref CountHttpApiStage
+
     # Plain server-auth TLS only - the enclave authenticates with the bearer access token it got from
     # verifier-service's /attest, not a client cert (which would be extractable from the EIF).
     ApiCustomDomain:
@@ -88,6 +164,13 @@ resources:
         Stage: !Ref HttpApiStage
 
   Outputs:
+    PdmMtlsHost:
+      Value: ${param:mtlsDomainName}
+    PdmTruststoreBucketName:
+      Value: !Ref TruststoreBucket
+    PdmMtlsRegionalDomainName:
+      Condition: HasTruststoreVersion
+      Value: !GetAtt CountApiCustomDomain.RegionalDomainName
     PersonalDataTableName:
       Value: !Ref PersonalDataTable
     DataKeyTableName:
