@@ -105,3 +105,11 @@ Input:
    // The key policy requires the attestation's PCR0/1/2 and KMS returns CiphertextForRecipient encrypted to
    // the enclave's ephemeral key: the service never sees plaintext, and only the measured enclave can unwrap.
 8  return ciphertext to the enclave
+
+SECURE-RADS-RESULT-CONSUMER(result)
+Input:
+  result ← signed envelope POSTed by the SCE-UNIT (default webhook)
+1  key ← GET-VERIFIER-RUN-ATTESTATION(result.runId) // verifier GET /runs/{runId}
+2  if not VERIFY-SIGNATURE(key, result) then reject
+3  persist verified result to DynamoDB
+4  cost dynamodb:write-capacity; emit result-persisted

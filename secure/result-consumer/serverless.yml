@@ -1,0 +1,53 @@
+service: secure-rads-result-consumer
+
+build:
+  esbuild:
+    format: cjs
+    outExtension:
+      ".js": ".cjs"
+
+provider:
+  name: aws
+  runtime: nodejs24.x
+  region: ${env:AWS_REGION}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action: dynamodb:PutItem
+          Resource: !GetAtt RunResultsTable.Arn
+  environment:
+    RUN_RESULTS_TABLE: !Ref RunResultsTable
+    VERIFIER_ATTEST_HOST: ${env:VERIFIER_ATTEST_HOST}
+    VERIFIER_ATTEST_PUBKEY_SHA256: ${env:VERIFIER_PUBKEY_SHA256}
+    TELEMETRY_HOST: ${env:TELEMETRY_HOST_SECURE_RADS}
+    COST_HOST: ${env:COST_HOST_SECURE_RADS}
+
+functions:
+  receive:
+    handler: src/handlers/receive.handler
+    events:
+      - httpApi:
+          method: POST
+          path: /results
+
+resources:
+  Resources:
+    RunResultsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: RunId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: RunId
+            KeyType: HASH
+
+  Outputs:
+    ResultWebhookUrl:
+      Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/results"
+    RunResultsTableName:
+      Value: !Ref RunResultsTable
+    RunResultsTableArn:
+      Value: !GetAtt RunResultsTable.Arn

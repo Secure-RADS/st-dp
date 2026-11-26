@@ -27,7 +27,7 @@ To verify:
 2. Check the signed `runId` and `algorithmId` match the values you expect.
 3. Verify the signature with `publicKey`.
 
-The webhook is the only result delivery path for secure-rads; there is no result table or `GET /run/{runId}` result route.
+The webhook is the only result delivery path for secure-rads. The default webhook is result-consumer, which writes `RunResultsTable` and backs `GET /run/{runId}`. A DC-supplied webhook bypasses that table.
 
 ### Access token format (ML-DSA-87 compact JWS)
 

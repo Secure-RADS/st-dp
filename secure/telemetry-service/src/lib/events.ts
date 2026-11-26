@@ -17,7 +17,7 @@ export const ENCLAVE_EVENTS = [
 // instead of being presented as enclave claims.
 export const HOST_EVENTS = ["executor-ready", "artifact-retrieved", "enclave-launched", "executor-finished"] as const;
 
-// Control-plane producers: registry-service and execution-service.
+// Control-plane producers: registry-service, execution-service, and result-consumer.
 export const INTERNAL_EVENTS = [
   "build-started",
   "build-completed",
@@ -29,6 +29,7 @@ export const INTERNAL_EVENTS = [
   "run-requested",
   "executor-launched",
   "launch-failed",
+  "result-persisted",
 ] as const;
 
 export const RUN_EVENTS = [

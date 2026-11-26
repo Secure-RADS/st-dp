@@ -19,7 +19,9 @@ provider:
       statements:
         - Effect: Allow
           Action: dynamodb:GetItem
-          Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${param:algorithmTable}"
+          Resource:
+            - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${param:algorithmTable}"
+            - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${param:runResultsTable}"
         - Effect: Allow
           Action: ssm:GetParameter
           Resource:
@@ -51,6 +53,8 @@ provider:
           Resource: !GetAtt EnclaveHostInstanceRole.Arn
   environment:
     ALGORITHM_TABLE: ${param:algorithmTable}
+    RUN_RESULTS_TABLE: ${param:runResultsTable}
+    RESULT_WEBHOOK_URL: ${param:resultWebhookUrl}
     # Pinned to match rads EXECUTOR_AMI_ID so both trees boot the same AL2023 arm64 build.
     ENCLAVE_AMI_ID: ${env:SCE_ENCLAVE_AMI_ID}
     ENCLAVE_INSTANCE_TYPE: ${param:enclaveInstanceType, 'c6g.large'}
@@ -76,6 +80,13 @@ functions:
       - httpApi:
           method: POST
           path: /run
+  result:
+    handler: src/handlers/run.result
+    timeout: 10
+    events:
+      - httpApi:
+          method: GET
+          path: /run/{runId}
 
 resources:
   Resources:

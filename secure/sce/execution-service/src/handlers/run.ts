@@ -12,6 +12,8 @@ import { userData } from "../lib/userdata.js";
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const ec2 = new EC2Client({});
 const algorithmTable = requiredEnv("ALGORITHM_TABLE");
+const runResultsTable = requiredEnv("RUN_RESULTS_TABLE");
+const resultWebhookUrl = requiredEnv("RESULT_WEBHOOK_URL");
 const enclaveAmiId = requiredEnv("ENCLAVE_AMI_ID");
 const enclaveInstanceType = requiredEnv("ENCLAVE_INSTANCE_TYPE") as RunInstancesCommandInput["InstanceType"];
 const enclaveAz = requiredEnv("ENCLAVE_AZ");
@@ -29,7 +31,17 @@ const region = requiredEnv("AWS_REGION");
 interface RunRequest {
   algorithmId: string;
   size?: number;
-  webhookUrl: string;
+  webhookUrl?: string;
+}
+
+interface RunResult {
+  AlgorithmId?: string;
+  Diag?: unknown;
+  InstanceId?: string;
+  Output?: string;
+  ReceivedAt?: string;
+  RunId?: string;
+  Status?: string;
 }
 
 const PRIVATE_HOST =
@@ -71,8 +83,12 @@ function parseRunRequest(body: string | undefined): RunRequest | undefined {
       return undefined;
     }
     const webhook = parseWebhookUrl(webhookUrl);
-    if (typeof webhook !== "string") return undefined;
-    return { algorithmId, webhookUrl: webhook, ...(size === undefined ? {} : { size }) };
+    if (webhook === null) return undefined;
+    return {
+      algorithmId,
+      ...(size === undefined ? {} : { size }),
+      ...(webhook === undefined ? {} : { webhookUrl: webhook }),
+    };
   } catch {
     return undefined;
   }
@@ -156,7 +172,7 @@ export const create: APIGatewayProxyHandlerV2 = async (event) => {
             s3Key: record.S3Key,
             size: request.size,
             verifierHost,
-            webhookUrl: request.webhookUrl,
+            webhookUrl: request.webhookUrl ?? resultWebhookUrl,
           }),
         ).toString("base64"),
         TagSpecifications: [
@@ -181,5 +197,43 @@ export const create: APIGatewayProxyHandlerV2 = async (event) => {
     await recordRequest(request.algorithmId, runId, CostPhase.Execution, startedAt);
     console.error("launch failed", error);
     return jsonResponse(500, { error: "launch failed" });
+  }
+};
+
+export const result: APIGatewayProxyHandlerV2 = async (event) => {
+  const startedAt = process.hrtime.bigint();
+  const runId = event.pathParameters?.runId;
+  if (!runId) return jsonResponse(400, { error: "runId is required" });
+  const algorithmId = event.queryStringParameters?.algorithmId;
+  if (!algorithmId) return jsonResponse(400, { error: "algorithmId is required" });
+
+  try {
+    const response = await ddb.send(
+      new GetCommand({ TableName: runResultsTable, Key: { RunId: runId }, ReturnConsumedCapacity: "TOTAL" }),
+    );
+    const item = response.Item as RunResult | undefined;
+    const costAlgorithmId = item?.AlgorithmId ?? algorithmId;
+    await costEvent(
+      costAlgorithmId,
+      runId,
+      CostPhase.Execution,
+      "dynamodb",
+      "read-capacity",
+      response.ConsumedCapacity?.CapacityUnits ?? 0,
+    );
+    await recordRequest(costAlgorithmId, runId, CostPhase.Execution, startedAt);
+    if (!item) return jsonResponse(200, { runId, status: "pending" });
+    return jsonResponse(200, {
+      runId: item.RunId,
+      instanceId: item.InstanceId,
+      algorithmId: item.AlgorithmId,
+      status: item.Status,
+      output: item.Output,
+      diag: item.Diag,
+      receivedAt: item.ReceivedAt,
+    });
+  } catch (error) {
+    console.error("result lookup failed", error);
+    return jsonResponse(500, { error: "result lookup failed" });
   }
 };

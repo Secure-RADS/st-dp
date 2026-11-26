@@ -20,10 +20,9 @@ class TreeHarness(ABC):
 
     name: ClassVar[Tree]
 
-    def __init__(self, registry_url: str, execution_url: str, telemetry_url: str | None = None) -> None:
+    def __init__(self, registry_url: str, execution_url: str) -> None:
         self._registry = registry_url
         self._execution = execution_url
-        self._telemetry = telemetry_url
 
     @staticmethod
     def build_sample_tar(tree: Tree) -> Path:

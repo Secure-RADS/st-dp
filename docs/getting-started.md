@@ -173,6 +173,12 @@ make -C secure/csav/registry-service gen-client-cert
   --param="publicCertificateArn=$VERIFIER_ATTEST_CERT_ARN")
 ```
 
+Deploy the result consumer next so the execution-service stack can use its receiver URL and results table:
+
+```sh
+(cd secure/result-consumer && bun install && bunx serverless deploy --param="region=$REGION")
+```
+
 Upload the truststore, then deploy verifier-service again with its immutable S3 object version:
 
 ```sh
