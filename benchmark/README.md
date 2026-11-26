@@ -46,9 +46,10 @@ Typical iteration: `make seed` once, then `make run REPS=1` / `make report` whil
 ## Prerequisites
 
 - Devbox + repo `.aws/credentials` (not the global AWS root profile)
-- Both trees deployed (registry, PDM, execution, log, cost, result-consumer; secure-rads also needs CSAV, verifier, and kms-service)
+- Both trees deployed (registry, PDM, execution, log, cost; rads also needs result-consumer; secure-rads also needs CSAV, verifier, and kms-service)
 - CSAV host running (`make up` / `make secure-rads-ready` from the repo root)
 - Docker (arm64) for the sample algorithm image on first upload
+- `SECURE_WEBHOOK_URL` for secure-rads runs (defaults to `https://httpbin.org/post`)
 - `uv` (Python); `bun` for `../seeding` generate/seed
 
 Executors run on `c6g.large` on both trees. Secure-rads allocates a 1 vCPU / 2048 MiB enclave, and rads runs its container with `--cpus 1 --memory 2048m` so both trees give the algorithm the same compute.
@@ -123,8 +124,8 @@ The event contract follows [RADS](../docs/e2e-rads.txt) and [Secure-RADS](../doc
 | Attestation | — | `unit-ready` → `attested` |
 | Data retrieval | `artifact-retrieved` → `records-stored-locally` | `attested` → `records-stored-locally` |
 | Algorithm processing | `records-stored-locally` → `compute-completed` | `records-stored-locally` → `dc-app-completed` |
-| Result delivery | `compute-completed` → `result-persisted` | `output-sent` → `result-persisted` |
-| Total | `run-requested` → `result-persisted` | `run-requested` → `result-persisted` |
+| Result delivery | `compute-completed` → `result-persisted` | `dc-app-completed` → `output-sent` |
+| Total | `run-requested` → `result-persisted` | `run-requested` → `output-sent` |
 
 `records-fetched` precedes file serialization/writing in both trees. Secure-rads emits `records-decrypted` after decryption and `records-stored-locally` after writing the plaintext file. Its data-retrieval phase includes fetching AWS credentials, fetching records, KMS key unwrapping, record decryption, and writing the file. The CSV includes the individual event timestamps as well as the aggregate phase durations.
 

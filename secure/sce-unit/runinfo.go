@@ -15,14 +15,12 @@ import (
 const hostRunIDPort = 5001
 
 // runInfo is the per-run data the host serves on hostRunIDPort: the run id, record limit (0 = whole
-// dataset), instance id, region, and run-results queue URL. The enclave takes no user-data, so this is its
-// only source for all of them.
+// dataset), instance id, and DC webhook URL. The enclave takes no user-data, so this is its only source
+// for all of them.
 type runInfo struct {
 	RunID      string `json:"runId"`
 	Size       int    `json:"size"`
 	InstanceID string `json:"instanceId"`
-	Region     string `json:"region"`
-	QueueURL   string `json:"queueUrl"`
 	WebhookURL string `json:"webhookUrl"`
 }
 
@@ -71,8 +69,8 @@ func readRunInfo() (runInfo, error) {
 	if info.RunID == "" || info.Size < 0 {
 		return runInfo{}, fmt.Errorf("invalid run-info: runId must be nonempty and size must be nonnegative")
 	}
-	if info.InstanceID == "" || info.Region == "" || info.QueueURL == "" {
-		return runInfo{}, fmt.Errorf("invalid run-info: instanceId, region, and queueUrl must be nonempty")
+	if info.InstanceID == "" || info.WebhookURL == "" {
+		return runInfo{}, fmt.Errorf("invalid run-info: instanceId and webhookUrl must be nonempty")
 	}
 	return info, nil
 }

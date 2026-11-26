@@ -116,7 +116,7 @@ func main() {
 		Status:      status,
 		Output:      string(output),
 	}); err != nil {
-		log.Printf("sce-unit: send signed result to SQS failed: %v", err)
+		log.Printf("sce-unit: send signed result to webhook failed: %v", err)
 		timelineLog.EmitEvent(cfg.AlgorithmId, &runID, sharedlog.EventRunFailed, map[string]any{"error": err.Error()})
 		os.Exit(1)
 	}
@@ -141,7 +141,7 @@ func failRun(timelineLog *sharedlog.Client, algorithmID string, info runInfo, er
 	if info.RunID != "" {
 		timelineLog.EmitEvent(algorithmID, &info.RunID, sharedlog.EventRunFailed, map[string]any{"error": err.Error()})
 	}
-	if info.RunID == "" || info.QueueURL == "" {
+	if info.RunID == "" || info.WebhookURL == "" {
 		os.Exit(1)
 	}
 	failure, _ := json.Marshal(struct {
@@ -154,7 +154,7 @@ func failRun(timelineLog *sharedlog.Client, algorithmID string, info runInfo, er
 		Output:      string(append(failure, '\n')),
 	}
 	if sendErr := sendResult(info, payload); sendErr != nil {
-		log.Printf("sce-unit: send signed failure to SQS failed: %v", sendErr)
+		log.Printf("sce-unit: send signed failure to webhook failed: %v", sendErr)
 	}
 	os.Exit(1)
 }

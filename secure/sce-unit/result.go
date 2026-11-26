@@ -45,8 +45,8 @@ func getResultSigner() *ecdsa.PrivateKey {
 	return resultSigner.key
 }
 
-// sendResult signs the enclave-owned result fields and streams the envelope to the host. The host may add
-// instanceId, but it cannot change the signed payload or signature without the consumer rejecting it.
+// sendResult signs the enclave-owned result fields and POSTs the envelope to the run's DC webhook. The DC
+// verifies the signature against the public key verifier-service recorded at attestation.
 func sendResult(info runInfo, p resultPayload) error {
 	key := getResultSigner()
 	if key == nil {
@@ -73,8 +73,5 @@ func sendResult(info runInfo, p resultPayload) error {
 	if err != nil {
 		return fmt.Errorf("marshal signed result: %w", err)
 	}
-	if info.WebhookURL != "" {
-		return sendWebhookResult(info, envelope)
-	}
-	return sendSQSResult(info, envelope)
+	return sendWebhookResult(info, envelope)
 }

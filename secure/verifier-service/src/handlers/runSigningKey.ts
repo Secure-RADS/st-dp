@@ -12,7 +12,7 @@ interface AttestedRun {
   PublicKey?: unknown;
 }
 
-// result-consumer fetches this by run id to verify the enclave's result signature against the key that was
+// The DC fetches this by run id to verify the enclave's result signature against the key that was
 // bound to the run during attestation. Public keys are public, so this needs no auth.
 export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const startedAt = process.hrtime.bigint();

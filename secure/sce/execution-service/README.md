@@ -4,24 +4,20 @@ Part of the SCE. API Gateway invokes the TypeScript Lambda control plane. Given 
 
 `POST /run` is fire-and-forget: it assigns a `runId`, looks up the EIF, and — when `size` is set — rejects the request if that count exceeds the rows already seeded for the algorithm in PDM. The check calls PDM's `/count` endpoint over mTLS with a client certificate fetched from SSM; this Lambda has no DynamoDB access to PDM. It then launches the enclave and returns `202 {runId, algorithmId, instanceId, status: "pending"}` immediately.
 
-The request accepts an optional `webhookUrl`:
+The request requires a webhook URL:
 
 ```json
 { "algorithmId": "...", "size": 1000, "webhookUrl": "https://dc.example/results" }
 ```
 
-The URL must be `https` and must not target localhost or an obvious private/internal address. When present, the enclave signs the result (run id, algorithm id, status, and output) with its attested ephemeral key and POSTs the signed envelope to that webhook over CA-verified TLS. The DC verifies the envelope with verifier-service `GET /runs/{runId}`; no SQS message or host credentials are involved, and `GET /run/{runId}` stays `pending` for that run.
+The URL must be `https` and must not target localhost or an obvious private/internal address. The enclave signs the result (run id, algorithm id, status, and output) with its attested ephemeral key and POSTs the signed envelope to that webhook over CA-verified TLS. The DC verifies the envelope with verifier-service `GET /runs/{runId}`. There is no result SQS queue or result table.
 
-Without `webhookUrl`, the enclave sends the signed envelope to the run-results SQS queue, borrowing the host instance role over vsock port 5002. The host never builds or publishes results; result-consumer verifies the signature against verifier-service's attested key before writing it to the RunResults table.
-
-`GET /run/{runId}?algorithmId={algorithmId}` polls for the result: `{runId, status: "pending"}` until it lands, then the stored result once the consumer has written it. `algorithmId` is required so every poll can be attributed to its run.
-
-The control plane logs `run-requested` and `executor-launched` (or `launch-failed`). The parent posts `executor-ready`, `artifact-retrieved`, `enclave-launched`, and `executor-finished` directly to telemetry-service with `origin: host`. The host holds no credential; telemetry ingest is unauthenticated. The enclave emits `run-failed` before it exits. result-consumer only emits `result-persisted`. SCE-unit and result-consumer emit the remaining events in [the execution flow](../../../docs/e2e-secure-rads.txt).
+The control plane logs `run-requested` and `executor-launched` (or `launch-failed`). The parent posts `executor-ready`, `artifact-retrieved`, `enclave-launched`, and `executor-finished` directly to telemetry-service with `origin: host`. The host holds no credential; telemetry ingest is unauthenticated. The enclave emits `run-failed` before it exits. SCE-unit emits the remaining events in [the execution flow](../../../docs/e2e-secure-rads.txt).
 
 See [../README.md](../README.md) for the full SCE context.
 
 ## Deployment
 
-`make -C sce deploy` deploys the Lambda stack. It requires result-consumer, registry-service storage, and kms-service to exist first.
+`make -C sce deploy` deploys the Lambda stack. It requires registry-service storage, verifier-service, and kms-service to exist first.
 
 The enclave host pulls the EIF but does not publish the result; it has no algorithm-key KMS permission. Data-key decryption runs in kms-service, so the per-algorithm key policy names the kms-service role rather than this per-deployment host role. `KMS_HOST` is passed as `KMS_SERVICE_HOST` and baked into the host user data, which proxies the enclave's `/decrypt` call.

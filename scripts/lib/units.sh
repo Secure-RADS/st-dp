@@ -4,7 +4,6 @@
 units_secure=(
 	secure/storage
 	secure/verifier-service
-	secure/result-consumer
 	secure/log-service
 	secure/telemetry-service
 	secure/cost-service
@@ -30,14 +29,13 @@ units_rads=(
 declare -A DEPENDS=(
 	[secure/storage]=""
 	[secure/verifier-service]=""
-	[secure/result-consumer]=""
 	[secure/log-service]="secure/verifier-service"
 	[secure/telemetry-service]=""
 	[secure/cost-service]=""
 	[secure/pdm-service]="secure/verifier-service"
 	[secure/kms-service]="secure/storage secure/pdm-service"
 	[secure/csav]="secure/storage"
-	[secure/sce/execution-service]="secure/storage secure/result-consumer secure/pdm-service"
+	[secure/sce/execution-service]="secure/storage secure/pdm-service"
 	[secure/registry-image]="secure/csav secure/kms-service"
 	[secure/transparency-portal]=""
 	[rads/result-consumer]=""
@@ -52,11 +50,6 @@ declare -A DEPENDS=(
 
 unit_secure_storage() {
 	run make -C secure/csav/registry-service deploy-storage
-}
-
-unit_secure_result_consumer() {
-	need TELEMETRY_HOST_SECURE_RADS COST_HOST_SECURE_RADS
-	sls secure/result-consumer --param="region=$region"
 }
 
 unit_secure_log_service() {
@@ -271,7 +264,6 @@ unit_rads_transparency_portal() {
 deploy_unit() {
 	case "$1" in
 	secure/storage) unit_secure_storage ;;
-	secure/result-consumer) unit_secure_result_consumer ;;
 	secure/log-service) unit_secure_log_service ;;
 	secure/telemetry-service) unit_secure_telemetry_service ;;
 	secure/cost-service) unit_secure_cost_service ;;

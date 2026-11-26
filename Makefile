@@ -40,7 +40,7 @@ logs:
 	pids=""; \
 	for target in registry-logs; do make $$target & pids="$$pids $$!"; done; \
 	for group in $$(aws logs describe-log-groups --region "$(REGION)" --log-group-name-prefix /aws/lambda/ --query 'logGroups[].logGroupName' --output text); do \
-		case "$$group" in /aws/lambda/secure-rads-execution-service-dev-*|/aws/lambda/secure-rads-verifier-service-dev-*|/aws/lambda/secure-rads-pdm-service-dev-*|/aws/lambda/secure-rads-kms-service-dev-*|/aws/lambda/secure-rads-log-service-dev-*|/aws/lambda/secure-rads-telemetry-service-dev-*|/aws/lambda/secure-rads-cost-service-dev-*|/aws/lambda/secure-rads-result-consumer-dev-*|/aws/lambda/rads-registry-service-dev-*|/aws/lambda/rads-pdm-service-dev-*|/aws/lambda/rads-log-service-dev-*|/aws/lambda/rads-telemetry-service-dev-*|/aws/lambda/rads-cost-service-dev-*|/aws/lambda/rads-result-consumer-dev-*|/aws/lambda/rads-execution-service-dev-*) aws logs tail "$$group" --region "$(REGION)" --follow & pids="$$pids $$!";; esac; \
+		case "$$group" in /aws/lambda/secure-rads-execution-service-dev-*|/aws/lambda/secure-rads-verifier-service-dev-*|/aws/lambda/secure-rads-pdm-service-dev-*|/aws/lambda/secure-rads-kms-service-dev-*|/aws/lambda/secure-rads-log-service-dev-*|/aws/lambda/secure-rads-telemetry-service-dev-*|/aws/lambda/secure-rads-cost-service-dev-*|/aws/lambda/rads-registry-service-dev-*|/aws/lambda/rads-pdm-service-dev-*|/aws/lambda/rads-log-service-dev-*|/aws/lambda/rads-telemetry-service-dev-*|/aws/lambda/rads-cost-service-dev-*|/aws/lambda/rads-result-consumer-dev-*|/aws/lambda/rads-execution-service-dev-*) aws logs tail "$$group" --region "$(REGION)" --follow & pids="$$pids $$!";; esac; \
 	done; \
 	trap 'kill $$pids 2>/dev/null || true' EXIT INT TERM; \
 	for pid in $$pids; do wait "$$pid" || true; done
@@ -219,36 +219,28 @@ secure-rads-build-all:
 		$(MAKE) secure-rads-build APP=$$app ALGORITHM_ID=$$id || exit 1; \
 	done
 
-# Execution phase (one run): make secure-rads-run ALGORITHM_ID=<id>.
-# Fires /run (202 + runId), then polls GET /run/{runId} until the enclave reports back.
+# Execution phase (one run): make secure-rads-run ALGORITHM_ID=<id> WEBHOOK_URL=https://...
+# Fires /run and prints the runId. The signed result is POSTed to WEBHOOK_URL; there is no result polling.
 secure-rads-run:
 	@test -n "$(ALGORITHM_ID)" || { echo "ALGORITHM_ID is required"; exit 1; }
+	@test -n "$(WEBHOOK_URL)" || { echo "WEBHOOK_URL is required"; exit 1; }
 	@api=$(EXECUTION_API_URL); \
-	runId=$$(curl -sS -X POST "$$api/run" -H 'Content-Type: application/json' \
-		-d '{"algorithmId":"$(ALGORITHM_ID)"}' | python3 -c 'import sys,json; print(json.load(sys.stdin)["runId"])'); \
-	echo "runId=$$runId"; \
-	for i in $$(seq 1 132); do \
-		res=$$(curl -sS "$$api/run/$$runId?algorithmId=$(ALGORITHM_ID)"); \
-		status=$$(echo "$$res" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("status",""))'); \
-		if [ "$$status" != "pending" ]; then \
-			echo "$$res"; \
-			echo "$$res" | python3 -c 'import json,sys; r=json.load(sys.stdin); out=r.get("output", "").strip(); parsed=json.loads(out) if out else {}; ok=r.get("status")=="exit:0" and bool(out) and not (isinstance(parsed, dict) and parsed.get("error")); sys.exit(0 if ok else 1)'; \
-			exit $$?; \
-		fi; \
-		sleep 5; \
-	done; \
-	echo "timed out waiting for runId=$$runId"; exit 1
+	curl -sS -X POST "$$api/run" -H 'Content-Type: application/json' \
+		-d '{"algorithmId":"$(ALGORITHM_ID)","webhookUrl":"$(WEBHOOK_URL)"}'; \
+	echo
 
-# Fire and poll every sample app in turn (sequential - each spins up its own enclave).
+# Fire every sample app in turn. The same WEBHOOK_URL receives all results.
 secure-rads-run-all:
+	@test -n "$(WEBHOOK_URL)" || { echo "WEBHOOK_URL is required"; exit 1; }
 	@for pair in $(SAMPLE_APPS); do \
-		app=$${pair%%:*}; id=$${pair##*:}; \
-		$(MAKE) secure-rads-run ALGORITHM_ID=$$id || exit 1; \
+		id=$${pair##*:}; \
+		$(MAKE) secure-rads-run ALGORITHM_ID=$$id WEBHOOK_URL="$(WEBHOOK_URL)" || exit 1; \
 	done
 
 # Start the existing hosts, then build, seed, and run the whole fleet. Build comes first because it
 # provisions the per-algorithm KMS keys used by seeding.
 secure-rads-all:
+	@test -n "$(WEBHOOK_URL)" || { echo "WEBHOOK_URL is required"; exit 1; }
 	$(MAKE) secure-rads-ready
 	$(MAKE) secure-rads-build-all
 	$(MAKE) secure-rads-seed

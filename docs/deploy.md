@@ -14,7 +14,7 @@ The lists below reflect the dependency order the script uses.
 
 | Tree | Units |
 | --- | --- |
-| `secure` | storage, verifier-service, result-consumer, log-service, telemetry-service, cost-service, pdm-service, kms-service, csav, execution-service, registry-image, transparency-portal |
+| `secure` | storage, verifier-service, log-service, telemetry-service, cost-service, pdm-service, kms-service, csav, execution-service, registry-image, transparency-portal |
 | `rads` | result-consumer, log-service, telemetry-service, cost-service, pdm-service, registry-service, execution-service, transparency-portal |
 
 A full tree deploy runs every unit. Named units deploy only what you name; dependencies are not

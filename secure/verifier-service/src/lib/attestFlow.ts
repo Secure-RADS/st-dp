@@ -44,7 +44,7 @@ export async function attestRequest(body: AttestBody, deps: AttestDeps): Promise
     return { statusCode: 401, body: `attestation verification failed: ${(err as Error).message}` };
   }
 
-  // The public key is what result-consumer later verifies signed run results against.
+  // The public key is what the DC later verifies signed webhook results against.
   if (!doc.publicKey || doc.publicKey.length === 0) {
     return { statusCode: 401, body: "attestation document is missing a public key" };
   }

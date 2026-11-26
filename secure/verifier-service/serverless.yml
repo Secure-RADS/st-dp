@@ -76,7 +76,7 @@ functions:
   jwks:
     handler: src/handlers/jwks.handler
 
-  # result-consumer reads the public key recorded for one run.
+  # The DC reads the public key recorded for one run.
   runSigningKey:
     handler: src/handlers/runSigningKey.handler
 

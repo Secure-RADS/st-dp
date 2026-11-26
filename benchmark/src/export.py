@@ -27,8 +27,8 @@ PHASES: dict[str, dict[str, Window]] = {
         "attestation": ("unit-ready", "attested"),
         "data_retrieval": ("attested", "records-stored-locally"),
         "algorithm_processing": ("records-stored-locally", "dc-app-completed"),
-        "result_delivery": ("output-sent", "result-persisted"),
-        "total": ("run-requested", "result-persisted"),
+        "result_delivery": ("dc-app-completed", "output-sent"),
+        "total": ("run-requested", "output-sent"),
     },
     "rads": {
         "host_provisioning": ("executor-launched", "executor-ready"),

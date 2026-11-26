@@ -10,7 +10,7 @@ Serverless Framework v4, TypeScript. Diagnostic timeline for performance, test, 
 
 Both export routes take `?format=csv` (`text/csv`) or default to JSON. CSV columns: `algorithmId,runId,event,timestamp,receivedAt,origin,detail`.
 
-Producers: registry-service build events, execution-service control-plane events, the host-reported checkpoints, the enclave run timeline, and result-consumer `result-persisted`.
+Producers: registry-service build events, execution-service control-plane events, the host-reported checkpoints, and the enclave run timeline.
 
 ## Queue
 

@@ -76,10 +76,6 @@ jobs:
               - 'secure/pdm-service/**'
               - 'packages/common/**'
               - '.github/workflows/ci.yml'
-            'secure/result-consumer':
-              - 'secure/result-consumer/**'
-              - 'packages/common/**'
-              - '.github/workflows/ci.yml'
             'secure/sce/execution-service':
               - 'secure/sce/execution-service/**'
               - 'packages/common/**'
@@ -143,10 +139,6 @@ jobs:
               - '.github/workflows/ci.yml'
             'secure/pdm-service':
               - 'secure/pdm-service/**'
-              - 'packages/common/**'
-              - '.github/workflows/ci.yml'
-            'secure/result-consumer':
-              - 'secure/result-consumer/**'
               - 'packages/common/**'
               - '.github/workflows/ci.yml'
             'secure/sce/execution-service':

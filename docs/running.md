@@ -37,13 +37,14 @@ and `AWS_DEFAULT_REGION` as `ap-southeast-2`, and uses the ignored local AWS fil
 devbox shell
 make up             # start the CSAV EC2 host and wait for registry-service
 make status         # show the CSAV, SCE, and rads stacks
-make secure-rads    # build, seed, and run all five samples
+make secure-rads WEBHOOK_URL=https://dc.example/results   # build, seed, and run all five samples
 make down           # stop the CSAV EC2 host when finished
 ```
 
 `make secure-rads` is a persistent, repeatable fleet: it registers each sample under its fixed
-`algorithmId`, seeds its data, and runs it. Building happens before seeding because registration
-creates the KMS key used to encrypt each dataset.
+`algorithmId`, seeds its data, and fires it at `WEBHOOK_URL`. Building happens before seeding because
+registration creates the KMS key used to encrypt each dataset. Secure-rads has no result polling; the
+signed result is delivered to the webhook.
 
 Useful root targets:
 
@@ -51,7 +52,7 @@ Useful root targets:
 make secure-rads-ready                     # start and verify the CSAV host
 make secure-rads-build-all                 # build and register all samples
 make secure-rads-seed                      # generate and seed all datasets
-make secure-rads-run-all                   # run all samples
+make secure-rads-run-all WEBHOOK_URL=...   # run all samples; results go to the webhook
 make benchmark                             # Exp1/Exp2 size sweep (override REPS= TREES= …)
 make benchmark-report                      # export sweep CSV + figures
 make logs                                  # tail the CSAV host and all Lambda logs
@@ -65,7 +66,7 @@ Single app (APP is a secure/samples/ dir, ALGORITHM_ID its fixed id):
 
 ```sh
 make secure-rads-build APP=health-risk-python ALGORITHM_ID=662fa378-dc53-425d-9225-a187b11ea7dc
-make secure-rads-run   ALGORITHM_ID=662fa378-dc53-425d-9225-a187b11ea7dc
+make secure-rads-run   ALGORITHM_ID=662fa378-dc53-425d-9225-a187b11ea7dc WEBHOOK_URL=https://dc.example/results
 ```
 
 Export a run's timeline (build through execution) as CSV:

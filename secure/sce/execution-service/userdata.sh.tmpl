@@ -16,8 +16,8 @@ emit_cost() {
     -d "{\"algorithmId\":\"{{.AlgorithmId}}\",\"runId\":\"{{.RunId}}\",\"eventId\":\"$(cat /proc/sys/kernel/random/uuid)\",\"phase\":\"execution\",\"service\":\"$1\",\"operation\":\"$2\",\"quantity\":$3,\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)\"}" >/dev/null || true
 }
 
-# Always self-terminate on exit. sce-unit sends the signed result to SQS itself using credentials served on
-# port 5002, so the host no longer builds or publishes results.
+# Always self-terminate on exit. sce-unit sends the signed result to the DC webhook itself, so the host
+# never builds or publishes results.
 finish() {
   set +e
   TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
@@ -65,7 +65,6 @@ body = json.dumps({
     "size": {{.Size}},
     "instanceId": sys.argv[1],
     "region": "{{.Region}}",
-    "queueUrl": "{{.QueueUrl}}",
     "webhookUrl": "{{.WebhookURL}}",
 }).encode()
 while True:
@@ -75,7 +74,6 @@ while True:
 PYEOF
 RUNINFO_LISTENER_PID=$!
 
-{{.CredsServer}}
 
 # Only way out of the enclave: one vsock-proxy per allowed host forwards vsock traffic over real TCP/TLS, resolving DNS here since the enclave has none.
 cat > /etc/nitro_enclaves/vsock-proxy.yaml <<EOF
@@ -86,7 +84,6 @@ allowlist:
   - {address: "{{.TelemetryHost}}", port: 443}
   - {address: "{{.KmsHost}}", port: 443}
 {{.WebhookAllowlist}}
-{{.SqsAllowlist}}
 EOF
 vsock-proxy 8000 "{{.KmsHost}}" 443 --config /etc/nitro_enclaves/vsock-proxy.yaml &
 vsock-proxy 8001 "{{.VerifierHost}}" 443 --config /etc/nitro_enclaves/vsock-proxy.yaml &
@@ -94,7 +91,6 @@ vsock-proxy 8002 "{{.PdmHost}}" 443 --config /etc/nitro_enclaves/vsock-proxy.yam
 vsock-proxy 8003 "{{.LogHost}}" 443 --config /etc/nitro_enclaves/vsock-proxy.yaml &
 vsock-proxy 8004 "{{.TelemetryHost}}" 443 --config /etc/nitro_enclaves/vsock-proxy.yaml &
 {{.WebhookProxy}}
-{{.SqsProxy}}
 
 # run-enclave can transiently fail right after the allocator starts (hugepages not yet reserved) - retry.
 launched=false

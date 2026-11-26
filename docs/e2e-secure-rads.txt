@@ -34,7 +34,7 @@ Input:
 6  cost dynamodb:read-capacity          // execution-service Query on the PDM table
 7  RunInstances(Nitro parent, userdata ← ⟨a, runId, n, key, launchEpoch⟩)
 8  emit executor-launched
-9  cost apigateway:request + lambda     // per control-plane request/poll (GET /run/{runId}?algorithmId=... too)
+9  cost apigateway:request + lambda     // per control-plane request
 10 return runId
 
 
@@ -50,7 +50,7 @@ Input:
 4  cost s3:get                          // EIF pull
 5  EIF ← GET-S3(key)
 6  emit artifact-retrieved              // direct, auth none
-7  start vsock listeners                // runInfo :5001, creds :5002
+7  start vsock listeners                // runInfo :5001, webhook :8006
 8  configure vsock-proxy
 9  RUN-ENCLAVE(EIF)
 10 emit enclave-launched                 // direct, auth none
@@ -64,7 +64,7 @@ SCE-UNIT(a)
 Input:
   a ← algorithm id
 1  cfg ← LOAD-RUN-CONFIG()
-2  ⟨runId, n⟩ ← READ-RUNINFO(:5001)
+2  ⟨runId, n, webhookUrl⟩ ← READ-RUNINFO(:5001)
 3  emit enclave-started                 // no token yet, auth none
 4  SEED-ENTROPY from NSM                 // no AWS cost
 5  emit unit-ready                      // no token yet, auth none
@@ -86,11 +86,9 @@ Input:
 21 output ← read /data/result.json
 22 emit dc-app-completed               // on success, else run-failed
 23 SIGN result                         // signature key registered at attestation
-24 SEND signed envelope to delivery     // webhook: TLS via vsock :8006
-   // or SQS: host-role credentials over vsock :5002, TLS to SQS
-25 cost sqs:send                        // SQS path only
-26 emit output-sent
-27 // on failure: emit run-failed
+24 SEND signed envelope to webhook      // CA-verified TLS via vsock :8006
+25 emit output-sent
+26 // on failure: emit run-failed
 
 
 
@@ -107,14 +105,3 @@ Input:
    // The key policy requires the attestation's PCR0/1/2 and KMS returns CiphertextForRecipient encrypted to
    // the enclave's ephemeral key: the service never sees plaintext, and only the measured enclave can unwrap.
 8  return ciphertext to the enclave
-
-SECURE-RADS-RESULT-CONSUMER(result)
-Input:
-  result ← processing result returned by the SCE-UNIT
-1  SQS delivers result batch; invoke Lambda // receive is billed before the handler runs
-2  key ← GET-VERIFIER-RUN-ATTESTATION(result.runId) // verifier GET /runs/{runId}
-3  if not VERIFY-SIGNATURE(key, result) then reject
-4  persist verified result to DynamoDB
-5  cost dynamodb:write-capacity; emit result-persisted
-6  cost sqs:receive + lambda:invocation + lambda:compute // reported by handler after processing
-7  cost sqs:delete                         // reported on success; Lambda deletes after return

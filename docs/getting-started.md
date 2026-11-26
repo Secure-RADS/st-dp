@@ -173,12 +173,6 @@ make -C secure/csav/registry-service gen-client-cert
   --param="publicCertificateArn=$VERIFIER_ATTEST_CERT_ARN")
 ```
 
-Deploy the result consumer next because the execution-service stack needs its queue and table. It calls verifier-service's `/runs/{runId}` at runtime, so verifier-service must be deployed first:
-
-```sh
-(cd secure/result-consumer && bun install && bunx serverless deploy --param="region=$REGION")
-```
-
 Upload the truststore, then deploy verifier-service again with its immutable S3 object version:
 
 ```sh

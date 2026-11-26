@@ -19,10 +19,6 @@
     "./jwt": {
       "types": "./src/jwt.ts",
       "import": "./src/jwt.ts"
-    },
-    "./tls": {
-      "types": "./src/tls.ts",
-      "import": "./src/tls.ts"
     }
   },
   "scripts": {

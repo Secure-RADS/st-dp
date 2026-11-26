@@ -8,11 +8,9 @@ PDM records, writes `records.json` under the DC rootfs `/data` (JSON shape
 `RECORDS_PATH` / `RESULT_PATH` set, reads the DC app's `result.json`, then signs
 the result fields with the ephemeral key it registered during attestation.
 
-Delivery depends on the run: if the run requested a webhook, sce-unit POSTs the
-signed envelope to it over CA-verified TLS through a per-run vsock-proxy. Otherwise
-it sends the envelope to the run-results SQS queue using credentials the parent
-serves over vsock (port 5002). In both paths the signature, not the transport, is
-what keeps a compromised host from forging a result.
+sce-unit POSTs the signed envelope to the run's DC webhook over CA-verified TLS
+through a per-run vsock-proxy. The signature, not the transport, is what keeps a
+compromised host from forging a result.
 
 PDM returns a standalone `dataSubjectIds` list aligned with the records. sce-unit
 keeps those ids in memory, writes `records.json` without them, and after a
