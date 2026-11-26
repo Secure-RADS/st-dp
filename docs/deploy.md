@@ -103,6 +103,7 @@ certificates are looked up by hostname in ACM.
 | `REGISTRY_TLS_CERT_B64`, `REGISTRY_TLS_KEY_B64` | base64 of the existing `secure/csav/registry-service/tls/client.{crt,key}` |
 | `CSAV_SSH_KEY_B64` | base64 of `.ssh/csav-key.pem`, used to ship the registry image |
 | `CLOUDFLARE_EMAIL`, `CLOUDFLARE_API_TOKEN` | Cloudflare API credentials |
+| `SERVERLESS_ACCESS_KEY` | Serverless Framework v4 license key; required because unattended runs cannot sign in |
 
 `REGISTRY_TLS_CERT_B64` must be the same client certificate the verifier truststore was created
 from. Generating a new certificate rotates the trust material and breaks registration until the
