@@ -89,22 +89,22 @@ certificates are looked up by hostname in ACM.
 | `LOG_HOST_RADS`, `LOG_HOST_SECURE_RADS` | log-service hostnames |
 | `TELEMETRY_HOST_RADS`, `TELEMETRY_HOST_SECURE_RADS` | telemetry-service hostnames |
 | `COST_HOST_RADS`, `COST_HOST_SECURE_RADS` | cost-service hostnames |
-| `PDM_HOST`, `PDM_HOST_RADS` | PDM hostnames |
+| `PDM_HOST`, `PDM_HOST_RADS`, `PDM_MTLS_HOST` | PDM hostnames; `PDM_MTLS_HOST` is the mTLS-only count endpoint |
 | `KMS_HOST`, `VERIFIER_HOST`, `VERIFIER_ATTEST_HOST`, `VERIFIER_URL` | secure service hostnames |
 | `REGISTRY_HOST_RADS`, `EXECUTION_HOST_RADS` | rads registry and execution API hostnames |
 | `VERIFIER_JWKS_URL`, `VERIFIER_JWKS_PUBKEY_SHA256` | JWKS endpoint and pin used by pdm/log/kms |
 | `VERIFIER_PUBKEY_SHA256`, `VERIFIER_HOST_PUBKEY_SHA256`, `PDM_HOST_PUBKEY_SHA256`, `KMS_HOST_PUBKEY_SHA256`, `LOG_HOST_PUBKEY_SHA256`, `TELEMETRY_HOST_PUBKEY_SHA256` | TLS pins baked into the registry image |
-| `GHCR_USER` | account that can pull `ghcr.io/secure-rads/nsjail-docker` |
 | `CLOUDFLARE_ZONE` | Cloudflare zone |
 
 ## Repository secrets
 
 | Secret | Purpose |
 | --- | --- |
-| `GHCR_TOKEN` | pull the private nsjail base image |
 | `REGISTRY_TLS_CERT_B64`, `REGISTRY_TLS_KEY_B64` | base64 of the existing `secure/csav/registry-service/tls/client.{crt,key}` |
 | `CSAV_SSH_KEY_B64` | base64 of `.ssh/csav-key.pem`, used to ship the registry image |
+| `PDM_CLIENT_CERT_B64`, `PDM_CLIENT_KEY_B64` | base64 of `secure/pdm-service/tls/client.{crt,key}`; the execution-service -> PDM count client identity |
 | `CLOUDFLARE_EMAIL`, `CLOUDFLARE_API_TOKEN` | Cloudflare API credentials |
+| `SERVERLESS_ACCESS_KEY` | Serverless Framework v4 license key; required because unattended runs cannot sign in |
 
 `REGISTRY_TLS_CERT_B64` must be the same client certificate the verifier truststore was created
 from. Generating a new certificate rotates the trust material and breaks registration until the
@@ -116,7 +116,7 @@ The secure registry-service image builds on a 2 vCPU Blacksmith arm64 runner, so
 `--platform linux/arm64` is native and needs no QEMU. That runner holds one job at a time here, so the
 image build gets the full runner. The `eif-build-base` cargo step is the heavy part; bump to
 `blacksmith-4vcpu-ubuntu-2404-arm` if that build dominates. It builds `sce-unit-base` and
-`eif-build-base` first, pulls the private `ghcr.io/secure-rads/nsjail-docker` base, ships the tarball
+`eif-build-base` first, pulls the public `ghcr.io/secure-rads/nsjail-docker` base, ships the tarball
 over SSH, and restarts the compose service on the CSAV host.
 
 ## Known gaps
@@ -127,3 +127,5 @@ over SSH, and restarts the compose service on the CSAV host.
 - The verifier JWT signing key must already exist at the SSM path the service reads. See
   `docs/getting-started.md`.
 - The CSAV key pair and the CSAV instance must already exist before the registry image ships.
+- A DNS-only CNAME for `PDM_MTLS_HOST` must point at the `PdmMtlsRegionalDomainName` output of
+  `secure-rads-pdm-service-dev`. The deploy does not manage Cloudflare DNS.
