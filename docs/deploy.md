@@ -127,4 +127,3 @@ over SSH, and restarts the compose service on the CSAV host.
 - The verifier JWT signing key must already exist at the SSM path the service reads. See
   `docs/getting-started.md`.
 - The CSAV key pair and the CSAV instance must already exist before the registry image ships.
-- `EXECUTION_HOST_RADS` has no default. Set it before deploying the rads tree.
