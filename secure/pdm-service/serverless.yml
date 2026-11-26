@@ -19,9 +19,15 @@ provider:
       statements:
         - Effect: Allow
           Action: dynamodb:Query
-          Resource: !GetAtt PersonalDataTable.Arn
+          Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/secure-rads-personal-data-*"
+        - Effect: Allow
+          Action: kms:Decrypt
+          Resource: !Sub "arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+          Condition:
+            StringEquals:
+              "kms:ViaService": !Sub "dynamodb.${AWS::Region}.amazonaws.com"
   environment:
-    PDM_TABLE: !Ref PersonalDataTable
+    PDM_TABLE_PREFIX: secure-rads-personal-data
     LOG_HOST: ${env:LOG_HOST_SECURE_RADS}
     COST_HOST: ${env:COST_HOST_SECURE_RADS}
     VERIFIER_JWKS_URL: ${env:VERIFIER_JWKS_URL}
@@ -35,6 +41,10 @@ functions:
       - httpApi:
           method: GET
           path: /records
+  # Reached only through the mTLS API below; no event on the plain httpApi.
+  count:
+    handler: src/handlers/count.handler
+    timeout: 29
   subject:
     handler: src/handlers/subject.handler
     reservedConcurrency: 5
@@ -44,22 +54,14 @@ functions:
           path: /subject/{dataSubjectId}
 
 resources:
-  Resources:
-    PersonalDataTable:
-      Type: AWS::DynamoDB::Table
-      Properties:
-        BillingMode: PAY_PER_REQUEST
-        AttributeDefinitions:
-          - AttributeName: AlgorithmId
-            AttributeType: S
-          - AttributeName: RecordId
-            AttributeType: S
-        KeySchema:
-          - AttributeName: AlgorithmId
-            KeyType: HASH
-          - AttributeName: RecordId
-            KeyType: RANGE
+  Conditions:
+    HasTruststoreVersion:
+      Fn::Not:
+        - Fn::Equals:
+            - "${param:truststoreVersionId, ''}"
+            - ""
 
+  Resources:
     DataKeyTable:
       Type: AWS::DynamoDB::Table
       Properties:
@@ -70,6 +72,71 @@ resources:
         KeySchema:
           - AttributeName: AlgorithmId
             KeyType: HASH
+
+    TruststoreBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        VersioningConfiguration:
+          Status: Enabled
+
+    # Internal API for the execution-service size check. mTLS is enforced on its custom domain, and the
+    # default execute-api endpoint is disabled so there is no way around the client certificate.
+    CountHttpApi:
+      Type: AWS::ApiGatewayV2::Api
+      Properties:
+        Name: secure-rads-pdm-service-count
+        ProtocolType: HTTP
+        DisableExecuteApiEndpoint: true
+
+    CountHttpApiStage:
+      Type: AWS::ApiGatewayV2::Stage
+      Properties:
+        ApiId: !Ref CountHttpApi
+        StageName: $default
+        AutoDeploy: true
+
+    CountIntegration:
+      Type: AWS::ApiGatewayV2::Integration
+      Properties:
+        ApiId: !Ref CountHttpApi
+        IntegrationType: AWS_PROXY
+        IntegrationUri: !GetAtt CountLambdaFunction.Arn
+        PayloadFormatVersion: "2.0"
+
+    CountRoute:
+      Type: AWS::ApiGatewayV2::Route
+      Properties:
+        ApiId: !Ref CountHttpApi
+        RouteKey: GET /count
+        AuthorizationType: NONE
+        Target: !Sub "integrations/${CountIntegration}"
+
+    CountLambdaPermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        Action: lambda:InvokeFunction
+        FunctionName: !GetAtt CountLambdaFunction.Arn
+        Principal: apigateway.amazonaws.com
+        SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${CountHttpApi}/*/GET/count"
+
+    CountApiCustomDomain:
+      Type: AWS::ApiGatewayV2::DomainName
+      Condition: HasTruststoreVersion
+      Properties:
+        DomainName: ${param:mtlsDomainName}
+        DomainNameConfigurations:
+          - CertificateArn: ${param:mtlsCertificateArn}
+        MutualTlsAuthentication:
+          TruststoreUri: !Sub "s3://${TruststoreBucket}/${param:truststoreKey, 'truststore.pem'}"
+          TruststoreVersion: ${param:truststoreVersionId, ''}
+
+    CountApiDomainMapping:
+      Type: AWS::ApiGatewayV2::ApiMapping
+      Condition: HasTruststoreVersion
+      Properties:
+        DomainName: !Ref CountApiCustomDomain
+        ApiId: !Ref CountHttpApi
+        Stage: !Ref CountHttpApiStage
 
     # Plain server-auth TLS only - the enclave authenticates with the bearer access token it got from
     # verifier-service's /attest, not a client cert (which would be extractable from the EIF).
@@ -88,8 +155,15 @@ resources:
         Stage: !Ref HttpApiStage
 
   Outputs:
-    PersonalDataTableName:
-      Value: !Ref PersonalDataTable
+    PdmMtlsHost:
+      Value: ${param:mtlsDomainName}
+    PdmTruststoreBucketName:
+      Value: !Ref TruststoreBucket
+    PdmMtlsRegionalDomainName:
+      Condition: HasTruststoreVersion
+      Value: !GetAtt CountApiCustomDomain.RegionalDomainName
+    PdmTablePrefix:
+      Value: secure-rads-personal-data
     DataKeyTableName:
       Value: !Ref DataKeyTable
     ApiRegionalDomainName:

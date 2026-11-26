@@ -6,7 +6,7 @@ import { CostPhase, costEvent, recordRequest } from "@srads/common/cost";
 import { requiredEnv } from "@srads/common/env";
 import { emitEvent } from "@srads/common/log";
 import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
-import { countAlgorithmRecords, isThrottlingError } from "../lib/pdmCount.js";
+import { fetchAlgorithmRecordCount } from "../lib/pdmCount.js";
 import { userData } from "../lib/userdata.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -21,8 +21,8 @@ const enclaveSecurityGroupId = requiredEnv("ENCLAVE_SECURITY_GROUP_ID");
 const enclaveInstanceProfileArn = requiredEnv("ENCLAVE_INSTANCE_PROFILE_ARN");
 const verifierHost = requiredEnv("VERIFIER_HOST");
 const pdmHost = requiredEnv("PDM_HOST");
+const pdmMtlsHost = requiredEnv("PDM_MTLS_HOST");
 const kmsServiceHost = requiredEnv("KMS_SERVICE_HOST");
-const pdmTable = requiredEnv("PDM_TABLE");
 const logHost = requiredEnv("LOG_HOST");
 const telemetryHost = requiredEnv("TELEMETRY_HOST");
 const costHost = requiredEnv("COST_HOST");
@@ -132,20 +132,7 @@ export const create: APIGatewayProxyHandlerV2 = async (event) => {
         }
       } else {
         try {
-          const { count: available, readCapacityUnits } = await countAlgorithmRecords(
-            ddb,
-            pdmTable,
-            request.algorithmId,
-            request.size,
-          );
-          await costEvent(
-            request.algorithmId,
-            runId,
-            CostPhase.Execution,
-            "dynamodb",
-            "read-capacity",
-            readCapacityUnits,
-          );
+          const available = await fetchAlgorithmRecordCount(pdmMtlsHost, request.algorithmId, request.size, runId);
           if (request.size > available) {
             await recordRequest(request.algorithmId, runId, CostPhase.Execution, startedAt);
             return jsonResponse(400, {
@@ -153,9 +140,8 @@ export const create: APIGatewayProxyHandlerV2 = async (event) => {
             });
           }
         } catch (error) {
-          // A concurrent sweep can throttle the fallback count; the executor caps at size anyway.
-          if (!isThrottlingError(error)) throw error;
-          console.warn("record count throttled; skipping size validation");
+          // The executor caps at size anyway, so a count outage should not block runs.
+          console.warn("record count failed; skipping size validation", error);
         }
       }
     }

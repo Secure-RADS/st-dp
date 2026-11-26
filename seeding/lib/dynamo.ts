@@ -6,19 +6,21 @@ import pMap from "p-map";
 const MAX_RETRIES = 16;
 const CONCURRENCY = Math.max(1, Number(process.env.SEED_WRITE_CONCURRENCY ?? 40));
 
-export function documentClient(region: string): DynamoDBDocumentClient {
-  return DynamoDBDocumentClient.from(
-    new DynamoDBClient({
-      region,
-      maxAttempts: 3,
-      requestHandler: new NodeHttpHandler({
-        connectionTimeout: 5_000,
-        requestTimeout: 30_000,
-        throwOnRequestTimeout: true,
-        socketTimeout: 30_000,
-      }),
+export function dynamoClient(region: string): DynamoDBClient {
+  return new DynamoDBClient({
+    region,
+    maxAttempts: 3,
+    requestHandler: new NodeHttpHandler({
+      connectionTimeout: 5_000,
+      requestTimeout: 30_000,
+      throwOnRequestTimeout: true,
+      socketTimeout: 30_000,
     }),
-  );
+  });
+}
+
+export function documentClient(region: string): DynamoDBDocumentClient {
+  return DynamoDBDocumentClient.from(dynamoClient(region));
 }
 
 export async function writeAll(
@@ -48,6 +50,7 @@ function isRetryable(error: unknown): boolean {
     error.name === "ThrottlingException" ||
     error.name === "ProvisionedThroughputExceededException" ||
     error.name === "RequestLimitExceeded" ||
+    error.name === "InternalServerError" ||
     error.name === "TimeoutError" ||
     /throughput|throttl|timeout/i.test(error.message)
   );

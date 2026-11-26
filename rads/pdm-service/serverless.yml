@@ -19,9 +19,9 @@ provider:
       statements:
         - Effect: Allow
           Action: dynamodb:Query
-          Resource: !GetAtt PersonalDataTable.Arn
+          Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/rads-personal-data-*"
   environment:
-    PDM_TABLE: !Ref PersonalDataTable
+    PDM_TABLE_PREFIX: rads-personal-data
     LOG_HOST: ${env:LOG_HOST_RADS}
     COST_HOST: ${env:COST_HOST_RADS}
 
@@ -33,6 +33,13 @@ functions:
       - httpApi:
           method: GET
           path: /records
+  count:
+    handler: src/handlers/count.handler
+    timeout: 29
+    events:
+      - httpApi:
+          method: GET
+          path: /count
   subject:
     handler: src/handlers/subject.handler
     reservedConcurrency: 5
@@ -57,24 +64,8 @@ resources:
         ApiId: !Ref HttpApi
         Stage: !Ref HttpApiStage
 
-    PersonalDataTable:
-      Type: AWS::DynamoDB::Table
-      Properties:
-        TableName: rads-personal-data
-        BillingMode: PAY_PER_REQUEST
-        AttributeDefinitions:
-          - AttributeName: AlgorithmId
-            AttributeType: S
-          - AttributeName: RecordId
-            AttributeType: S
-        KeySchema:
-          - AttributeName: AlgorithmId
-            KeyType: HASH
-          - AttributeName: RecordId
-            KeyType: RANGE
-
   Outputs:
-    PersonalDataTableName:
-      Value: !Ref PersonalDataTable
+    PdmTablePrefix:
+      Value: rads-personal-data
     ApiRegionalDomainName:
       Value: !GetAtt ApiCustomDomain.RegionalDomainName

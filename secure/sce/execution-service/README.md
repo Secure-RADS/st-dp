@@ -2,7 +2,7 @@
 
 Part of the SCE. API Gateway invokes the TypeScript Lambda control plane. Given an `AlgorithmId`, it looks up the EIF in S3 (via registry-service's `AlgorithmTable`), starts a Nitro-Enclave-capable EC2 instance, and returns immediately. The per-run EC2 instance remains necessary as the Nitro Enclave parent; the service itself has no persistent EC2 host.
 
-`POST /run` is fire-and-forget: it assigns a `runId`, looks up the EIF, and — when `size` is set — rejects the request if that count exceeds the rows already seeded for the algorithm in PDM. It then launches the enclave and returns `202 {runId, algorithmId, instanceId, status: "pending"}` immediately.
+`POST /run` is fire-and-forget: it assigns a `runId`, looks up the EIF, and — when `size` is set — rejects the request if that count exceeds the rows already seeded for the algorithm in PDM. The check calls PDM's `/count` endpoint over mTLS with a client certificate fetched from SSM; this Lambda has no DynamoDB access to PDM. It then launches the enclave and returns `202 {runId, algorithmId, instanceId, status: "pending"}` immediately.
 
 The request accepts an optional `webhookUrl`:
 
@@ -24,4 +24,4 @@ See [../README.md](../README.md) for the full SCE context.
 
 `make -C sce deploy` deploys the Lambda stack. It requires result-consumer, registry-service storage, and kms-service to exist first.
 
-The enclave host pulls the EIF and publishes the result; it has no algorithm-key KMS permission. Data-key decryption runs in kms-service, so the per-algorithm key policy names the kms-service role rather than this per-deployment host role. `KMS_HOST` is passed as `KMS_SERVICE_HOST` and baked into the host user data, which proxies the enclave's `/decrypt` call.
+The enclave host pulls the EIF but does not publish the result; it has no algorithm-key KMS permission. Data-key decryption runs in kms-service, so the per-algorithm key policy names the kms-service role rather than this per-deployment host role. `KMS_HOST` is passed as `KMS_SERVICE_HOST` and baked into the host user data, which proxies the enclave's `/decrypt` call.

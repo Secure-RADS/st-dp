@@ -23,8 +23,16 @@ provider:
             - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${param:algorithmTable}"
             - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${param:runResultsTable}"
         - Effect: Allow
-          Action: dynamodb:Query
-          Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${param:pdmTable}"
+          Action: ssm:GetParameter
+          Resource:
+            - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/secure-rads/pdm-service/client-cert"
+            - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/secure-rads/pdm-service/client-key"
+        - Effect: Allow
+          Action: kms:Decrypt
+          Resource: !Sub "arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+          Condition:
+            StringEquals:
+              "kms:ViaService": !Sub "ssm.${AWS::Region}.amazonaws.com"
         - Effect: Allow
           Action: ec2:RunInstances
           Resource:
@@ -56,8 +64,10 @@ provider:
     ENCLAVE_INSTANCE_PROFILE_ARN: !GetAtt EnclaveHostInstanceProfile.Arn
     VERIFIER_HOST: ${env:VERIFIER_ATTEST_HOST}
     PDM_HOST: ${env:PDM_HOST}
+    PDM_MTLS_HOST: ${param:pdmMtlsHost}
+    PDM_MTLS_CERT_PARAM: /secure-rads/pdm-service/client-cert
+    PDM_MTLS_KEY_PARAM: /secure-rads/pdm-service/client-key
     KMS_SERVICE_HOST: ${env:KMS_HOST}
-    PDM_TABLE: ${param:pdmTable}
     LOG_HOST: ${env:LOG_HOST_SECURE_RADS}
     TELEMETRY_HOST: ${env:TELEMETRY_HOST_SECURE_RADS}
     COST_HOST: ${env:COST_HOST_SECURE_RADS}

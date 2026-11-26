@@ -92,6 +92,20 @@ The DNS helper creates DNS-only CNAME records:
 scripts/cloudflare-dns.sh <hostname> <api-gateway-target>
 ```
 
+### Working from a git worktree
+
+A worktree is a separate checkout, so the ignored `.env` and `.aws/` files from the primary checkout are not present there and every command fails looking for them. Do not copy the credentials. Resolve the primary checkout and link its files into the worktree:
+
+```sh
+main_root=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
+ln -s "$main_root/.env" .env
+mkdir -p .aws
+ln -s "$main_root/.aws/credentials" .aws/credentials
+ln -s "$main_root/.aws/config" .aws/config
+```
+
+The links sit inside ignored paths, so `git status` stays clean. Credentials are always read from the primary checkout's `.aws/` files, never from a second copy in the worktree.
+
 ## 3. Prepare the AWS account
 
 Before deployment, prepare the selected region with:
@@ -130,12 +144,16 @@ This file is ignored by Git and must not be shared through the repository.
 
 ## 4. Deploy in Sydney
 
+`scripts/deploy.sh` and the manual CI workflow automate this section; see
+[`docs/deploy.md`](deploy.md). The steps below are the manual path.
+
 Set the certificate ARNs before deploying. Devbox already exports `REGION=ap-southeast-2`:
 
 ```sh
 export VERIFIER_CERT_ARN=<verifier-acm-certificate-arn>
 export VERIFIER_ATTEST_CERT_ARN=<verifier-attest-acm-certificate-arn>
 export PDM_CERT_ARN=<pdm-acm-certificate-arn>
+export PDM_MTLS_CERT_ARN=<pdm-mtls-acm-certificate-arn>
 export KMS_CERT_ARN=<kms-acm-certificate-arn>
 export LOG_CERT_ARN=<log.sr-acm-certificate-arn>
 export TELEMETRY_CERT_ARN=<telemetry.sr-acm-certificate-arn>
@@ -203,7 +221,9 @@ VERIFIER_JWKS_PUBKEY_SHA256="$VERIFIER_ATTEST_PIN" \
 (cd secure/pdm-service && bun install && bunx serverless deploy \
   --param="region=$REGION" \
   --param="domainName=pdm.sr.secure-rads.org" \
-  --param="certificateArn=$PDM_CERT_ARN")
+  --param="certificateArn=$PDM_CERT_ARN" \
+  --param="mtlsDomainName=pdm-mtls.sr.secure-rads.org" \
+  --param="mtlsCertificateArn=$PDM_MTLS_CERT_ARN")
 (cd secure/log-service && bun install && bunx serverless deploy \
   --param="region=$REGION" \
   --param="domainName=log.sr.secure-rads.org" --param="certificateArn=$LOG_CERT_ARN")
@@ -215,6 +235,30 @@ VERIFIER_JWKS_PUBKEY_SHA256="$VERIFIER_ATTEST_PIN" \
   --param="domainName=cost.sr.secure-rads.org" \
   --param="certificateArn=$SECURE_COST_CERT_ARN")
 ```
+
+Generate the execution-service client certificate, store it for the Lambda, then upload the truststore and redeploy PDM with its version:
+
+```sh
+make -C secure/pdm-service gen-client-cert
+make -C secure/pdm-service store-client-cert
+PDM_TRUSTSTORE_BUCKET=$(aws cloudformation describe-stacks --region "$REGION" \
+  --stack-name secure-rads-pdm-service-dev \
+  --query "Stacks[0].Outputs[?OutputKey=='PdmTruststoreBucketName'].OutputValue" --output text)
+PDM_TRUSTSTORE_VERSION=$(aws s3api put-object --bucket "$PDM_TRUSTSTORE_BUCKET" \
+  --key truststore.pem --body secure/pdm-service/tls/client.crt \
+  --query VersionId --output text)
+VERIFIER_JWKS_URL=https://verifier-attest.sr.secure-rads.org/.well-known/jwks.json \
+VERIFIER_JWKS_PUBKEY_SHA256="$VERIFIER_ATTEST_PIN" \
+(cd secure/pdm-service && bunx serverless deploy \
+  --param="region=$REGION" \
+  --param="domainName=pdm.sr.secure-rads.org" \
+  --param="certificateArn=$PDM_CERT_ARN" \
+  --param="mtlsDomainName=pdm-mtls.sr.secure-rads.org" \
+  --param="mtlsCertificateArn=$PDM_MTLS_CERT_ARN" \
+  --param="truststoreVersionId=$PDM_TRUSTSTORE_VERSION")
+```
+
+Create a DNS-only CNAME for `pdm-mtls.sr.secure-rads.org` from the `PdmMtlsRegionalDomainName` output.
 
 For the baseline tree, deploy its log, telemetry, and cost services with the `*.r.secure-rads.org` certificates:
 

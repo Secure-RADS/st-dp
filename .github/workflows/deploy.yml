@@ -1,0 +1,102 @@
+name: deploy
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: blacksmith-2vcpu-ubuntu-2404-arm
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'ap-southeast-2' }}
+      AVAILABILITY_ZONE: ${{ vars.AVAILABILITY_ZONE }}
+      RADS_EXECUTOR_AMI_ID: ${{ vars.RADS_EXECUTOR_AMI_ID }}
+      SCE_ENCLAVE_AMI_ID: ${{ vars.SCE_ENCLAVE_AMI_ID }}
+      CERT_ARN_RADS: ${{ vars.CERT_ARN_RADS }}
+      CERT_ARN_SECURE_RADS: ${{ vars.CERT_ARN_SECURE_RADS }}
+      TRANSPARENCY_DOMAIN_RADS: ${{ vars.TRANSPARENCY_DOMAIN_RADS }}
+      TRANSPARENCY_DOMAIN_SECURE_RADS: ${{ vars.TRANSPARENCY_DOMAIN_SECURE_RADS }}
+      LOG_HOST_RADS: ${{ vars.LOG_HOST_RADS }}
+      LOG_HOST_SECURE_RADS: ${{ vars.LOG_HOST_SECURE_RADS }}
+      TELEMETRY_HOST_RADS: ${{ vars.TELEMETRY_HOST_RADS }}
+      TELEMETRY_HOST_SECURE_RADS: ${{ vars.TELEMETRY_HOST_SECURE_RADS }}
+      COST_HOST_RADS: ${{ vars.COST_HOST_RADS }}
+      COST_HOST_SECURE_RADS: ${{ vars.COST_HOST_SECURE_RADS }}
+      PDM_HOST: ${{ vars.PDM_HOST }}
+      PDM_MTLS_HOST: ${{ vars.PDM_MTLS_HOST || 'pdm-mtls.sr.secure-rads.org' }}
+      PDM_HOST_RADS: ${{ vars.PDM_HOST_RADS }}
+      REGISTRY_HOST_RADS: ${{ vars.REGISTRY_HOST_RADS }}
+      EXECUTION_HOST_RADS: ${{ vars.EXECUTION_HOST_RADS }}
+      KMS_HOST: ${{ vars.KMS_HOST }}
+      VERIFIER_HOST: ${{ vars.VERIFIER_HOST }}
+      VERIFIER_ATTEST_HOST: ${{ vars.VERIFIER_ATTEST_HOST }}
+      VERIFIER_URL: ${{ vars.VERIFIER_URL }}
+      VERIFIER_JWKS_URL: ${{ vars.VERIFIER_JWKS_URL }}
+      VERIFIER_JWKS_PUBKEY_SHA256: ${{ vars.VERIFIER_JWKS_PUBKEY_SHA256 }}
+      VERIFIER_PUBKEY_SHA256: ${{ vars.VERIFIER_PUBKEY_SHA256 }}
+      VERIFIER_HOST_PUBKEY_SHA256: ${{ vars.VERIFIER_HOST_PUBKEY_SHA256 }}
+      PDM_HOST_PUBKEY_SHA256: ${{ vars.PDM_HOST_PUBKEY_SHA256 }}
+      KMS_HOST_PUBKEY_SHA256: ${{ vars.KMS_HOST_PUBKEY_SHA256 }}
+      LOG_HOST_PUBKEY_SHA256: ${{ vars.LOG_HOST_PUBKEY_SHA256 }}
+      TELEMETRY_HOST_PUBKEY_SHA256: ${{ vars.TELEMETRY_HOST_PUBKEY_SHA256 }}
+      CLOUDFLARE_ZONE: ${{ vars.CLOUDFLARE_ZONE }}
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      SERVERLESS_ACCESS_KEY: ${{ secrets.SERVERLESS_ACCESS_KEY }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'ap-southeast-2' }}
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.x
+
+      - name: Write registry trust material
+        env:
+          REGISTRY_TLS_CERT_B64: ${{ secrets.REGISTRY_TLS_CERT_B64 }}
+          REGISTRY_TLS_KEY_B64: ${{ secrets.REGISTRY_TLS_KEY_B64 }}
+        run: |
+          set -euo pipefail
+          [ -n "$REGISTRY_TLS_CERT_B64" ] || { echo "REGISTRY_TLS_CERT_B64 is not set" >&2; exit 1; }
+          [ -n "$REGISTRY_TLS_KEY_B64" ] || { echo "REGISTRY_TLS_KEY_B64 is not set" >&2; exit 1; }
+          mkdir -p secure/csav/registry-service/tls
+          printf '%s' "$REGISTRY_TLS_CERT_B64" | base64 -d >secure/csav/registry-service/tls/client.crt
+          printf '%s' "$REGISTRY_TLS_KEY_B64" | base64 -d >secure/csav/registry-service/tls/client.key
+          chmod 600 secure/csav/registry-service/tls/client.crt secure/csav/registry-service/tls/client.key
+
+      - name: Write PDM client trust material
+        env:
+          PDM_CLIENT_CERT_B64: ${{ secrets.PDM_CLIENT_CERT_B64 }}
+          PDM_CLIENT_KEY_B64: ${{ secrets.PDM_CLIENT_KEY_B64 }}
+        run: |
+          set -euo pipefail
+          [ -n "$PDM_CLIENT_CERT_B64" ] || { echo "PDM_CLIENT_CERT_B64 is not set" >&2; exit 1; }
+          [ -n "$PDM_CLIENT_KEY_B64" ] || { echo "PDM_CLIENT_KEY_B64 is not set" >&2; exit 1; }
+          mkdir -p secure/pdm-service/tls
+          printf '%s' "$PDM_CLIENT_CERT_B64" | base64 -d >secure/pdm-service/tls/client.crt
+          printf '%s' "$PDM_CLIENT_KEY_B64" | base64 -d >secure/pdm-service/tls/client.key
+          chmod 600 secure/pdm-service/tls/client.crt secure/pdm-service/tls/client.key
+
+      - name: Write CSAV SSH key
+        env:
+          CSAV_SSH_KEY_B64: ${{ secrets.CSAV_SSH_KEY_B64 }}
+        run: |
+          set -euo pipefail
+          [ -n "$CSAV_SSH_KEY_B64" ] || { echo "CSAV_SSH_KEY_B64 is not set" >&2; exit 1; }
+          mkdir -p .ssh
+          printf '%s' "$CSAV_SSH_KEY_B64" | base64 -d >.ssh/csav-key.pem
+          chmod 400 .ssh/csav-key.pem
+
+      - name: Deploy
+        run: scripts/deploy.sh deploy all
