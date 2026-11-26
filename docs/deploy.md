@@ -94,14 +94,12 @@ certificates are looked up by hostname in ACM.
 | `REGISTRY_HOST_RADS`, `EXECUTION_HOST_RADS` | rads registry and execution API hostnames |
 | `VERIFIER_JWKS_URL`, `VERIFIER_JWKS_PUBKEY_SHA256` | JWKS endpoint and pin used by pdm/log/kms |
 | `VERIFIER_PUBKEY_SHA256`, `VERIFIER_HOST_PUBKEY_SHA256`, `PDM_HOST_PUBKEY_SHA256`, `KMS_HOST_PUBKEY_SHA256`, `LOG_HOST_PUBKEY_SHA256`, `TELEMETRY_HOST_PUBKEY_SHA256` | TLS pins baked into the registry image |
-| `GHCR_USER` | account that can pull `ghcr.io/secure-rads/nsjail-docker` |
 | `CLOUDFLARE_ZONE` | Cloudflare zone |
 
 ## Repository secrets
 
 | Secret | Purpose |
 | --- | --- |
-| `GHCR_TOKEN` | pull the private nsjail base image |
 | `REGISTRY_TLS_CERT_B64`, `REGISTRY_TLS_KEY_B64` | base64 of the existing `secure/csav/registry-service/tls/client.{crt,key}` |
 | `CSAV_SSH_KEY_B64` | base64 of `.ssh/csav-key.pem`, used to ship the registry image |
 | `CLOUDFLARE_EMAIL`, `CLOUDFLARE_API_TOKEN` | Cloudflare API credentials |
@@ -116,7 +114,7 @@ The secure registry-service image builds on a 2 vCPU Blacksmith arm64 runner, so
 `--platform linux/arm64` is native and needs no QEMU. That runner holds one job at a time here, so the
 image build gets the full runner. The `eif-build-base` cargo step is the heavy part; bump to
 `blacksmith-4vcpu-ubuntu-2404-arm` if that build dominates. It builds `sce-unit-base` and
-`eif-build-base` first, pulls the private `ghcr.io/secure-rads/nsjail-docker` base, ships the tarball
+`eif-build-base` first, pulls the public `ghcr.io/secure-rads/nsjail-docker` base, ships the tarball
 over SSH, and restarts the compose service on the CSAV host.
 
 ## Known gaps
