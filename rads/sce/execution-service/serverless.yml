@@ -23,9 +23,6 @@ provider:
             - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${param:algorithmTable}"
             - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${param:runResultsTable}"
         - Effect: Allow
-          Action: dynamodb:Query
-          Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${param:pdmTable}"
-        - Effect: Allow
           Action: ec2:RunInstances
           Resource:
             - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*"
@@ -51,7 +48,6 @@ provider:
     TELEMETRY_HOST: ${env:TELEMETRY_HOST_RADS}
     COST_HOST: ${env:COST_HOST_RADS}
     PDM_URL: ${param:pdmUrl}
-    PDM_TABLE: ${param:pdmTable}
     # Pinned to match secure-rads ENCLAVE_AMI_ID so both trees boot the same AL2023 arm64 build.
     EXECUTOR_AMI_ID: ${env:RADS_EXECUTOR_AMI_ID}
     EXECUTOR_INSTANCE_TYPE: ${param:instanceType, 'c6g.large'}

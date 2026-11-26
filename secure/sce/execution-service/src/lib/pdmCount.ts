@@ -1,41 +1,80 @@
-import { type DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
+import { request as httpsRequest } from "node:https";
+import { GetParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
 
-export async function countAlgorithmRecords(
-  ddb: DynamoDBDocumentClient,
-  table: string,
-  algorithmId: string,
-  // Stop once we know at least this many rows exist (size checks only need a lower bound).
-  atLeast?: number,
-): Promise<{ count: number; readCapacityUnits: number }> {
-  let total = 0;
-  let readCapacityUnits = 0;
-  let exclusiveStartKey: Record<string, unknown> | undefined;
-  do {
-    const page = await ddb.send(
-      new QueryCommand({
-        TableName: table,
-        KeyConditionExpression: "AlgorithmId = :a",
-        ExpressionAttributeValues: { ":a": algorithmId },
-        Select: "COUNT",
-        ReturnConsumedCapacity: "TOTAL",
-        ExclusiveStartKey: exclusiveStartKey,
-      }),
-    );
-    total += page.Count ?? 0;
-    readCapacityUnits += page.ConsumedCapacity?.CapacityUnits ?? 0;
-    if (atLeast !== undefined && total >= atLeast) return { count: total, readCapacityUnits };
-    exclusiveStartKey = page.LastEvaluatedKey as Record<string, unknown> | undefined;
-  } while (exclusiveStartKey);
-  return { count: total, readCapacityUnits };
+const ssm = new SSMClient({});
+const COUNT_TIMEOUT_MS = 5000;
+
+interface ClientMaterial {
+  cert: string;
+  key: string;
 }
 
-const THROTTLING_ERRORS = new Set([
-  "ThrottlingException",
-  "ProvisionedThroughputExceededException",
-  "RequestLimitExceeded",
-  "TooManyRequestsException",
-]);
+let material: Promise<ClientMaterial> | undefined;
 
-export function isThrottlingError(error: unknown): boolean {
-  return error instanceof Error && THROTTLING_ERRORS.has(error.name);
+async function getParameter(name: string): Promise<string> {
+  const out = await ssm.send(new GetParameterCommand({ Name: name, WithDecryption: true }));
+  const value = out.Parameter?.Value;
+  if (!value) {
+    throw new Error(`SSM parameter ${name} is empty`);
+  }
+  return value;
+}
+
+function loadClientMaterial(): Promise<ClientMaterial> {
+  const certParam = process.env.PDM_MTLS_CERT_PARAM;
+  const keyParam = process.env.PDM_MTLS_KEY_PARAM;
+  if (!certParam || !keyParam) {
+    throw new Error("PDM mTLS parameter names are not configured");
+  }
+  material ??= Promise.all([getParameter(certParam), getParameter(keyParam)]).then(([cert, key]) => ({
+    cert,
+    key,
+  }));
+  return material;
+}
+
+// The count lives in PDM, not in this Lambda's DynamoDB permissions. The call goes to the mTLS-only PDM
+// domain with a client certificate fetched from SSM; `size` lets PDM stop early and return a lower bound.
+export async function fetchAlgorithmRecordCount(
+  pdmHost: string,
+  algorithmId: string,
+  atLeast: number,
+  runId: string,
+): Promise<number> {
+  const { cert, key } = await loadClientMaterial();
+  const query = new URLSearchParams({ algorithmId, size: String(atLeast) });
+
+  const body = await new Promise<string>((resolve, reject) => {
+    const req = httpsRequest(
+      {
+        host: pdmHost,
+        path: `/count?${query.toString()}`,
+        method: "GET",
+        cert,
+        key,
+        timeout: COUNT_TIMEOUT_MS,
+        headers: { "x-run-id": runId },
+      },
+      (response) => {
+        const chunks: Buffer[] = [];
+        response.on("data", (chunk: Buffer) => chunks.push(chunk));
+        response.on("end", () => {
+          if (response.statusCode !== 200) {
+            reject(new Error(`PDM count returned ${response.statusCode}`));
+            return;
+          }
+          resolve(Buffer.concat(chunks).toString("utf8"));
+        });
+      },
+    );
+    req.on("timeout", () => req.destroy(new Error("PDM count timed out")));
+    req.on("error", reject);
+    req.end();
+  });
+
+  const parsed = JSON.parse(body) as { count?: unknown };
+  if (typeof parsed.count !== "number") {
+    throw new Error("PDM count response missing count");
+  }
+  return parsed.count;
 }

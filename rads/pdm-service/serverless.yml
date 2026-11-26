@@ -33,6 +33,13 @@ functions:
       - httpApi:
           method: GET
           path: /records
+  count:
+    handler: src/handlers/count.handler
+    timeout: 29
+    events:
+      - httpApi:
+          method: GET
+          path: /count
   subject:
     handler: src/handlers/subject.handler
     reservedConcurrency: 5
