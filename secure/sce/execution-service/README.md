@@ -2,7 +2,17 @@
 
 Part of the SCE. API Gateway invokes the TypeScript Lambda control plane. Given an `AlgorithmId`, it looks up the EIF in S3 (via registry-service's `AlgorithmTable`), starts a Nitro-Enclave-capable EC2 instance, and returns immediately. The per-run EC2 instance remains necessary as the Nitro Enclave parent; the service itself has no persistent EC2 host.
 
-`POST /run` is fire-and-forget: it assigns a `runId`, looks up the EIF, and — when `size` is set — rejects the request if that count exceeds the rows already seeded for the algorithm in PDM. It then launches the enclave and returns `202 {runId, algorithmId, instanceId, status: "pending"}` immediately. The enclave signs the run result (run id, algorithm id, status, and output) with its attested ephemeral key and sends the signed envelope straight to the run-results SQS queue, borrowing the host's instance role credentials over vsock port 5002. The host no longer builds or publishes results; result-consumer verifies the signature against verifier-service's attested key before writing it to the RunResults table.
+`POST /run` is fire-and-forget: it assigns a `runId`, looks up the EIF, and — when `size` is set — rejects the request if that count exceeds the rows already seeded for the algorithm in PDM. It then launches the enclave and returns `202 {runId, algorithmId, instanceId, status: "pending"}` immediately.
+
+The request accepts an optional `webhookUrl`:
+
+```json
+{ "algorithmId": "...", "size": 1000, "webhookUrl": "https://dc.example/results" }
+```
+
+The URL must be `https` and must not target localhost or an obvious private/internal address. When present, the enclave signs the result (run id, algorithm id, status, and output) with its attested ephemeral key and POSTs the signed envelope to that webhook over CA-verified TLS. The DC verifies the envelope with verifier-service `GET /runs/{runId}`; no SQS message or host credentials are involved, and `GET /run/{runId}` stays `pending` for that run.
+
+Without `webhookUrl`, the enclave sends the signed envelope to the run-results SQS queue, borrowing the host instance role over vsock port 5002. The host never builds or publishes results; result-consumer verifies the signature against verifier-service's attested key before writing it to the RunResults table.
 
 `GET /run/{runId}?algorithmId={algorithmId}` polls for the result: `{runId, status: "pending"}` until it lands, then the stored result once the consumer has written it. `algorithmId` is required so every poll can be attributed to its run.
 

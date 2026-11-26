@@ -73,5 +73,8 @@ func sendResult(info runInfo, p resultPayload) error {
 	if err != nil {
 		return fmt.Errorf("marshal signed result: %w", err)
 	}
+	if info.WebhookURL != "" {
+		return sendWebhookResult(info, envelope)
+	}
 	return sendSQSResult(info, envelope)
 }

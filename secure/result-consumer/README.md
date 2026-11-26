@@ -18,6 +18,8 @@ For each message the `consume` Lambda:
 
 A message with no valid `runId`, no attested key, or an invalid signature is skipped, not thrown, so it can't block the rest of the batch; it ages out to the DLQ. DynamoDB errors throw so the batch retries.
 
+Runs created with a `webhookUrl` are delivered to the DC webhook instead and do not produce an SQS message, so `GET /run/{runId}` stays `pending` for those runs.
+
 When the signature verifies it also writes `result-persisted` to telemetry-service over plain HTTPS. It does not emit host or terminal events; the enclave owns those.
 
 The stack Outputs (`RunResultsQueueUrl`, `RunResultsQueueArn`, `RunResultsTableName`, `RunResultsTableArn`) are consumed by execution-service.

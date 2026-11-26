@@ -23,6 +23,7 @@ type runInfo struct {
 	InstanceID string `json:"instanceId"`
 	Region     string `json:"region"`
 	QueueURL   string `json:"queueUrl"`
+	WebhookURL string `json:"webhookUrl"`
 }
 
 func readRunInfo() (runInfo, error) {

@@ -31,6 +31,26 @@ const region = requiredEnv("AWS_REGION");
 interface RunRequest {
   algorithmId: string;
   size?: number;
+  webhookUrl?: string;
+}
+
+const PRIVATE_HOST =
+  /^(localhost|.*\.local|.*\.internal|127\.|10\.|192\.168\.|169\.254\.|0\.0\.0\.0$|172\.(1[6-9]|2\d|3[01])\.)/i;
+
+// Webhooks run from the host network, so reject obvious internal targets. DNS resolving to a private
+// address after this check is still possible; see docs for the remaining SSRF caveat.
+function parseWebhookUrl(value: unknown): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "string" || value.length === 0) return null;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:" || !url.hostname || url.username || url.password) return null;
+  if (url.hostname.includes(":") || PRIVATE_HOST.test(url.hostname)) return null;
+  return url.toString();
 }
 
 interface AlgorithmRecord {
@@ -57,12 +77,18 @@ function parseRunRequest(body: string | undefined): RunRequest | undefined {
   try {
     const parsed: unknown = JSON.parse(body ?? "");
     if (typeof parsed !== "object" || parsed === null) return undefined;
-    const { algorithmId, size } = parsed as Record<string, unknown>;
+    const { algorithmId, size, webhookUrl } = parsed as Record<string, unknown>;
     if (typeof algorithmId !== "string" || algorithmId.length === 0) return undefined;
     if (size !== undefined && (typeof size !== "number" || !Number.isInteger(size) || size <= 0)) {
       return undefined;
     }
-    return size === undefined ? { algorithmId } : { algorithmId, size };
+    const webhook = parseWebhookUrl(webhookUrl);
+    if (webhook === null) return undefined;
+    return {
+      algorithmId,
+      ...(size === undefined ? {} : { size }),
+      ...(webhook === undefined ? {} : { webhookUrl: webhook }),
+    };
   } catch {
     return undefined;
   }
@@ -161,6 +187,7 @@ export const create: APIGatewayProxyHandlerV2 = async (event) => {
             s3Key: record.S3Key,
             size: request.size,
             verifierHost,
+            webhookUrl: request.webhookUrl,
           }),
         ).toString("base64"),
         TagSpecifications: [

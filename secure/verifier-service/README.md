@@ -11,6 +11,24 @@ Serverless Framework v4, TypeScript. Receives `AlgorithmId` + PCR values from re
 - `GET /runs/{runId}` (public domain) - returns `{runId, algorithmId, publicKey}` for a run that has attested. result-consumer uses it to verify the enclave's result signature. Public keys are public, so no auth.
 - `GET /.well-known/jwks.json` (public domain) - the ML-DSA-87 public key downstream services use to verify access JWTs locally. Public by definition, no auth.
 
+### Verifying a webhook result
+
+A webhook run delivers this body to the DC:
+
+```json
+{ "runId": "...", "algorithmId": "...", "instanceId": "...", "payload": "<base64>", "signature": "<base64 DER>" }
+```
+
+`payload` decodes to the signed JSON `{runId, algorithmId, status, output, diag?}`. The signature is ECDSA P-384 over SHA-256 of `sce-result-v1\n` followed by the exact payload bytes.
+
+To verify:
+
+1. `GET /runs/{runId}` on the public domain returns `{runId, algorithmId, publicKey}`; `publicKey` is base64 SPKI DER.
+2. Check the signed `runId` and `algorithmId` match the values you expect.
+3. Verify the signature with `publicKey`.
+
+No SQS or result table entry exists for a webhook run, so `GET /run/{runId}` on execution-service remains `pending`.
+
 ### Access token format (ML-DSA-87 compact JWS)
 
 Downstream services (pdm-service, kms-service, log-service) verify the JWT locally against the JWKS endpoint - there is no `/validate` round-trip. Claims:

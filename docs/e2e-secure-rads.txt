@@ -86,8 +86,9 @@ Input:
 21 output ← read /data/result.json
 22 emit dc-app-completed               // on success, else run-failed
 23 SIGN result                         // signature key registered at attestation
-24 SEND signed envelope to SQS          // host-role credentials over vsock :5002, TLS to SQS
-25 cost sqs:send
+24 SEND signed envelope to delivery     // webhook: TLS via vsock :8006
+   // or SQS: host-role credentials over vsock :5002, TLS to SQS
+25 cost sqs:send                        // SQS path only
 26 emit output-sent
 27 // on failure: emit run-failed
 

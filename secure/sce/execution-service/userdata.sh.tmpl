@@ -66,6 +66,7 @@ body = json.dumps({
     "instanceId": sys.argv[1],
     "region": "{{.Region}}",
     "queueUrl": "{{.QueueUrl}}",
+    "webhookUrl": "{{.WebhookURL}}",
 }).encode()
 while True:
     conn, _ = s.accept()
@@ -74,35 +75,7 @@ while True:
 PYEOF
 RUNINFO_LISTENER_PID=$!
 
-# Serve fresh IMDSv2 role credentials to the enclave on port 5002 so it can call SQS. The enclave has no
-# IMDS access; the host holds the role. The role also lets the host send to the queue, so result integrity
-# still comes from the enclave signature, not from this credential split.
-python3 - <<'PYEOF' &
-import json, socket, urllib.request
-def get(path, token=None):
-    req = urllib.request.Request("http://169.254.169.254"+path)
-    if token:
-        req.add_header("X-aws-ec2-metadata-token", token)
-    return urllib.request.urlopen(req, timeout=5).read().decode()
-s = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
-s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-s.bind((socket.VMADDR_CID_ANY, 5002))
-s.listen(5)
-while True:
-    conn, _ = s.accept()
-    try:
-        token = urllib.request.urlopen(urllib.request.Request("http://169.254.169.254/latest/api/token",
-            data=b"", method="PUT", headers={"X-aws-ec2-metadata-token-ttl-seconds": "21600"}), timeout=5).read().decode()
-        role = get("/latest/meta-data/iam/security-credentials/", token)
-        creds = json.loads(get("/latest/meta-data/iam/security-credentials/"+role, token))
-        conn.sendall(json.dumps({
-            "accessKeyId": creds["AccessKeyId"],
-            "secretAccessKey": creds["SecretAccessKey"],
-            "sessionToken": creds["Token"],
-        }).encode())
-    finally:
-        conn.close()
-PYEOF
+{{.CredsServer}}
 
 # Only way out of the enclave: one vsock-proxy per allowed host forwards vsock traffic over real TCP/TLS, resolving DNS here since the enclave has none.
 cat > /etc/nitro_enclaves/vsock-proxy.yaml <<EOF
@@ -112,14 +85,16 @@ allowlist:
   - {address: "{{.LogHost}}", port: 443}
   - {address: "{{.TelemetryHost}}", port: 443}
   - {address: "{{.KmsHost}}", port: 443}
-  - {address: "sqs.{{.Region}}.amazonaws.com", port: 443}
+{{.WebhookAllowlist}}
+{{.SqsAllowlist}}
 EOF
 vsock-proxy 8000 "{{.KmsHost}}" 443 --config /etc/nitro_enclaves/vsock-proxy.yaml &
 vsock-proxy 8001 "{{.VerifierHost}}" 443 --config /etc/nitro_enclaves/vsock-proxy.yaml &
 vsock-proxy 8002 "{{.PdmHost}}" 443 --config /etc/nitro_enclaves/vsock-proxy.yaml &
 vsock-proxy 8003 "{{.LogHost}}" 443 --config /etc/nitro_enclaves/vsock-proxy.yaml &
 vsock-proxy 8004 "{{.TelemetryHost}}" 443 --config /etc/nitro_enclaves/vsock-proxy.yaml &
-vsock-proxy 8005 "sqs.{{.Region}}.amazonaws.com" 443 --config /etc/nitro_enclaves/vsock-proxy.yaml &
+{{.WebhookProxy}}
+{{.SqsProxy}}
 
 # run-enclave can transiently fail right after the allocator starts (hugepages not yet reserved) - retry.
 launched=false
