@@ -1,12 +1,13 @@
 import { createCipheriv, randomBytes } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { GenerateDataKeyCommand, KMSClient } from "@aws-sdk/client-kms";
-import { GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
+import { CreateKeyCommand, GenerateDataKeyCommand, KMSClient } from "@aws-sdk/client-kms";
+import { GetCommand, PutCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { readDatasetMeta, resolveSeedNames, streamDatasetRecords } from "./lib/datasets";
-import { documentClient, writeAll } from "./lib/dynamo";
+import { documentClient, dynamoClient, writeAll } from "./lib/dynamo";
 import { requireEnv } from "./lib/env";
+import { ensurePdmTable, pdmTableName, tableExists } from "./lib/tables";
 
-const table = requireEnv("PDM_TABLE");
+const tablePrefix = requireEnv("PDM_TABLE_PREFIX");
 const algorithmTable = requireEnv("ALGORITHM_TABLE");
 const dataKeyTable = requireEnv("DATA_KEY_TABLE");
 const BATCH_SIZE = 25;
@@ -17,6 +18,7 @@ const forceNewKey = process.env.SEED_FORCE_NEW_KEY === "1";
 
 const region = process.env.AWS_REGION ?? "ap-southeast-2";
 const client = documentClient(region);
+const tables = dynamoClient(region);
 const kms = new KMSClient({ region });
 
 function dekCachePath(algorithmId: string): string {
@@ -53,8 +55,34 @@ async function loadOrCreateDek(algorithmId: string, kmsKeyArn: string): Promise<
   return dek;
 }
 
+async function loadOrCreateTableKey(algorithmId: string, existingKeyArn: string | undefined): Promise<string> {
+  if (existingKeyArn) return existingKeyArn;
+
+  const created = await kms.send(
+    new CreateKeyCommand({
+      Description: `dynamodb table key for algorithm ${algorithmId}`,
+      KeyUsage: "ENCRYPT_DECRYPT",
+      KeySpec: "SYMMETRIC_DEFAULT",
+    }),
+  );
+  const keyArn = created.KeyMetadata?.Arn;
+  if (!keyArn) {
+    throw new Error(`CreateKey returned no key for algorithm ${algorithmId}`);
+  }
+  await client.send(
+    new UpdateCommand({
+      TableName: algorithmTable,
+      Key: { AlgorithmId: algorithmId },
+      UpdateExpression: "SET PdmTableKeyArn = :k",
+      ExpressionAttributeValues: { ":k": keyArn },
+    }),
+  );
+  return keyArn;
+}
+
 for (const name of resolveSeedNames()) {
   const meta = await readDatasetMeta(name);
+  const table = pdmTableName(tablePrefix, meta.algorithmId);
   const progress = { written: skip, total: meta.expectedCount };
   console.log(
     `${meta.name} (${meta.algorithmId}): seeding${meta.expectedCount ? ` ${meta.expectedCount}` : ""} records` +
@@ -65,6 +93,11 @@ for (const name of resolveSeedNames()) {
   const kmsKeyArn = (algo.Item?.KmsKeyArn ?? "") as string;
   if (!kmsKeyArn) {
     throw new Error(`${meta.name}: no KMS key for algorithm ${meta.algorithmId}; build it first`);
+  }
+
+  if (!(await tableExists(tables, table))) {
+    const tableKeyArn = await loadOrCreateTableKey(meta.algorithmId, algo.Item?.PdmTableKeyArn as string | undefined);
+    await ensurePdmTable(tables, table, tableKeyArn);
   }
 
   const dekBuf = await loadOrCreateDek(meta.algorithmId, kmsKeyArn);
