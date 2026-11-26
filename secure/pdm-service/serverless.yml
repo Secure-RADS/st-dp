@@ -109,7 +109,7 @@ resources:
         ApiId: !Ref CountHttpApi
         RouteKey: GET /count
         AuthorizationType: NONE
-        Target: !Join ["integrations/", !Ref CountIntegration]
+        Target: !Sub "integrations/${CountIntegration}"
 
     CountLambdaPermission:
       Type: AWS::Lambda::Permission
