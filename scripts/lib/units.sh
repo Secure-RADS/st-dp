@@ -118,13 +118,31 @@ unit_secure_verifier_service() {
 }
 
 unit_secure_pdm_service() {
-	need PDM_HOST LOG_HOST_SECURE_RADS COST_HOST_SECURE_RADS VERIFIER_JWKS_URL VERIFIER_JWKS_PUBKEY_SHA256
-	local arn
+	need PDM_HOST PDM_MTLS_HOST LOG_HOST_SECURE_RADS COST_HOST_SECURE_RADS VERIFIER_JWKS_URL VERIFIER_JWKS_PUBKEY_SHA256
+	local arn mtls_arn truststore version
 	arn=$(cert_for "$PDM_HOST")
+	mtls_arn=$(cert_for "$PDM_MTLS_HOST")
+	truststore=secure/pdm-service/tls/client.crt
+	[ -f "$truststore" ] || run make -C secure/pdm-service gen-client-cert
+	run make -C secure/pdm-service store-client-cert
 	sls secure/pdm-service \
 		--param="region=$region" \
 		--param="domainName=$PDM_HOST" \
-		--param="certificateArn=$arn"
+		--param="certificateArn=$arn" \
+		--param="mtlsDomainName=$PDM_MTLS_HOST" \
+		--param="mtlsCertificateArn=$mtls_arn"
+	version=$(aws s3api put-object \
+		--bucket "$(stack_output secure-rads-pdm-service-dev PdmTruststoreBucketName)" \
+		--key truststore.pem \
+		--body "$truststore" \
+		--query VersionId --output text)
+	sls secure/pdm-service \
+		--param="region=$region" \
+		--param="domainName=$PDM_HOST" \
+		--param="certificateArn=$arn" \
+		--param="mtlsDomainName=$PDM_MTLS_HOST" \
+		--param="mtlsCertificateArn=$mtls_arn" \
+		--param="truststoreVersionId=$version"
 }
 
 unit_secure_kms_service() {
@@ -223,7 +241,7 @@ unit_rads_execution_service() {
 	need EXECUTION_HOST_RADS PDM_HOST_RADS RADS_EXECUTOR_AMI_ID AVAILABILITY_ZONE \
 		LOG_HOST_RADS TELEMETRY_HOST_RADS COST_HOST_RADS
 	local arn images_bucket algorithm_table run_results_table run_results_queue_url \
-		run_results_queue_arn pdm_table vpc
+		run_results_queue_arn vpc
 	arn=$(cert_for "$EXECUTION_HOST_RADS")
 	vpc=$(default_vpc)
 	images_bucket=$(stack_output rads-registry-service-dev ImagesBucketName)
@@ -231,7 +249,6 @@ unit_rads_execution_service() {
 	run_results_table=$(stack_output rads-result-consumer-dev RunResultsTableName)
 	run_results_queue_url=$(stack_output rads-result-consumer-dev RunResultsQueueUrl)
 	run_results_queue_arn=$(stack_output rads-result-consumer-dev RunResultsQueueArn)
-	pdm_table=$(stack_output rads-pdm-service-dev PersonalDataTableName)
 	sls rads/sce/execution-service \
 		--param="region=$region" \
 		--param="vpcId=$vpc" \
@@ -241,7 +258,6 @@ unit_rads_execution_service() {
 		--param="runResultsQueueUrl=$run_results_queue_url" \
 		--param="runResultsQueueArn=$run_results_queue_arn" \
 		--param="pdmUrl=https://$PDM_HOST_RADS" \
-		--param="pdmTable=$pdm_table" \
 		--param="domainName=$EXECUTION_HOST_RADS" \
 		--param="certificateArn=$arn"
 }

@@ -30,6 +30,7 @@ jobs:
       COST_HOST_RADS: ${{ vars.COST_HOST_RADS }}
       COST_HOST_SECURE_RADS: ${{ vars.COST_HOST_SECURE_RADS }}
       PDM_HOST: ${{ vars.PDM_HOST }}
+      PDM_MTLS_HOST: ${{ vars.PDM_MTLS_HOST || 'pdm-mtls.sr.secure-rads.org' }}
       PDM_HOST_RADS: ${{ vars.PDM_HOST_RADS }}
       REGISTRY_HOST_RADS: ${{ vars.REGISTRY_HOST_RADS }}
       EXECUTION_HOST_RADS: ${{ vars.EXECUTION_HOST_RADS }}
@@ -73,6 +74,19 @@ jobs:
           printf '%s' "$REGISTRY_TLS_CERT_B64" | base64 -d >secure/csav/registry-service/tls/client.crt
           printf '%s' "$REGISTRY_TLS_KEY_B64" | base64 -d >secure/csav/registry-service/tls/client.key
           chmod 600 secure/csav/registry-service/tls/client.crt secure/csav/registry-service/tls/client.key
+
+      - name: Write PDM client trust material
+        env:
+          PDM_CLIENT_CERT_B64: ${{ secrets.PDM_CLIENT_CERT_B64 }}
+          PDM_CLIENT_KEY_B64: ${{ secrets.PDM_CLIENT_KEY_B64 }}
+        run: |
+          set -euo pipefail
+          [ -n "$PDM_CLIENT_CERT_B64" ] || { echo "PDM_CLIENT_CERT_B64 is not set" >&2; exit 1; }
+          [ -n "$PDM_CLIENT_KEY_B64" ] || { echo "PDM_CLIENT_KEY_B64 is not set" >&2; exit 1; }
+          mkdir -p secure/pdm-service/tls
+          printf '%s' "$PDM_CLIENT_CERT_B64" | base64 -d >secure/pdm-service/tls/client.crt
+          printf '%s' "$PDM_CLIENT_KEY_B64" | base64 -d >secure/pdm-service/tls/client.key
+          chmod 600 secure/pdm-service/tls/client.crt secure/pdm-service/tls/client.key
 
       - name: Write CSAV SSH key
         env:
