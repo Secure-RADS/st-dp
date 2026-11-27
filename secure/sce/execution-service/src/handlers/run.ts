@@ -13,7 +13,6 @@ const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const ec2 = new EC2Client({});
 const algorithmTable = requiredEnv("ALGORITHM_TABLE");
 const runResultsTable = requiredEnv("RUN_RESULTS_TABLE");
-const resultWebhookUrl = requiredEnv("RESULT_WEBHOOK_URL");
 const enclaveAmiId = requiredEnv("ENCLAVE_AMI_ID");
 const enclaveInstanceType = requiredEnv("ENCLAVE_INSTANCE_TYPE") as RunInstancesCommandInput["InstanceType"];
 const enclaveAz = requiredEnv("ENCLAVE_AZ");
@@ -31,7 +30,7 @@ const region = requiredEnv("AWS_REGION");
 interface RunRequest {
   algorithmId: string;
   size?: number;
-  webhookUrl?: string;
+  webhookUrl: string;
 }
 
 interface RunResult {
@@ -82,12 +81,8 @@ function parseRunRequest(body: string | undefined): RunRequest | undefined {
       return undefined;
     }
     const webhook = parseWebhookUrl(webhookUrl);
-    if (webhook === null) return undefined;
-    return {
-      algorithmId,
-      ...(size === undefined ? {} : { size }),
-      ...(webhook === undefined ? {} : { webhookUrl: webhook }),
-    };
+    if (typeof webhook !== "string") return undefined;
+    return { algorithmId, webhookUrl: webhook, ...(size === undefined ? {} : { size }) };
   } catch {
     return undefined;
   }
@@ -171,7 +166,7 @@ export const create: APIGatewayProxyHandlerV2 = async (event) => {
             s3Key: record.S3Key,
             size: request.size,
             verifierHost,
-            webhookUrl: request.webhookUrl ?? resultWebhookUrl,
+            webhookUrl: request.webhookUrl,
           }),
         ).toString("base64"),
         TagSpecifications: [

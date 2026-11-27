@@ -13,6 +13,6 @@ def harness_for(tree: Tree, endpoints: dict[str, str]) -> TreeHarness:
     if tree is Tree.RADS:
         return RadsHarness(endpoints["registry"], endpoints["execution"])
     if tree is Tree.SECURE_RADS:
-        return SecureRadsHarness(endpoints["registry"], endpoints["execution"])
+        return SecureRadsHarness(endpoints["registry"], endpoints["execution"], endpoints["result_consumer"])
     msg = f"unknown tree {tree!r}"
     raise ValueError(msg)

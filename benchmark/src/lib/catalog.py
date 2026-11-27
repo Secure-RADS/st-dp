@@ -22,6 +22,8 @@ class ApiGatewayService(BaseModel):
     has_url: bool = True
     # Env var holding the caller-facing hostname, for stacks whose URL is a custom domain.
     host_env: str | None = None
+    # Stack output that holds the URL, when it is not HttpApiUrl.
+    url_output: str = "HttpApiUrl"
 
 
 class Ec2HttpService(BaseModel):
@@ -61,6 +63,10 @@ CATALOG: dict[Tree, dict[str, ApiGatewayService | Ec2HttpService]] = {
         ),
         "pdm": ApiGatewayService(stack="secure-rads-pdm-service-dev"),
         "execution": ApiGatewayService(stack="secure-rads-execution-service-dev"),
+        "result_consumer": ApiGatewayService(
+            stack="secure-rads-result-consumer-dev",
+            url_output="ResultWebhookUrl",
+        ),
         "log": ApiGatewayService(
             stack="secure-rads-log-service-dev",
             host_env="LOG_HOST_SECURE_RADS",

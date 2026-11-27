@@ -108,7 +108,7 @@ Input:
 
 SECURE-RADS-RESULT-CONSUMER(result)
 Input:
-  result ← signed envelope POSTed by the SCE-UNIT (default webhook)
+  result ← signed envelope POSTed by the SCE-UNIT webhook
 1  key ← GET-VERIFIER-RUN-ATTESTATION(result.runId) // verifier GET /runs/{runId}
 2  if not VERIFY-SIGNATURE(key, result) then reject
 3  persist verified result to DynamoDB

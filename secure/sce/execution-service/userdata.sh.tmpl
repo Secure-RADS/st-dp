@@ -61,7 +61,6 @@ s.listen(5)
 body = json.dumps({
     "runId": "{{.RunId}}",
     "size": {{.Size}},
-    "region": "{{.Region}}",
     "webhookUrl": "{{.WebhookURL}}",
 }).encode()
 while True:

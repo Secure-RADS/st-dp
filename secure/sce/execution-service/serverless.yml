@@ -54,7 +54,6 @@ provider:
   environment:
     ALGORITHM_TABLE: ${param:algorithmTable}
     RUN_RESULTS_TABLE: ${param:runResultsTable}
-    RESULT_WEBHOOK_URL: ${param:resultWebhookUrl}
     # Pinned to match rads EXECUTOR_AMI_ID so both trees boot the same AL2023 arm64 build.
     ENCLAVE_AMI_ID: ${env:SCE_ENCLAVE_AMI_ID}
     ENCLAVE_INSTANCE_TYPE: ${param:enclaveInstanceType, 'c6g.large'}

@@ -4,17 +4,17 @@ Part of the SCE. API Gateway invokes the TypeScript Lambda control plane. Given 
 
 `POST /run` is fire-and-forget: it assigns a `runId`, looks up the EIF, and — when `size` is set — rejects the request if that count exceeds the rows already seeded for the algorithm in PDM. The check calls PDM's `/count` endpoint over mTLS with a client certificate fetched from SSM; this Lambda has no DynamoDB access to PDM. It then launches the enclave and returns `202 {runId, algorithmId, instanceId, status: "pending"}` immediately.
 
-The request accepts an optional `webhookUrl`:
+The request requires a `webhookUrl`:
 
 ```json
 { "algorithmId": "...", "size": 1000, "webhookUrl": "https://dc.example/results" }
 ```
 
-When omitted, results go to secure-rads-result-consumer's HTTPS receiver and `GET /run/{runId}` returns them. When provided, the URL must be `https` and must not target localhost or an obvious private/internal address; the signed result goes to that DC webhook instead and `GET /run/{runId}` stays `pending`.
+The URL must be `https` and must not target localhost or an obvious private/internal address. The enclave signs the result (run id, algorithm id, status, and output) with its attested ephemeral key and POSTs the signed envelope to that webhook over CA-verified TLS.
 
-The enclave signs the result (run id, algorithm id, status, and output) with its attested ephemeral key and POSTs the signed envelope over CA-verified TLS. For the internal receiver, result-consumer verifies the signature and writes the RunResults table. For a DC webhook, the DC verifies the envelope with verifier-service `GET /runs/{runId}`.
+If the webhook is result-consumer's `ResultWebhookUrl`, result-consumer verifies the signature and writes the RunResults table, so `GET /run/{runId}` returns the result. For any other webhook, the DC verifies the envelope with verifier-service `GET /runs/{runId}` and `GET /run/{runId}` stays `pending`.
 
-`GET /run/{runId}?algorithmId={algorithmId}` polls for the result: `{runId, status: "pending"}` until it lands, then the stored result for internally delivered runs. `algorithmId` is required so every poll can be attributed to its run.
+`GET /run/{runId}?algorithmId={algorithmId}` polls for the result: `{runId, status: "pending"}` until it lands, then the stored result for runs delivered to result-consumer. `algorithmId` is required so every poll can be attributed to its run.
 
 The control plane logs `run-requested` and `executor-launched` (or `launch-failed`). The parent posts `executor-ready`, `artifact-retrieved`, `enclave-launched`, and `executor-finished` directly to telemetry-service with `origin: host`. The host holds no credential; telemetry ingest is unauthenticated. The enclave emits `run-failed` before it exits. result-consumer emits `result-persisted` for internally delivered runs. SCE-unit and result-consumer emit the remaining events in [the execution flow](../../../docs/e2e-secure-rads.txt).
 

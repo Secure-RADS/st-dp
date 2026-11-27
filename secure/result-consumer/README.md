@@ -15,7 +15,7 @@ Returns `200` on success, `400` for malformed input, `404` when the run has not 
 ## Resources
 
 - `RunResultsTable` - PAY_PER_REQUEST DynamoDB table, PK `RunId`.
-- `ResultWebhookUrl` - output consumed by execution-service as the default webhook target.
+- `ResultWebhookUrl` - pass this as `webhookUrl` on `POST /run` when you want results stored for `GET /run/{runId}`.
 
 Deploy verifier-service first so `GET /runs/{runId}` exists:
 
