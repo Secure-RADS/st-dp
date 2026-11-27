@@ -42,7 +42,6 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       TableName: table,
       Item: {
         RunId: result.runId,
-        InstanceId: typeof message.instanceId === "string" ? message.instanceId : undefined,
         AlgorithmId: result.algorithmId,
         Status: result.status,
         Output: result.output,

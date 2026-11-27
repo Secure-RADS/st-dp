@@ -16,7 +16,7 @@ Serverless Framework v4, TypeScript. Receives `AlgorithmId` + PCR values from re
 A webhook run delivers this body to the DC:
 
 ```json
-{ "runId": "...", "algorithmId": "...", "instanceId": "...", "payload": "<base64>", "signature": "<base64 DER>" }
+{ "runId": "...", "algorithmId": "...", "payload": "<base64>", "signature": "<base64 DER>" }
 ```
 
 `payload` decodes to the signed JSON `{runId, algorithmId, status, output, diag?}`. The signature is ECDSA P-384 over SHA-256 of `sce-result-v1\n` followed by the exact payload bytes.

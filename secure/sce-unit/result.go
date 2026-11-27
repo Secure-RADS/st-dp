@@ -23,7 +23,6 @@ type resultPayload struct {
 type signedResult struct {
 	RunID       string `json:"runId"`
 	AlgorithmID string `json:"algorithmId"`
-	InstanceID  string `json:"instanceId,omitempty"`
 	Payload     string `json:"payload"`
 	Signature   string `json:"signature"`
 }
@@ -66,7 +65,6 @@ func sendResult(info runInfo, p resultPayload) error {
 	envelope, err := json.Marshal(signedResult{
 		RunID:       p.RunID,
 		AlgorithmID: p.AlgorithmID,
-		InstanceID:  info.InstanceID,
 		Payload:     base64.StdEncoding.EncodeToString(payload),
 		Signature:   base64.StdEncoding.EncodeToString(signature),
 	})

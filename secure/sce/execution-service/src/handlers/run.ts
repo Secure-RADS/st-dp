@@ -37,7 +37,6 @@ interface RunRequest {
 interface RunResult {
   AlgorithmId?: string;
   Diag?: unknown;
-  InstanceId?: string;
   Output?: string;
   ReceivedAt?: string;
   RunId?: string;
@@ -225,7 +224,6 @@ export const result: APIGatewayProxyHandlerV2 = async (event) => {
     if (!item) return jsonResponse(200, { runId, status: "pending" });
     return jsonResponse(200, {
       runId: item.RunId,
-      instanceId: item.InstanceId,
       algorithmId: item.AlgorithmId,
       status: item.Status,
       output: item.Output,

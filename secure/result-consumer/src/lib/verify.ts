@@ -5,7 +5,6 @@ const SIGNATURE_CONTEXT = "sce-result-v1\n";
 export interface SignedResultMessage {
   runId?: unknown;
   algorithmId?: unknown;
-  instanceId?: unknown;
   payload?: unknown;
   signature?: unknown;
 }

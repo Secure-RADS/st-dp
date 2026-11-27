@@ -52,10 +52,8 @@ emit_event artifact-retrieved
 
 # Serve this run's id, record limit, instance id, region, and queue URL to the enclave on port 5001 - the
 # enclave takes no user-data, so it has no other way to learn them (the EIF carries per-algorithm config).
-TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
-INSTANCE_ID=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-id)
-python3 - "$INSTANCE_ID" > /dev/null <<'PYEOF' &
-import json, socket, sys
+python3 - > /dev/null <<'PYEOF' &
+import json, socket
 s = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
 s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 s.bind((socket.VMADDR_CID_ANY, 5001))
@@ -63,7 +61,6 @@ s.listen(5)
 body = json.dumps({
     "runId": "{{.RunId}}",
     "size": {{.Size}},
-    "instanceId": sys.argv[1],
     "region": "{{.Region}}",
     "webhookUrl": "{{.WebhookURL}}",
 }).encode()
