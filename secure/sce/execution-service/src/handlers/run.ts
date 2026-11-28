@@ -47,6 +47,24 @@ const PRIVATE_HOST =
 
 // Webhooks run from the host network, so reject obvious internal targets. DNS resolving to a private
 // address after this check is still possible; see docs for the remaining SSRF caveat.
+const WEBHOOK_PROBE_TIMEOUT_MS = 5000;
+
+// Checks that the webhook host answers at all. Any HTTP status counts as reachable; only DNS/TLS/connection
+// failures reject. The control plane is making an attacker-influenced request here, so this is a known SSRF
+// surface accepted for now - see the webhook note in the README.
+async function webhookReachable(url: string): Promise<boolean> {
+  try {
+    await fetch(url, {
+      method: "HEAD",
+      redirect: "manual",
+      signal: AbortSignal.timeout(WEBHOOK_PROBE_TIMEOUT_MS),
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function parseWebhookUrl(value: unknown): string | null | undefined {
   if (value === undefined) return undefined;
   if (typeof value !== "string" || value.length === 0) return null;
@@ -138,6 +156,11 @@ export const create: APIGatewayProxyHandlerV2 = async (event) => {
           console.warn("record count failed; skipping size validation", error);
         }
       }
+    }
+
+    if (!(await webhookReachable(request.webhookUrl))) {
+      await recordRequest(request.algorithmId, runId, CostPhase.Execution, startedAt);
+      return jsonResponse(400, { error: "webhook unreachable" });
     }
 
     await emitEvent(request.algorithmId, runId, "run-requested");

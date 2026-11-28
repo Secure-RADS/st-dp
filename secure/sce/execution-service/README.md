@@ -10,7 +10,7 @@ The request requires a `webhookUrl`:
 { "algorithmId": "...", "size": 1000, "webhookUrl": "https://dc.example/results" }
 ```
 
-The URL must be `https` and must not target localhost or an obvious private/internal address. The enclave signs the result (run id, algorithm id, status, and output) with its attested ephemeral key and POSTs the signed envelope to that webhook over CA-verified TLS.
+The URL must be `https` and must not target localhost or an obvious private/internal address. The control plane makes a 5s `HEAD` reachability check with redirects disabled; any HTTP response counts, only DNS/TLS/connection failures reject the request. That probe is an accepted SSRF surface for now: the Lambda can reach VPC-internal hosts, so a production deployment should move delivery behind a public-egress-only proxy. The enclave signs the result (run id, algorithm id, status, and output) with its attested ephemeral key and POSTs the signed envelope to that webhook over CA-verified TLS.
 
 If the webhook is result-consumer's `ResultWebhookUrl`, result-consumer verifies the signature and writes the RunResults table, so `GET /run/{runId}` returns the result. For any other webhook, the DC verifies the envelope with verifier-service `GET /runs/{runId}` and `GET /run/{runId}` stays `pending`.
 
