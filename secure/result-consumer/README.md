@@ -1,24 +1,25 @@
 # result-consumer
 
-Serverless Framework v4, TypeScript. The consumer half of the async run-result flow: an SQS-triggered Lambda that reads enclave run-result messages and writes them to the `RunResults` DynamoDB table (keyed by `RunId`), where execution-service's `GET /run/{runId}` reads them back.
+Serverless Framework v4, TypeScript. HTTPS receiver for the enclave's signed run result.
+
+## Flow
+
+`POST /results` accepts the signed envelope `{ runId, algorithmId, payload, signature }`:
+
+1. Fetch the run's attested public key from verifier-service `GET /runs/{runId}`, pinned to the verifier leaf SPKI.
+2. Check the returned `runId` matches, then verify the signature and signed `algorithmId`.
+3. `PutItem` the verified fields into `RunResultsTable`, which execution-service reads back at `GET /run/{runId}`.
+
+Returns `200` on success, `400` for malformed input, `404` when the run has not attested, and `401` for an invalid signature. DynamoDB errors return `500` so the enclave's webhook retry can try again.
 
 ## Resources
 
-- `RunResultsQueue` - standard SQS queue the enclave host produces JSON run results to. 60s visibility timeout, 14-day retention, redrive to `RunResultsDLQ` after 3 receives.
-- `RunResultsDLQ` - dead-letter queue for messages that keep failing.
 - `RunResultsTable` - PAY_PER_REQUEST DynamoDB table, PK `RunId`.
+- `ResultWebhookUrl` - pass this as `webhookUrl` on `POST /run` when you want results stored for `GET /run/{runId}`.
 
-The `consume` Lambda parses each message `{ runId, instanceId?, algorithmId?, status?, output?, diag? }` and `PutItem`s it (idempotent on `RunId`). A message with no valid `runId` is skipped, not thrown, so it can't block the rest of the batch; it ages out to the DLQ. DynamoDB errors throw so the batch retries.
-
-When `algorithmId` is present it also writes `result-persisted` to telemetry-service over plain HTTPS. It does not emit host or terminal events; the enclave owns those.
-
-The stack Outputs (`RunResultsQueueUrl`, `RunResultsQueueArn`, `RunResultsTableName`, `RunResultsTableArn`) are consumed by execution-service.
-
-Bun is used as the local dev/bundle tool only (`bun install`) - the Lambda itself runs on the standard `nodejs24.x` runtime, no custom Bun runtime layer.
-
-## Deploy
+Deploy verifier-service first so `GET /runs/{runId}` exists:
 
 ```sh
 bun install
-bunx serverless deploy
+bunx serverless deploy --param="region=$REGION"
 ```

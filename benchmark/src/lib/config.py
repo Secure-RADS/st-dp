@@ -49,18 +49,18 @@ def stack_outputs(stack: str) -> dict[str, str]:
     return outputs
 
 
-def _api_gateway_url(outputs: dict[str, str], host_env: str | None) -> str:
+def _api_gateway_url(outputs: dict[str, str], host_env: str | None, url_output: str) -> str:
     if host_env:
         host = os.environ.get(host_env)
         if not host:
             msg = f"{host_env} is required to resolve the service URL"
             raise RuntimeError(msg)
         return f"https://{host}"
-    if url := outputs.get("HttpApiUrl"):
+    if url := outputs.get(url_output):
         return url
     domain = outputs.get("ApiRegionalDomainName")
     if not domain:
-        msg = "stack outputs missing HttpApiUrl and ApiRegionalDomainName"
+        msg = f"stack outputs missing {url_output} and ApiRegionalDomainName"
         raise RuntimeError(msg)
     return f"https://{domain}"
 
@@ -91,7 +91,7 @@ def _ec2_http_url(service: Ec2HttpService, outputs: dict[str, str]) -> str:
 
 def _service_url(service: ApiGatewayService | Ec2HttpService, outputs: dict[str, str]) -> str:
     if service.kind is ServiceKind.API_GATEWAY:
-        return _api_gateway_url(outputs, service.host_env)
+        return _api_gateway_url(outputs, service.host_env, service.url_output)
     if service.kind is ServiceKind.EC2_HTTP:
         return _ec2_http_url(service, outputs)
     msg = f"unknown service kind {service.kind!r}"

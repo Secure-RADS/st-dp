@@ -38,7 +38,9 @@ provider:
             - dynamodb:UpdateItem
           Resource: !GetAtt AttestationChallengeTable.Arn
         - Effect: Allow
-          Action: dynamodb:PutItem
+          Action:
+            - dynamodb:PutItem
+            - dynamodb:GetItem
           Resource: !GetAtt RunAttestationTable.Arn
         - Effect: Allow
           Action: ssm:GetParameter
@@ -73,6 +75,10 @@ functions:
   # access JWTs against, locally, with no verifier round-trip (no /validate anymore).
   jwks:
     handler: src/handlers/jwks.handler
+
+  # The DC reads the public key recorded for one run.
+  runSigningKey:
+    handler: src/handlers/runSigningKey.handler
 
 resources:
   Conditions:
@@ -281,6 +287,29 @@ resources:
         Principal: apigateway.amazonaws.com
         SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicHttpApi}/*/*/*"
 
+    RunSigningKeyIntegration:
+      Type: AWS::ApiGatewayV2::Integration
+      Properties:
+        ApiId: !Ref PublicHttpApi
+        IntegrationType: AWS_PROXY
+        IntegrationUri: !GetAtt RunSigningKeyLambdaFunction.Arn
+        PayloadFormatVersion: "2.0"
+
+    RunSigningKeyRoute:
+      Type: AWS::ApiGatewayV2::Route
+      Properties:
+        ApiId: !Ref PublicHttpApi
+        RouteKey: "GET /runs/{runId}"
+        Target: !Sub "integrations/${RunSigningKeyIntegration}"
+
+    RunSigningKeyInvokePermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        FunctionName: !Ref RunSigningKeyLambdaFunction
+        Action: lambda:InvokeFunction
+        Principal: apigateway.amazonaws.com
+        SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PublicHttpApi}/*/*/*"
+
     PublicApiCustomDomain:
       Type: AWS::ApiGatewayV2::DomainName
       Properties:
@@ -302,6 +331,8 @@ resources:
       Value: !Ref AttestationSessionTable
     AttestationChallengeTableName:
       Value: !Ref AttestationChallengeTable
+    RunAttestationTableName:
+      Value: !Ref RunAttestationTable
     TruststoreBucketName:
       Value: !Ref TruststoreBucket
     ApiRegionalDomainName:

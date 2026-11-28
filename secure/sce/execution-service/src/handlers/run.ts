@@ -13,7 +13,6 @@ const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const ec2 = new EC2Client({});
 const algorithmTable = requiredEnv("ALGORITHM_TABLE");
 const runResultsTable = requiredEnv("RUN_RESULTS_TABLE");
-const runResultsQueueUrl = requiredEnv("RUN_RESULTS_QUEUE_URL");
 const enclaveAmiId = requiredEnv("ENCLAVE_AMI_ID");
 const enclaveInstanceType = requiredEnv("ENCLAVE_INSTANCE_TYPE") as RunInstancesCommandInput["InstanceType"];
 const enclaveAz = requiredEnv("ENCLAVE_AZ");
@@ -31,22 +30,59 @@ const region = requiredEnv("AWS_REGION");
 interface RunRequest {
   algorithmId: string;
   size?: number;
+  webhookUrl: string;
+}
+
+interface RunResult {
+  AlgorithmId?: string;
+  Diag?: unknown;
+  Output?: string;
+  ReceivedAt?: string;
+  RunId?: string;
+  Status?: string;
+}
+
+const PRIVATE_HOST =
+  /^(localhost|.*\.local|.*\.internal|127\.|10\.|192\.168\.|169\.254\.|0\.0\.0\.0$|172\.(1[6-9]|2\d|3[01])\.)/i;
+
+// Webhooks run from the host network, so reject obvious internal targets. DNS resolving to a private
+// address after this check is still possible; see docs for the remaining SSRF caveat.
+const WEBHOOK_PROBE_TIMEOUT_MS = 5000;
+
+// Checks that the webhook host answers at all. Any HTTP status counts as reachable; only DNS/TLS/connection
+// failures reject. The control plane is making an attacker-influenced request here, so this is a known SSRF
+// surface accepted for now - see the webhook note in the README.
+async function webhookReachable(url: string): Promise<boolean> {
+  try {
+    await fetch(url, {
+      method: "HEAD",
+      redirect: "manual",
+      signal: AbortSignal.timeout(WEBHOOK_PROBE_TIMEOUT_MS),
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function parseWebhookUrl(value: unknown): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "string" || value.length === 0) return null;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:" || !url.hostname || url.username || url.password) return null;
+  if (url.hostname.includes(":") || PRIVATE_HOST.test(url.hostname)) return null;
+  return url.toString();
 }
 
 interface AlgorithmRecord {
   S3Bucket?: string;
   S3Key?: string;
   RecordCount?: number;
-}
-
-interface RunResult {
-  AlgorithmId?: string;
-  Diag?: unknown;
-  InstanceId?: string;
-  Output?: string;
-  ReceivedAt?: string;
-  RunId?: string;
-  Status?: string;
 }
 
 function jsonResponse(statusCode: number, body: unknown) {
@@ -57,12 +93,14 @@ function parseRunRequest(body: string | undefined): RunRequest | undefined {
   try {
     const parsed: unknown = JSON.parse(body ?? "");
     if (typeof parsed !== "object" || parsed === null) return undefined;
-    const { algorithmId, size } = parsed as Record<string, unknown>;
+    const { algorithmId, size, webhookUrl } = parsed as Record<string, unknown>;
     if (typeof algorithmId !== "string" || algorithmId.length === 0) return undefined;
     if (size !== undefined && (typeof size !== "number" || !Number.isInteger(size) || size <= 0)) {
       return undefined;
     }
-    return size === undefined ? { algorithmId } : { algorithmId, size };
+    const webhook = parseWebhookUrl(webhookUrl);
+    if (typeof webhook !== "string") return undefined;
+    return { algorithmId, webhookUrl: webhook, ...(size === undefined ? {} : { size }) };
   } catch {
     return undefined;
   }
@@ -120,6 +158,11 @@ export const create: APIGatewayProxyHandlerV2 = async (event) => {
       }
     }
 
+    if (!(await webhookReachable(request.webhookUrl))) {
+      await recordRequest(request.algorithmId, runId, CostPhase.Execution, startedAt);
+      return jsonResponse(400, { error: "webhook unreachable" });
+    }
+
     await emitEvent(request.algorithmId, runId, "run-requested");
     const launched = await ec2.send(
       new RunInstancesCommand({
@@ -141,12 +184,12 @@ export const create: APIGatewayProxyHandlerV2 = async (event) => {
             telemetryHost,
             pdmHost,
             region,
-            queueUrl: runResultsQueueUrl,
             runId,
             s3Bucket: record.S3Bucket,
             s3Key: record.S3Key,
             size: request.size,
             verifierHost,
+            webhookUrl: request.webhookUrl,
           }),
         ).toString("base64"),
         TagSpecifications: [
@@ -199,7 +242,6 @@ export const result: APIGatewayProxyHandlerV2 = async (event) => {
     if (!item) return jsonResponse(200, { runId, status: "pending" });
     return jsonResponse(200, {
       runId: item.RunId,
-      instanceId: item.InstanceId,
       algorithmId: item.AlgorithmId,
       status: item.Status,
       output: item.Output,

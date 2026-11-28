@@ -34,7 +34,7 @@ Input:
 6  cost dynamodb:read-capacity          // execution-service Query on the PDM table
 7  RunInstances(Nitro parent, userdata ← ⟨a, runId, n, key, launchEpoch⟩)
 8  emit executor-launched
-9  cost apigateway:request + lambda     // per control-plane request/poll (GET /run/{runId}?algorithmId=... too)
+9  cost apigateway:request + lambda     // per control-plane request
 10 return runId
 
 
@@ -50,23 +50,21 @@ Input:
 4  cost s3:get                          // EIF pull
 5  EIF ← GET-S3(key)
 6  emit artifact-retrieved              // direct, auth none
-7  start vsock listeners                // output :5000, runInfo :5001
+7  start vsock listeners                // runInfo :5001, webhook :8006
 8  configure vsock-proxy
 9  RUN-ENCLAVE(EIF)
 10 emit enclave-launched                 // direct, auth none
 11 wait for enclave exit
-12 publish result to SQS
-13 cost sqs:send                        // message bytes
-14 emit executor-finished               // direct, auth none
-15 cost ec2:instance                    // captured before the cost POST and terminate request
-16 terminate instance
+12 emit executor-finished               // direct, auth none
+13 cost ec2:instance                    // captured before the cost POST and terminate request
+14 terminate instance
 
 
 SCE-UNIT(a)
 Input:
   a ← algorithm id
 1  cfg ← LOAD-RUN-CONFIG()
-2  ⟨runId, n⟩ ← READ-RUNINFO(:5001)
+2  ⟨runId, n, webhookUrl⟩ ← READ-RUNINFO(:5001)
 3  emit enclave-started                 // no token yet, auth none
 4  SEED-ENTROPY from NSM                 // no AWS cost
 5  emit unit-ready                      // no token yet, auth none
@@ -87,9 +85,10 @@ Input:
 20 wait for nsjail exit
 21 output ← read /data/result.json
 22 emit dc-app-completed               // on success, else run-failed
-23 STREAM output to parent              // vsock :5000
-24 emit output-sent
-25 // on failure: emit run-failed
+23 SIGN result                         // signature key registered at attestation
+24 SEND signed envelope to webhook      // CA-verified TLS via vsock :8006
+25 emit output-sent
+26 // on failure: emit run-failed
 
 
 
@@ -109,9 +108,8 @@ Input:
 
 SECURE-RADS-RESULT-CONSUMER(result)
 Input:
-  result ← processing result returned by the SCE-UNIT
-1  SQS delivers result batch; invoke Lambda // receive is billed before the handler runs
-2  persist result to DynamoDB
-3  cost dynamodb:write-capacity; emit result-persisted
-4  cost sqs:receive + lambda:invocation + lambda:compute // reported by handler after processing
-5  cost sqs:delete                         // reported on success; Lambda deletes after return
+  result ← signed envelope POSTed by the SCE-UNIT webhook
+1  key ← GET-VERIFIER-RUN-ATTESTATION(result.runId) // verifier GET /runs/{runId}
+2  if not VERIFY-SIGNATURE(key, result) then reject
+3  persist verified result to DynamoDB
+4  cost dynamodb:write-capacity; emit result-persisted

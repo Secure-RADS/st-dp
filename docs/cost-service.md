@@ -52,17 +52,19 @@ rads (`csav/registry-service`, Lambdas):
 - execution-service `POST /run`: `apigateway:request`, `lambda:invocation`, `lambda:compute`,
   `dynamodb:read-capacity` (algorithm lookup and record-count check; actual `ConsumedCapacity.CapacityUnits`).
   It also stamps the launch epoch into the host user-data.
-- execution-service `GET /run/{runId}?algorithmId={algorithmId}` (each poll): `apigateway:request`, `lambda:invocation`,
+- execution-service `GET /run/{runId}?algorithmId={algorithmId}` (both trees; secure-rads webhook runs stored by result-consumer): `apigateway:request`, `lambda:invocation`,
   `lambda:compute`, `dynamodb:read-capacity`. `algorithmId` is required so pending-run polls can be attributed.
-- executor host (user-data, both trees): `s3:get` (artifact; rads also the host tools), `sqs:send` (result),
+- executor host (user-data): `s3:get` (artifact; rads also the host tools), `sqs:send` (rads result only),
   `ec2:instance` (seconds from launch to the terminate call).
 - pdm-service `/records`: `apigateway:request`, `lambda:invocation`, `lambda:compute`, `dynamodb:read-capacity`
   (each records `Query` page).
 - kms-service `/decrypt` (secure-rads): `apigateway:request`, `lambda:invocation`, `lambda:compute`,
   `dynamodb:read-capacity` (algorithm and data-key `GetItem`s).
-- result-consumer (`batchSize` 1, so each run's receive + invoke lands on that run): `sqs:receive` (message
+- rads result-consumer (`batchSize` 1, so each run's receive + invoke lands on that run): `sqs:receive` (message
   bytes), `sqs:delete` (one request when the handler succeeds; Lambda performs the deletion),
   `dynamodb:write-capacity`, `lambda:invocation`, `lambda:compute`.
+- secure-rads result-consumer (`POST /results`): `apigateway:request`, `lambda:invocation`, `lambda:compute`,
+  `dynamodb:write-capacity` for each verified webhook result.
 - verifier-service (secure-rads): `/challenge`, `/attest` and `/refresh` (the enclave's challenge, attestation and
   token refresh, keyed by the run) and `/algorithms` (build-time PCR registration, keyed by `algorithmId`): `dynamodb:read-capacity` and
   `dynamodb:write-capacity` where attributable, plus `apigateway:request`, `lambda:invocation`, `lambda:compute`.
@@ -103,7 +105,7 @@ per-run against Cost Explorer.
 - log-service, telemetry-service, and cost-service self-cost (ingest API Gateway/Lambda/queue/DynamoDB).
 - Ongoing storage (S3 EIF/artifact objects, DynamoDB table storage), CloudWatch Logs ingestion/storage, CloudWatch
   alarms, the persistent CSAV host, and data transfer (internet egress, cross-AZ).
-- SQS queue-cost of result delivery is metered as `sqs:send`, `sqs:receive`, and `sqs:delete`. Receive requests
+- rads result delivery SQS cost is metered as `sqs:send`, `sqs:receive`, and `sqs:delete`. Receive requests
   that invoke the handler with an attributable result are counted, including redeliveries; idle polling, empty
   receives, and messages without parseable run identifiers cannot be attributed to a run.
 - Attributed DynamoDB events use each response's `ConsumedCapacity.CapacityUnits`; an invalid verifier refresh lookup

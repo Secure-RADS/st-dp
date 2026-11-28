@@ -1,7 +1,5 @@
 service: secure-rads-result-consumer
 
-# Bundled as CJS, not ESM, same as pdm-service - esbuild's ESM output can't interop with plain
-# top-level require() in some deps, and nothing here actually needs ESM at runtime.
 build:
   esbuild:
     format: cjs
@@ -20,31 +18,21 @@ provider:
           Resource: !GetAtt RunResultsTable.Arn
   environment:
     RUN_RESULTS_TABLE: !Ref RunResultsTable
+    VERIFIER_ATTEST_HOST: ${env:VERIFIER_ATTEST_HOST}
+    VERIFIER_ATTEST_PUBKEY_SHA256: ${env:VERIFIER_PUBKEY_SHA256}
     TELEMETRY_HOST: ${env:TELEMETRY_HOST_SECURE_RADS}
     COST_HOST: ${env:COST_HOST_SECURE_RADS}
 
 functions:
-  consume:
-    handler: src/handlers/consume.handler
+  receive:
+    handler: src/handlers/receive.handler
     events:
-      - sqs:
-          arn: !GetAtt RunResultsQueue.Arn
-          batchSize: 1
+      - httpApi:
+          method: POST
+          path: /results
 
 resources:
   Resources:
-    RunResultsQueue:
-      Type: AWS::SQS::Queue
-      Properties:
-        VisibilityTimeout: 60
-        MessageRetentionPeriod: 1209600
-        RedrivePolicy:
-          deadLetterTargetArn: !GetAtt RunResultsDLQ.Arn
-          maxReceiveCount: 3
-
-    RunResultsDLQ:
-      Type: AWS::SQS::Queue
-
     RunResultsTable:
       Type: AWS::DynamoDB::Table
       Properties:
@@ -57,10 +45,8 @@ resources:
             KeyType: HASH
 
   Outputs:
-    RunResultsQueueUrl:
-      Value: !Ref RunResultsQueue
-    RunResultsQueueArn:
-      Value: !GetAtt RunResultsQueue.Arn
+    ResultWebhookUrl:
+      Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/results"
     RunResultsTableName:
       Value: !Ref RunResultsTable
     RunResultsTableArn:

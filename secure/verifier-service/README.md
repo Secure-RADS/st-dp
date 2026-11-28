@@ -6,9 +6,28 @@ Serverless Framework v4, TypeScript. Receives `AlgorithmId` + PCR values from re
 
 - `POST /algorithms` (mTLS domain) - registry-service registers `AlgorithmId` -> PCR0/1/2 at build time.
 - `POST /challenge` (public domain) - sce-unit asks for a single-use nonce before attesting. The row is stored hashed in `AttestationChallengeTable` with a 60 s TTL and is bound to the `algorithmId` and `runId` in the request.
-- `POST /attest` (public domain) - sce-unit submits a real Nitro attestation document (base64 COSE_Sign1 bytes) + `algorithmId` + `runId` + the `challenge` it was issued. The document's `nonce` must equal the challenge, and the challenge is consumed atomically before the PCR check, so a captured document cannot be replayed. After the PCR check, the run is claimed in `RunAttestationTable` with a conditional put, so only the first attestation for a `runId` succeeds; later ones get 409. Verified against the pinned AWS Nitro root cert chain and the registered PCRs; on success, issues a signed access JWT + opaque refresh token (persisted in `AttestationSessionTable`, including `RunId`).
+- `POST /attest` (public domain) - sce-unit submits a real Nitro attestation document (base64 COSE_Sign1 bytes) + `algorithmId` + `runId` + the `challenge` it was issued. The document's `nonce` must equal the challenge, and the challenge is consumed atomically before the PCR check, so a captured document cannot be replayed. After the PCR check, the run is claimed in `RunAttestationTable` with a conditional put, so only the first attestation for a `runId` succeeds; later ones get 409. The attestation document's `public_key` is stored on the `RunAttestationTable` row with `AlgorithmId`; the DC uses it to verify signed run results. Verified against the pinned AWS Nitro root cert chain and the registered PCRs; on success, issues a signed access JWT + opaque refresh token (persisted in `AttestationSessionTable`, including `RunId`).
 - `POST /refresh` (public domain) - exchanges a still-valid refresh token plus its `runId` for a new access JWT, without requiring a fresh attestation document. The `runId` must match the one stored on the session.
+- `GET /runs/{runId}` (public domain) - returns `{runId, algorithmId, publicKey}` for a run that has attested. The DC uses it to verify the enclave's result signature. Public keys are public, so no auth.
 - `GET /.well-known/jwks.json` (public domain) - the ML-DSA-87 public key downstream services use to verify access JWTs locally. Public by definition, no auth.
+
+### Verifying a webhook result
+
+A webhook run delivers this body to the DC:
+
+```json
+{ "runId": "...", "algorithmId": "...", "payload": "<base64>", "signature": "<base64 DER>" }
+```
+
+`payload` decodes to the signed JSON `{runId, algorithmId, status, output, diag?}`. The signature is ECDSA P-384 over SHA-256 of `sce-result-v1\n` followed by the exact payload bytes.
+
+To verify:
+
+1. `GET /runs/{runId}` on the public domain returns `{runId, algorithmId, publicKey}`; `publicKey` is base64 SPKI DER.
+2. Check the signed `runId` and `algorithmId` match the values you expect.
+3. Verify the signature with `publicKey`.
+
+The webhook is the only result delivery path for secure-rads. When the run webhook is result-consumer, it writes `RunResultsTable` and backs `GET /run/{runId}`. A DC-supplied webhook bypasses that table.
 
 ### Access token format (ML-DSA-87 compact JWS)
 

@@ -18,7 +18,7 @@ export interface AttestDeps {
   registered: RegisteredPcrs;
   verifyDocument(raw: Buffer): AttestationDocument;
   consumeChallenge(challenge: string, algorithmId: string, runId: string): Promise<boolean>;
-  claimRunAttestation(algorithmId: string, runId: string): Promise<boolean>;
+  claimRunAttestation(algorithmId: string, runId: string, publicKey: Buffer): Promise<boolean>;
   issueTokens(algorithmId: string, runId: string): Promise<unknown>;
 }
 
@@ -44,6 +44,11 @@ export async function attestRequest(body: AttestBody, deps: AttestDeps): Promise
     return { statusCode: 401, body: `attestation verification failed: ${(err as Error).message}` };
   }
 
+  // The public key is what the DC later verifies signed webhook results against.
+  if (!doc.publicKey || doc.publicKey.length === 0) {
+    return { statusCode: 401, body: "attestation document is missing a public key" };
+  }
+
   const challenge = decodeChallenge(body.challenge);
   if (!challenge || !doc.nonce || doc.nonce.length !== challenge.length || !timingSafeEqual(doc.nonce, challenge)) {
     return {
@@ -64,7 +69,7 @@ export async function attestRequest(body: AttestBody, deps: AttestDeps): Promise
   }
 
   // A run attests once. Claiming after the measurement check keeps a wrong-image request from burning a run.
-  if (!(await deps.claimRunAttestation(body.algorithmId, body.runId))) {
+  if (!(await deps.claimRunAttestation(body.algorithmId, body.runId, doc.publicKey))) {
     return { statusCode: 409, body: "run already attested" };
   }
 

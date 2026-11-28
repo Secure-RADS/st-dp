@@ -12,12 +12,8 @@ ALGORITHM_TABLE = $(shell aws cloudformation describe-stacks --stack-name secure
 	--query "Stacks[0].Outputs[?OutputKey=='AlgorithmTableName'].OutputValue" --output text)
 PDM_MTLS_HOST = $(shell aws cloudformation describe-stacks --stack-name secure-rads-pdm-service-dev --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='PdmMtlsHost'].OutputValue" --output text)
-RUN_RESULTS_QUEUE_ARN = $(shell aws cloudformation describe-stacks --stack-name secure-rads-result-consumer-dev --region $(REGION) \
-	--query "Stacks[0].Outputs[?OutputKey=='RunResultsQueueArn'].OutputValue" --output text)
 RUN_RESULTS_TABLE = $(shell aws cloudformation describe-stacks --stack-name secure-rads-result-consumer-dev --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='RunResultsTableName'].OutputValue" --output text)
-RUN_RESULTS_QUEUE_URL = $(shell aws cloudformation describe-stacks --stack-name secure-rads-result-consumer-dev --region $(REGION) \
-	--query "Stacks[0].Outputs[?OutputKey=='RunResultsQueueUrl'].OutputValue" --output text)
 API_URL = $(shell aws cloudformation describe-stacks --stack-name $(STACK_NAME) --region $(REGION) \
 	--query "Stacks[0].Outputs[?OutputKey=='ExecutionApiUrl'].OutputValue" --output text)
 
@@ -30,8 +26,6 @@ deploy: env-check
 		--param="artifactBucket=$(ARTIFACT_BUCKET)" \
 		--param="algorithmTable=$(ALGORITHM_TABLE)" \
 		--param="pdmMtlsHost=$(PDM_MTLS_HOST)" \
-		--param="runResultsQueueArn=$(RUN_RESULTS_QUEUE_ARN)" \
-		--param="runResultsQueueUrl=$(RUN_RESULTS_QUEUE_URL)" \
 		--param="runResultsTable=$(RUN_RESULTS_TABLE)" \
 		--param="enclaveInstanceType=c6g.large"
 

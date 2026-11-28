@@ -54,7 +54,6 @@ provider:
   environment:
     ALGORITHM_TABLE: ${param:algorithmTable}
     RUN_RESULTS_TABLE: ${param:runResultsTable}
-    RUN_RESULTS_QUEUE_URL: ${param:runResultsQueueUrl}
     # Pinned to match rads EXECUTOR_AMI_ID so both trees boot the same AL2023 arm64 build.
     ENCLAVE_AMI_ID: ${env:SCE_ENCLAVE_AMI_ID}
     ENCLAVE_INSTANCE_TYPE: ${param:enclaveInstanceType, 'c6g.large'}
@@ -127,14 +126,6 @@ resources:
                   Condition:
                     StringEquals:
                       "ec2:ResourceTag/ManagedBy": secure-rads-execution-service
-          - PolicyName: SendRunResult
-            PolicyDocument:
-              Version: "2012-10-17"
-              Statement:
-                - Effect: Allow
-                  Action: sqs:SendMessage
-                  Resource: ${param:runResultsQueueArn}
-
     EnclaveHostInstanceProfile:
       Type: AWS::IAM::InstanceProfile
       Properties:
